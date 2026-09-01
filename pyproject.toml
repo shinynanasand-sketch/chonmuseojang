@@ -1,0 +1,27 @@
+[project]
+name = "chonmuseojang"
+version = "0.1.0"
+description = "체험마을 AI사무장 - 광주전남 농촌체험마을 AI 추천 및 카카오톡 연동 서비스"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "jinja2",
+    "pydantic",
+    "httpx",
+    "python-dotenv",
+    "supabase",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-mock",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

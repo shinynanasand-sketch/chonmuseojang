@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}AI 추천{% endblock %}
+{% block content %}
+<h1>AI 마을 추천</h1>
+<form id="recommend-form">
+  <textarea id="query" rows="3" placeholder="예: 아이와 갈만한 갯벌체험"></textarea>
+  <button type="submit">추천 받기</button>
+</form>
+<div id="results"></div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/recommend.js"></script>
+{% endblock %}

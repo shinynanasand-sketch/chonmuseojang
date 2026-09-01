@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}운영 현황{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+{% block content %}
+<h1>운영 현황</h1>
+<canvas id="village-chart" width="400" height="200"></canvas>
+<div id="summary"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadDashboard() {
+  const res = await fetch('/api/dashboard/summary');
+  const data = await res.json();
+  document.getElementById('summary').textContent = JSON.stringify(data, null, 2);
+  const labels = (data.top_trusted_villages || []).map(v => v.village_name);
+  const scores = (data.top_trusted_villages || []).map(v => v.trust_score);
+  new Chart(document.getElementById('village-chart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: '신뢰도', data: scores }] }
+  });
+}
+loadDashboard();
+</script>
+{% endblock %}

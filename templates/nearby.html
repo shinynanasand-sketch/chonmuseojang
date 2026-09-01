@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}주변정보{% endblock %}
+{% block content %}
+<h1>주변 관광정보</h1>
+<label>마을 ID: <input type="text" id="village-id" value="V001"></label>
+<button id="load-nearby">조회</button>
+<div id="nearby-results"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('load-nearby').addEventListener('click', async () => {
+  const villageId = document.getElementById('village-id').value;
+  const res = await fetch(`/api/nearby?village_id=${encodeURIComponent(villageId)}`);
+  const data = await res.json();
+  document.getElementById('nearby-results').textContent = JSON.stringify(data, null, 2);
+});
+</script>
+{% endblock %}
