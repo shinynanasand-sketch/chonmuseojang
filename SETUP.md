@@ -49,10 +49,12 @@ uv run pytest -v
 
 ## Step 5 — Vercel 배포
 
-[`DEPLOYMENT.md`](DEPLOYMENT.md) 참고:
+저장소: https://github.com/shinynanasand-sketch/chonmuseojang
 
-1. GitHub에 `chonmuseojang` 푸시 (`.env` 제외)
-2. Vercel → New Project → `api/index.py` 진입점
+[`DEPLOYMENT.md`](DEPLOYMENT.md) 및 [`scripts/deploy_vercel.md`](scripts/deploy_vercel.md) 참고:
+
+1. GitHub 저장소: https://github.com/shinynanasand-sketch/chonmuseojang (푸시 완료)
+2. Vercel 프로덕션: https://chonmuseojang.vercel.app
 3. Environment Variables에 `.env` 키 전체 등록
 4. 배포 후 Cron 동기화 수동 1회 테스트
 
