@@ -3,6 +3,16 @@ from fastapi.testclient import TestClient
 
 from main import app
 from services import booking as booking_service
+from services.supabase_client import reset_memory_store
+
+
+@pytest.fixture(autouse=True)
+def isolate_supabase(monkeypatch):
+    """단위 테스트는 실 Supabase가 아닌 인메모리 저장소를 사용한다."""
+    monkeypatch.setattr("services.supabase_client._use_supabase", lambda: False)
+    reset_memory_store()
+    yield
+    reset_memory_store()
 
 
 @pytest.fixture(autouse=True)

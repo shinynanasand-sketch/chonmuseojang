@@ -13,9 +13,11 @@ from pathlib import Path
 import _bootstrap  # noqa: F401
 from dotenv import load_dotenv
 
-load_dotenv()
+_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(_ROOT / ".env")
+load_dotenv(_ROOT / ".env.local", override=False)
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = _ROOT
 SCHEMA = ROOT / "supabase" / "schema.sql"
 SEED = ROOT / "supabase" / "seed.sql"
 
@@ -25,6 +27,7 @@ def _print_manual_instructions() -> int:
     print("Supabase SQL Editor에서 아래 파일을 순서대로 실행하세요:")
     print(f"  1. {SCHEMA}")
     print(f"  2. {SEED}")
+    print(f"  (이미 스키마만 적용된 경우 RLS만: {ROOT / 'supabase' / 'enable_rls.sql'})")
     print("또는 키 입력 후: uv run python scripts/load_demo_seed.py")
     return 1
 

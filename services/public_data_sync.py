@@ -89,7 +89,9 @@ def fetch_from_public_data_api() -> list[dict]:
 
     import httpx
 
-    service_key = _os.getenv("PUBLIC_DATA_SERVICE_KEY", "")
+    service_key = _os.getenv("PUBLIC_DATA_SERVICE_KEY") or _os.getenv(
+        "PUBLIC_DATA_API_KEY", ""
+    )
     endpoint = _os.getenv("PUBLIC_DATA_VILLAGE_ENDPOINT", "")
     if not service_key or not endpoint:
         return []

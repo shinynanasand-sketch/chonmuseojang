@@ -5,10 +5,14 @@ import sys
 
 import _bootstrap  # noqa: F401
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
-load_dotenv()
+_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(_ROOT / ".env")
+load_dotenv(_ROOT / ".env.local", override=False)
 
 from main import app  # noqa: E402
 from services.public_data_sync import sync_village_data

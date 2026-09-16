@@ -5,13 +5,17 @@ import sys
 
 import _bootstrap  # noqa: F401
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()
+_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(_ROOT / ".env")
+load_dotenv(_ROOT / ".env.local", override=False)
 
 REQUIRED_FOR_DB = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]
 OPTIONAL = {
-    "PUBLIC_DATA_SERVICE_KEY": "공공데이터 동기화",
+    "PUBLIC_DATA_SERVICE_KEY": "공공데이터 동기화 (또는 PUBLIC_DATA_API_KEY)",
     "PUBLIC_DATA_VILLAGE_ENDPOINT": "공공데이터 동기화",
     "GEMINI_API_KEY": "AI 추천 (LLM_PROVIDER=gemini)",
     "TOUR_API_SERVICE_KEY": "주변 관광정보",
@@ -28,8 +32,14 @@ def main() -> int:
     else:
         print("Supabase: 설정 완료")
 
+    public_key_ok = bool(
+        os.getenv("PUBLIC_DATA_SERVICE_KEY") or os.getenv("PUBLIC_DATA_API_KEY")
+    )
     for key, purpose in OPTIONAL.items():
-        status = "OK" if os.getenv(key) else "미설정"
+        if key == "PUBLIC_DATA_SERVICE_KEY":
+            status = "OK" if public_key_ok else "미설정"
+        else:
+            status = "OK" if os.getenv(key) else "미설정"
         print(f"  [{status}] {key} - {purpose}")
 
     if missing:

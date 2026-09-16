@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_ROOT = Path(__file__).resolve().parent
+# .env 우선, 없으면 .env.local (로컬 전용) 로드
+load_dotenv(_ROOT / ".env")
+load_dotenv(_ROOT / ".env.local", override=False)
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
 CRON_SECRET = os.getenv("CRON_SECRET", "")

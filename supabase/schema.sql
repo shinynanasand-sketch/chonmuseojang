@@ -88,3 +88,11 @@ CREATE TABLE IF NOT EXISTS sync_logs (
     message TEXT,
     executed_at TIMESTAMP DEFAULT NOW()
 );
+
+-- RLS: anon/authenticated 기본 거부. FastAPI는 service_role로 우회 접근.
+ALTER TABLE public.villages_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
