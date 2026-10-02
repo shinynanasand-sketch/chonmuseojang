@@ -37,17 +37,26 @@ async function loadDashboard() {
   const names = (data.top_trusted_villages || [])
     .map(v => v.village_name)
     .filter(Boolean);
+  const scores = (data.top_trusted_villages || []).map(v => Number(v.trust_score));
+  const tied = scores.length > 0 && scores.every(score => score === scores[0]);
   const summary = document.getElementById('summary');
+  const chart = document.getElementById('village-chart');
   if (!total) {
     summary.textContent = '등록된 마을이 없습니다.';
   } else if (!names.length) {
     summary.textContent = `등록 마을 ${total}곳입니다.`;
+  } else if (tied) {
+    summary.textContent = `등록 마을 ${total}곳입니다. 등급과 후기가 없어 신뢰도는 모두 ${scores[0]}점입니다.`;
   } else {
     summary.textContent = `등록 마을 ${total}곳입니다. 신뢰도가 높은 마을은 ${names.join(', ')}입니다.`;
   }
+  if (!scores.length || tied) {
+    chart.hidden = true;
+    return;
+  }
+  chart.hidden = false;
   const labels = (data.top_trusted_villages || []).map(v => v.village_name);
-  const scores = (data.top_trusted_villages || []).map(v => v.trust_score);
-  new Chart(document.getElementById('village-chart'), {
+  new Chart(chart, {
     type: 'bar',
     data: { labels, datasets: [{ label: '신뢰도', data: scores }] }
   });
