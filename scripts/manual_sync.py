@@ -17,4 +17,4 @@ if __name__ == "__main__":
 
         print(load_demo_seed())
     else:
-        print(sync_village_data(use_demo_fallback=True))
+        print(sync_village_data())

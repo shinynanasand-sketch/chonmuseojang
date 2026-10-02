@@ -1,22 +1,25 @@
-"""카카오 이벤트 API 및 스킬 응답 포맷."""
+"""카카오 스킬 응답 포맷. 이벤트 API 함수는 다음 단계용이며 이번 단계 경로에서 호출하지 않는다."""
 
+import json
 import logging
 import os
 
 import httpx
+from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
 
 def build_skill_response(title: str, description: str) -> dict:
+    """카카오 스킬 응답 (simpleText). 개행 없이 한 줄로 구성."""
+    text = f"{title}. {description}".strip() if description else title
     return {
         "version": "2.0",
         "template": {
             "outputs": [
                 {
-                    "basicCard": {
-                        "title": title,
-                        "description": description,
+                    "simpleText": {
+                        "text": text,
                     }
                 }
             ]
@@ -28,8 +31,17 @@ def build_error_skill_response(message: str) -> dict:
     return build_skill_response("안내", message)
 
 
+def skill_http_response(body: dict) -> Response:
+    """오픈빌더가 파싱하기 쉬운 UTF-8 JSON 원문 응답."""
+    return Response(
+        content=json.dumps(body, ensure_ascii=False),
+        media_type="application/json; charset=utf-8",
+        status_code=200,
+    )
+
+
 def _send_kakao_event_message(receiver_id: str, text: str) -> bool:
-    """카카오 이벤트 API로 사용자에게 메시지를 발송한다 (FR-10)."""
+    """다음 단계의 이벤트 API 발송. 이번 단계 라우터에서는 호출하지 않는다."""
     admin_key = os.getenv("KAKAO_ADMIN_KEY", "")
     event_url = os.getenv(
         "KAKAO_EVENT_API_URL",
@@ -62,7 +74,7 @@ def _send_kakao_event_message(receiver_id: str, text: str) -> bool:
 
 
 def send_kakao_notification_to_owner(village_id: str, message: str) -> None:
-    """대표자에게 이벤트 API 알림. operators.kakao_user_id를 수신자로 사용."""
+    """다음 단계용 운영자 선톡. 이번 단계에서는 호출하지 않는다."""
     from services.supabase_client import get_supabase_client
 
     client = get_supabase_client()
@@ -82,7 +94,7 @@ def send_kakao_notification_to_owner(village_id: str, message: str) -> None:
 
 
 def send_kakao_notification_to_customer(customer_kakao_id: str, message: str) -> None:
-    """여행객에게 결과 알림."""
+    """다음 단계용 관광객 선톡. 이번 단계에서는 호출하지 않는다."""
     if customer_kakao_id:
         _send_kakao_event_message(customer_kakao_id, message)
     else:

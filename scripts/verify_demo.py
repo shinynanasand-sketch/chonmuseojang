@@ -59,7 +59,7 @@ def main() -> int:
 
     r = client.get(
         "/api/operator/dashboard",
-        headers={"Authorization": "Bearer kakao_owner_v001"},
+        headers={"Authorization": "Bearer owner_v001"},
     )
     all_ok &= check("운영자 A 대시보드", r.status_code == 200)
 

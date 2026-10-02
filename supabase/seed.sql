@@ -19,12 +19,17 @@ ON CONFLICT (village_id) DO UPDATE SET
     trust_score = EXCLUDED.trust_score,
     synced_at = NOW();
 
-INSERT INTO operators (village_id, kakao_user_id, login_id, display_name, is_active)
+-- 동기화는 registration_code를 덮어쓰지 않는다. 비어 있을 때만 시연 코드를 넣는다.
+UPDATE villages_cache
+SET registration_code = 'GB-001'
+WHERE village_id = 'V001' AND registration_code IS NULL;
+
+INSERT INTO operators (village_id, kakao_user_id, login_id, operator_name, is_active)
 VALUES
     ('V001', 'kakao_owner_v001', 'owner_v001', 'V001 운영자', TRUE),
     ('V002', 'kakao_owner_v002', 'owner_v002', 'V002 운영자', TRUE)
 ON CONFLICT (village_id) DO UPDATE SET
     kakao_user_id = EXCLUDED.kakao_user_id,
     login_id = EXCLUDED.login_id,
-    display_name = EXCLUDED.display_name,
+    operator_name = EXCLUDED.operator_name,
     is_active = EXCLUDED.is_active;

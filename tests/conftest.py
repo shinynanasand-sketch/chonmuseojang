@@ -74,6 +74,7 @@ def sample_operator_a():
         "operator_id": 1,
         "village_id": "V001",
         "kakao_user_id": "kakao_owner_v001",
+        "operator_name": "갯벌마을 운영자",
         "login_id": "owner_v001",
         "is_active": True,
     }
@@ -85,6 +86,7 @@ def sample_operator_b():
         "operator_id": 2,
         "village_id": "V002",
         "kakao_user_id": "kakao_owner_v002",
+        "operator_name": "무등마을 운영자",
         "login_id": "owner_v002",
         "is_active": True,
     }

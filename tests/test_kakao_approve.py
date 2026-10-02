@@ -30,13 +30,13 @@ def test_reject_updates_booking_status(test_client, booking_for_approve):
 
 
 @patch("services.kakao_client.send_kakao_notification_to_customer")
-def test_approve_notifies_customer(mock_notify, test_client, booking_for_approve):
+def test_approve_does_not_push_customer(mock_notify, test_client, booking_for_approve):
     payload = {
         "userRequest": {"utterance": "승인", "user": {"id": "owner_test"}},
         "action": {"params": {"booking_id": str(booking_for_approve["booking_id"]), "decision": "approve"}},
     }
     test_client.post("/kakao/approve", json=payload)
-    assert mock_notify.called
+    assert mock_notify.called is False
 
 
 def test_approve_with_nonexistent_booking_id_does_not_crash(test_client):

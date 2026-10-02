@@ -1,7 +1,24 @@
-body { font-family: sans-serif; margin: 0; padding: 0; }
-header { background: #2d6a4f; padding: 1rem; }
-header a { color: white; margin-right: 1rem; text-decoration: none; }
+body { font-family: sans-serif; margin: 0; padding: 0; color: #1b1b1b; }
+header { background: #2d6a4f; padding: 0.75rem 1rem; }
+header nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; }
+header a { color: white; text-decoration: none; }
 main { padding: 1.5rem; max-width: 960px; margin: 0 auto; }
-textarea { width: 100%; margin-bottom: 0.5rem; }
+textarea, input[type="search"] { width: 100%; box-sizing: border-box; }
+textarea { margin-bottom: 0.5rem; }
 button { padding: 0.5rem 1rem; background: #2d6a4f; color: white; border: none; cursor: pointer; }
-#results .card { border: 1px solid #ddd; padding: 1rem; margin: 0.5rem 0; border-radius: 4px; }
+.filter-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin-bottom: 1rem; }
+.filter-row label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9rem; }
+.filter-row input[type="search"] { min-width: 12rem; }
+select, input[type="search"] { padding: 0.4rem; }
+.village-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; }
+#results .card, .village-card { border: 1px solid #ddd; padding: 1rem; border-radius: 4px; background: #fff; }
+.village-card { margin: 0; }
+.village-card h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+#results .card { margin: 0.5rem 0; }
+.card-links { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; }
+.card-links a { color: #1b4332; }
+.badge { display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.35rem; border-radius: 4px; background: #e9ecef; font-size: 0.75rem; font-weight: 600; }
+.muted { color: #555; }
+#map { height: 500px; }
+.sigungu-counts { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0; list-style: none; }
+.sigungu-counts li { border: 1px solid #ddd; border-radius: 4px; padding: 0.35rem 0.6rem; }

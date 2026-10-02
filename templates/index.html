@@ -2,5 +2,103 @@
 {% block title %}홈 - 체험마을 AI사무장{% endblock %}
 {% block content %}
 <h1>체험마을 AI사무장</h1>
-<p>광주·전남 농촌체험마을 AI 추천 및 운영 지원 서비스</p>
+<p>광주·전남 농촌체험마을을 시군과 이름으로 찾아 보세요.</p>
+<form id="village-filter" class="filter-row">
+  <label>시군
+    <select id="sigungu-filter">
+      <option value="">전체</option>
+    </select>
+  </label>
+  <label>이름
+    <input id="name-filter" type="search" placeholder="마을 이름">
+  </label>
+</form>
+<p id="village-count" class="muted">마을 목록을 불러오는 중…</p>
+<section id="village-list" class="village-grid" aria-live="polite"></section>
+{% endblock %}
+{% block scripts %}
+<script>
+let allVillages = [];
+
+function text(value, fallback) {
+  return value ? String(value) : fallback;
+}
+
+function shortProgram(value) {
+  const raw = text(value, '').trim();
+  if (!raw) return '프로그램 미상';
+  const head = raw.split('+')[0].trim() || raw;
+  return head.length > 40 ? `${head.slice(0, 40)}…` : head;
+}
+
+function matches(village) {
+  const sigungu = document.getElementById('sigungu-filter').value;
+  const name = document.getElementById('name-filter').value.trim();
+  if (sigungu && village.sigungu !== sigungu) return false;
+  if (name && !text(village.village_name, '').includes(name)) return false;
+  return true;
+}
+
+function renderVillages() {
+  const root = document.getElementById('village-list');
+  const count = document.getElementById('village-count');
+  const visible = allVillages.filter(matches);
+  root.replaceChildren();
+  count.textContent = visible.length
+    ? `마을 ${visible.length}곳`
+    : '조건에 맞는 마을이 없습니다.';
+  visible.forEach((village) => {
+    const card = document.createElement('article');
+    card.className = 'village-card';
+    const title = document.createElement('h2');
+    title.textContent = text(village.village_name, '이름 없음');
+    const meta = document.createElement('p');
+    meta.textContent = `${text(village.sigungu, '시군구 미상')} · ${shortProgram(village.program_type)}`;
+    const links = document.createElement('p');
+    links.className = 'card-links';
+    const nearby = document.createElement('a');
+    nearby.href = `/nearby?village_id=${encodeURIComponent(village.village_id || '')}`;
+    nearby.textContent = '주변정보';
+    const mapLink = document.createElement('a');
+    mapLink.href = `/map?sigungu=${encodeURIComponent(village.sigungu || '')}`;
+    mapLink.textContent = '지도';
+    links.append(nearby, mapLink);
+    card.append(title, meta, links);
+    root.append(card);
+  });
+}
+
+function fillSigunguOptions() {
+  const select = document.getElementById('sigungu-filter');
+  const names = [...new Set(allVillages.map((village) => village.sigungu).filter(Boolean))].sort();
+  names.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.append(option);
+  });
+}
+
+async function loadVillages() {
+  const count = document.getElementById('village-count');
+  try {
+    const res = await fetch('/api/villages');
+    const data = await res.json();
+    allVillages = data.villages || [];
+    if (!allVillages.length) {
+      count.textContent = '등록된 마을이 없습니다. 시드 데이터를 먼저 넣어 주세요.';
+      return;
+    }
+    fillSigunguOptions();
+    renderVillages();
+  } catch (err) {
+    count.textContent = '마을 목록을 불러오지 못했습니다.';
+  }
+}
+
+document.getElementById('sigungu-filter').addEventListener('change', renderVillages);
+document.getElementById('name-filter').addEventListener('input', renderVillages);
+document.getElementById('village-filter').addEventListener('submit', (event) => event.preventDefault());
+loadVillages();
+</script>
 {% endblock %}

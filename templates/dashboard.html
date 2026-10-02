@@ -5,15 +5,46 @@
 {% endblock %}
 {% block content %}
 <h1>운영 현황</h1>
+<p id="summary" class="muted">요약을 불러오는 중…</p>
+<h2>시군별 마을 수</h2>
+<ul id="sigungu-counts" class="sigungu-counts"></ul>
 <canvas id="village-chart" width="400" height="200"></canvas>
-<div id="summary"></div>
 {% endblock %}
 {% block scripts %}
 <script>
+async function loadSigunguCounts() {
+  const list = document.getElementById('sigungu-counts');
+  const res = await fetch('/api/villages');
+  const data = await res.json();
+  const counts = new Map();
+  (data.villages || []).forEach((village) => {
+    const name = village.sigungu || '시군구 미상';
+    counts.set(name, (counts.get(name) || 0) + 1);
+  });
+  list.replaceChildren();
+  [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).forEach(([name, count]) => {
+    const item = document.createElement('li');
+    item.textContent = `${name} ${count}곳`;
+    list.append(item);
+  });
+}
+
 async function loadDashboard() {
+  loadSigunguCounts();
   const res = await fetch('/api/dashboard/summary');
   const data = await res.json();
-  document.getElementById('summary').textContent = JSON.stringify(data, null, 2);
+  const total = data.total_villages || 0;
+  const names = (data.top_trusted_villages || [])
+    .map(v => v.village_name)
+    .filter(Boolean);
+  const summary = document.getElementById('summary');
+  if (!total) {
+    summary.textContent = '등록된 마을이 없습니다.';
+  } else if (!names.length) {
+    summary.textContent = `등록 마을 ${total}곳입니다.`;
+  } else {
+    summary.textContent = `등록 마을 ${total}곳입니다. 신뢰도가 높은 마을은 ${names.join(', ')}입니다.`;
+  }
   const labels = (data.top_trusted_villages || []).map(v => v.village_name);
   const scores = (data.top_trusted_villages || []).map(v => v.trust_score);
   new Chart(document.getElementById('village-chart'), {

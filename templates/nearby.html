@@ -2,17 +2,89 @@
 {% block title %}주변정보{% endblock %}
 {% block content %}
 <h1>주변 관광정보</h1>
-<label>마을 ID: <input type="text" id="village-id" value="V001"></label>
-<button id="load-nearby">조회</button>
+<label for="village-id">마을</label>
+<select id="village-id"></select>
+<button id="load-nearby" type="button">조회</button>
 <div id="nearby-results"></div>
 {% endblock %}
 {% block scripts %}
 <script>
+function renderNearby(data) {
+  const box = document.createElement('div');
+  const attractions = data.attractions || [];
+  const restaurants = data.restaurants || [];
+  if (!attractions.length && !restaurants.length) {
+    const p = document.createElement('p');
+    p.textContent = data.status === 'unavailable'
+      ? '정보를 불러오지 못했습니다.'
+      : '주변에 등록된 관광정보가 없습니다.';
+    box.append(p);
+    return box;
+  }
+  const list = document.createElement('ul');
+  [...attractions, ...restaurants].forEach((item) => {
+    const li = document.createElement('li');
+    const title = item.title || '이름 없음';
+    const kind = item.content_type ? `${item.content_type} · ` : '';
+    li.textContent = item.addr ? `${kind}${title} · ${item.addr}` : `${kind}${title}`;
+    list.append(li);
+  });
+  box.append(list);
+  return box;
+}
+
+async function loadVillageOptions() {
+  const select = document.getElementById('village-id');
+  const res = await fetch('/api/villages');
+  const data = await res.json();
+  const villages = data.villages || [];
+  if (!villages.length) {
+    select.replaceChildren();
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '마을 없음';
+    select.append(option);
+    return;
+  }
+  select.replaceChildren();
+  const bySigungu = new Map();
+  villages.forEach((village) => {
+    const key = village.sigungu || '시군구 미상';
+    if (!bySigungu.has(key)) bySigungu.set(key, []);
+    bySigungu.get(key).push(village);
+  });
+  [...bySigungu.keys()].sort().forEach((sigungu) => {
+    const group = document.createElement('optgroup');
+    group.label = sigungu;
+    bySigungu.get(sigungu).forEach((village) => {
+      const option = document.createElement('option');
+      option.value = village.village_id || '';
+      option.textContent = village.village_name || village.village_id || '이름 없음';
+      group.append(option);
+    });
+    select.append(group);
+  });
+  const requested = new URLSearchParams(location.search).get('village_id') || '';
+  if (requested && [...select.options].some((option) => option.value === requested)) {
+    select.value = requested;
+    document.getElementById('load-nearby').click();
+  }
+}
+
 document.getElementById('load-nearby').addEventListener('click', async () => {
   const villageId = document.getElementById('village-id').value;
+  const box = document.getElementById('nearby-results');
+  if (!villageId) {
+    const p = document.createElement('p');
+    p.textContent = '등록된 마을이 없습니다. 시드 데이터를 먼저 넣어 주세요.';
+    box.replaceChildren(p);
+    return;
+  }
   const res = await fetch(`/api/nearby?village_id=${encodeURIComponent(villageId)}`);
   const data = await res.json();
-  document.getElementById('nearby-results').textContent = JSON.stringify(data, null, 2);
+  box.replaceChildren(renderNearby(data));
 });
+
+loadVillageOptions();
 </script>
 {% endblock %}

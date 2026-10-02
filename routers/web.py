@@ -8,7 +8,7 @@ from models.schemas import RecommendRequest
 from services.booking import get_public_dashboard_summary
 from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
-from services.supabase_client import list_villages
+from services.supabase_client import list_public_villages
 from services.tourapi import get_nearby_for_village
 from services.trust_score import calculate_trust_score
 
@@ -52,7 +52,7 @@ async def dashboard_page(request: Request):
 
 @router.post("/api/recommend")
 async def api_recommend(body: RecommendRequest):
-    villages = list_villages()
+    villages = list_public_villages()
     results = recommend_villages(body.query, villages)
     if not results:
         return {
@@ -78,7 +78,7 @@ async def api_recommend(body: RecommendRequest):
 
 @router.get("/api/villages")
 async def api_villages(sigungu: str | None = None, program_type: str | None = None):
-    villages = list_villages(sigungu=sigungu, program_type=program_type)
+    villages = list_public_villages(sigungu=sigungu, program_type=program_type)
     return {"status": "success", "count": len(villages), "villages": villages}
 
 

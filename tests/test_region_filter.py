@@ -31,6 +31,16 @@ def test_filter_excludes_jeju_even_with_similar_words(sample_raw_village_rows_ne
     assert "V005" not in village_ids
 
 
+def test_filter_excludes_other_city_with_same_district_name():
+    rows = [
+        {"village_id": "PD_DAEJEON", "sido": "대전광역시", "sigungu": "동구"},
+        {"village_id": "PD_GWANGJU", "sido": "광주광역시", "sigungu": "동구"},
+    ]
+    village_ids = [row["village_id"] for row in filter_gwangju_jeonnam(rows)]
+    assert "PD_DAEJEON" not in village_ids
+    assert "PD_GWANGJU" in village_ids
+
+
 def test_filter_returns_empty_list_for_empty_input():
     result = filter_gwangju_jeonnam([])
     assert result == []

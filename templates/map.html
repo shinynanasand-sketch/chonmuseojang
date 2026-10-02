@@ -2,12 +2,22 @@
 {% block title %}마을 지도{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 {% endblock %}
 {% block content %}
 <h1>마을 지도</h1>
-<div id="map" style="height: 500px;"></div>
+<form class="filter-row">
+  <label>시군
+    <select id="sigungu-filter">
+      <option value="">전체</option>
+    </select>
+  </label>
+</form>
+<div id="map"></div>
 {% endblock %}
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="/static/js/map.js"></script>
 {% endblock %}

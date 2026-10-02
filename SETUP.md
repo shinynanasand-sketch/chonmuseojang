@@ -28,6 +28,8 @@ Supabase 대시보드 → Project Settings → API → `service_role` (secret)
 [`supabase/enable_rls.sql`](supabase/enable_rls.sql)을 SQL Editor에서 한 번 실행하세요.  
 (`Run without RLS`로 테이블을 만든 경우. 앱은 `service_role`이라 동작은 그대로입니다.)
 
+**확인:** Advisor Refresh 후 RLS Disabled 0건이면 통과. 클립보드에 SQL을 다시 복사하려면 `enable_rls.sql`을 연 뒤 전체 복사 → Run.
+
 또는 로컬 시드 (인메모리 또는 Supabase 연결 시):
 
 ```powershell
@@ -68,4 +70,9 @@ uv run pytest -v
 
 ## Step 6 — 카카오 실연동
 
-[`KAKAO_SETUP.md`](KAKAO_SETUP.md) 참고
+[`KAKAO_SETUP.md`](KAKAO_SETUP.md) 참고 (프로덕션 웹훅 URL·체크리스트·검증 스크립트 포함)
+
+```powershell
+uv run python scripts/push_kakao_env.py
+uv run python scripts/verify_kakao_webhooks.py --base-url https://chonmuseojang.vercel.app
+```

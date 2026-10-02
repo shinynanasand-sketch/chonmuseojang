@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS villages_cache (
     homepage_url TEXT,
     grade TEXT,
     trust_score NUMERIC DEFAULT 0,
+    registration_code TEXT,
     synced_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -26,12 +27,12 @@ CREATE INDEX IF NOT EXISTS idx_villages_program_type ON villages_cache(program_t
 CREATE TABLE IF NOT EXISTS operators (
     operator_id SERIAL PRIMARY KEY,
     village_id TEXT NOT NULL UNIQUE REFERENCES villages_cache(village_id),
-    kakao_user_id TEXT UNIQUE,
+    kakao_user_id TEXT NOT NULL UNIQUE,
     login_id TEXT UNIQUE,
     password_hash TEXT,
-    display_name TEXT,
+    operator_name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT NOW(),
+    registered_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_login_at TIMESTAMP
 );
 

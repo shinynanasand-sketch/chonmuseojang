@@ -62,11 +62,38 @@ def list_bookings_for_village(village_id: str) -> list[dict]:
     return [b for b in _bookings if b["village_id"] == village_id]
 
 
+def list_bookings_for_operator(user_id: str) -> list[dict]:
+    """운영자 발화 `예약 현황`. 관광객이면 호출하지 않는다."""
+    from services.auth import scoped_village_id
+
+    return list_bookings_for_village(scoped_village_id(user_id))
+
+
+def list_my_bookings(user_id: str) -> list[dict]:
+    """관광객 발화 `내 예약`. customer_kakao_id가 요청자인 행만."""
+    return [b for b in _bookings if b.get("customer_kakao_id") == user_id]
+
+
+_STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
+
+
+def format_booking_lines(rows: list[dict]) -> str:
+    if not rows:
+        return "예약이 없습니다."
+    parts = []
+    for row in rows:
+        label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
+        parts.append(
+            f"{row['booking_id']}번 {label} {row.get('visit_date')} {row.get('num_people')}명"
+        )
+    return " ".join(parts)
+
+
 def get_public_dashboard_summary() -> dict:
-    from services.supabase_client import list_villages
+    from services.supabase_client import list_public_villages
     from services.trust_score import calculate_trust_score
 
-    villages = list_villages()
+    villages = list_public_villages()
     top = sorted(
         [
             {

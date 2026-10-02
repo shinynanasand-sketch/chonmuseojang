@@ -38,6 +38,8 @@ def main() -> int:
     for key, purpose in OPTIONAL.items():
         if key == "PUBLIC_DATA_SERVICE_KEY":
             status = "OK" if public_key_ok else "미설정"
+        elif key == "TOUR_API_SERVICE_KEY":
+            status = "OK" if os.getenv(key) or public_key_ok else "미설정"
         else:
             status = "OK" if os.getenv(key) else "미설정"
         print(f"  [{status}] {key} - {purpose}")
