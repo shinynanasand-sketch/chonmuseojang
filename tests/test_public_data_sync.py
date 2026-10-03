@@ -215,13 +215,11 @@ def test_fetch_grade_rows_reads_korean_columns(monkeypatch):
     monkeypatch.setenv("PUBLIC_DATA_SERVICE_KEY", "test-key")
     monkeypatch.setenv("PUBLIC_DATA_GRADE_ENDPOINT", "https://example.test/grade")
     payload = {
-        "header": {"resultCode": "00"},
-        "body": {
-            "items": {"item": [{"마을명": "태인마을", "시군": "해남군"}]},
-            "numOfRows": 100,
-            "pageNo": 1,
-            "totalCount": 1,
-        },
+        "page": 1,
+        "perPage": 100,
+        "totalCount": 1,
+        "currentCount": 1,
+        "data": [{"마을명": "태인마을", "시군": "해남군"}],
     }
 
     class _Response:
@@ -241,7 +239,9 @@ def test_fetch_grade_rows_reads_korean_columns(monkeypatch):
         def get(self, endpoint, params):
             assert endpoint == "https://example.test/grade"
             assert params["serviceKey"] == "test-key"
-            assert params["type"] == "json"
+            assert params["page"] == 1
+            assert params["perPage"] == 100
+            assert params["returnType"] == "JSON"
             return _Response()
 
     with patch("services.public_data_sync.httpx.Client", return_value=_Client()):

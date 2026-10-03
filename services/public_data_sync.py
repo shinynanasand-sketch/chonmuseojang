@@ -208,8 +208,21 @@ def _unwrap_grade_payload(payload: object) -> object:
     return payload
 
 
+def _grade_page_total(payload: dict, fetched: int) -> int:
+    """오픈API 자동변환 응답은 totalCount가 본문에 있다."""
+    if payload.get("totalCount") not in (None, ""):
+        try:
+            return int(payload["totalCount"])
+        except (TypeError, ValueError):
+            pass
+    return _page_total(payload, fetched)
+
+
 def fetch_grade_rows() -> tuple[list[dict] | None, str]:
-    """으뜸촌 OpenAPI 행을 가져온다. 주소가 없거나 호출이 실패하면 생략한다."""
+    """으뜸촌 OpenAPI 행을 가져온다. 주소가 없거나 호출이 실패하면 생략한다.
+
+    15117119는 api.odcloud.kr 명세라 page, perPage, returnType을 쓴다.
+    """
     endpoint = os.getenv("PUBLIC_DATA_GRADE_ENDPOINT", "").strip()
     service_key = _service_key()
     if not service_key or not endpoint:
@@ -224,9 +237,9 @@ def fetch_grade_rows() -> tuple[list[dict] | None, str]:
                     endpoint,
                     params={
                         "serviceKey": service_key,
-                        "pageNo": page,
-                        "numOfRows": page_size,
-                        "type": "json",
+                        "page": page,
+                        "perPage": page_size,
+                        "returnType": "JSON",
                     },
                 )
                 response.raise_for_status()
@@ -237,16 +250,17 @@ def fetch_grade_rows() -> tuple[list[dict] | None, str]:
                 if not isinstance(payload, dict):
                     return None, _GRADE_SKIPPED
                 header = payload.get("header") or {}
-                code = str(header.get("resultCode", "00"))
-                if code not in ("00", "0"):
-                    return None, _GRADE_SKIPPED
+                if header:
+                    code = str(header.get("resultCode", "00"))
+                    if code not in ("00", "0"):
+                        return None, _GRADE_SKIPPED
                 batch = _extract_items(payload)
                 if not batch:
                     if not collected:
                         return None, _GRADE_SKIPPED
                     break
                 collected.extend(batch)
-                total = _page_total(payload, len(collected))
+                total = _grade_page_total(payload, len(collected))
                 if page * page_size >= total:
                     break
     except Exception:
