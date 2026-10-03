@@ -1,6 +1,20 @@
 import hashlib
+import os
+
+import httpx
 
 from config import TARGET_SIDO_NAMES, TARGET_SIGUNGU_LIST
+
+_GRADE_SKIPPED = "등급 정보를 생략했습니다."
+_GRADE_NAME_KEYS = (
+    "village_name",
+    "마을명",
+    "exprnVilageNm",
+    "vilageNm",
+    "expVillageNm",
+    "villageNm",
+)
+_GRADE_SIGUNGU_KEYS = ("sigungu", "시군", "시군구", "시군구명", "signguNm", "sggNm")
 
 # 전국농어촌체험휴양마을표준데이터 (data.go.kr 15013113) 응답 키
 FIELD_ALIASES: dict[str, str] = {
@@ -142,19 +156,110 @@ def _page_total(payload: dict, fetched: int) -> int:
     return fetched
 
 
-def fetch_from_public_data_api() -> list[dict]:
-    """공공데이터 OpenAPI에서 마을 목록을 가져온다."""
-    import os as _os
-
-    import httpx
-
-    service_key = (
-        _os.getenv("PUBLIC_DATA_SERVICE_KEY")
-        or _os.getenv("PUBLIC_DATA_API_KEY")
-        or _os.getenv("DATA_GO_KR_SERVICE_KEY")
+def _service_key() -> str:
+    return (
+        os.getenv("PUBLIC_DATA_SERVICE_KEY")
+        or os.getenv("PUBLIC_DATA_API_KEY")
+        or os.getenv("DATA_GO_KR_SERVICE_KEY")
         or ""
     )
-    endpoint = _os.getenv("PUBLIC_DATA_VILLAGE_ENDPOINT", "")
+
+
+def _compact(value: object) -> str:
+    return "".join(str(value or "").split())
+
+
+def _first_text(row: dict, keys: tuple[str, ...]) -> str:
+    for key in keys:
+        value = row.get(key)
+        if value not in (None, ""):
+            return str(value)
+    return ""
+
+
+def _grade_match_key(sigungu: str, village_name: str) -> str:
+    return f"{_compact(sigungu)}|{_compact(village_name)}"
+
+
+def apply_grade_matches(rows: list[dict], grade_rows: list[dict]) -> list[dict]:
+    """시군구와 마을명이 같은 행만 으뜸촌으로 표시한다."""
+    keys: set[str] = set()
+    for grade in grade_rows:
+        name = _first_text(grade, _GRADE_NAME_KEYS)
+        sigungu = _first_text(grade, _GRADE_SIGUNGU_KEYS)
+        if name and sigungu:
+            keys.add(_grade_match_key(sigungu, name))
+    merged: list[dict] = []
+    for row in rows:
+        item = dict(row)
+        name = str(item.get("village_name") or "")
+        sigungu = str(item.get("sigungu") or "")
+        if name and sigungu and _grade_match_key(sigungu, name) in keys:
+            item["grade"] = "으뜸촌"
+        else:
+            item["grade"] = None
+        merged.append(item)
+    return merged
+
+
+def _unwrap_grade_payload(payload: object) -> object:
+    if isinstance(payload, dict) and isinstance(payload.get("response"), dict):
+        return payload["response"]
+    return payload
+
+
+def fetch_grade_rows() -> tuple[list[dict] | None, str]:
+    """으뜸촌 OpenAPI 행을 가져온다. 주소가 없거나 호출이 실패하면 생략한다."""
+    endpoint = os.getenv("PUBLIC_DATA_GRADE_ENDPOINT", "").strip()
+    service_key = _service_key()
+    if not service_key or not endpoint:
+        return None, _GRADE_SKIPPED
+
+    page_size = 100
+    collected: list[dict] = []
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            for page in range(1, 11):
+                response = client.get(
+                    endpoint,
+                    params={
+                        "serviceKey": service_key,
+                        "pageNo": page,
+                        "numOfRows": page_size,
+                        "type": "json",
+                    },
+                )
+                response.raise_for_status()
+                payload = _unwrap_grade_payload(response.json())
+                if isinstance(payload, list):
+                    collected.extend(row for row in payload if isinstance(row, dict))
+                    break
+                if not isinstance(payload, dict):
+                    return None, _GRADE_SKIPPED
+                header = payload.get("header") or {}
+                code = str(header.get("resultCode", "00"))
+                if code not in ("00", "0"):
+                    return None, _GRADE_SKIPPED
+                batch = _extract_items(payload)
+                if not batch:
+                    if not collected:
+                        return None, _GRADE_SKIPPED
+                    break
+                collected.extend(batch)
+                total = _page_total(payload, len(collected))
+                if page * page_size >= total:
+                    break
+    except Exception:
+        return None, _GRADE_SKIPPED
+    if not collected:
+        return None, _GRADE_SKIPPED
+    return collected, ""
+
+
+def fetch_from_public_data_api() -> list[dict]:
+    """공공데이터 OpenAPI에서 마을 목록을 가져온다."""
+    service_key = _service_key()
+    endpoint = os.getenv("PUBLIC_DATA_VILLAGE_ENDPOINT", "")
     if not service_key or not endpoint:
         return []
 
@@ -194,9 +299,12 @@ def fetch_from_public_data_api() -> list[dict]:
     return [normalize_public_data_row(row) for row in collected]
 
 
-def merge_with_grade_info(rows: list[dict]) -> list[dict]:
-    """보조 등급 데이터 병합 (현재는 원본 그대로 반환)."""
-    return rows
+def merge_with_grade_info(rows: list[dict]) -> tuple[list[dict], str]:
+    """으뜸촌 등급을 마을명·시군구로 병합한다. 실패하면 마을 목록은 유지하고 등급은 비운다."""
+    fetched, message = fetch_grade_rows()
+    if fetched is None:
+        return [dict(row) for row in rows], message
+    return apply_grade_matches(rows, fetched), ""
 
 
 def upsert_to_supabase(rows: list[dict]) -> None:
@@ -235,14 +343,13 @@ def _stored_has_real_villages() -> bool:
 
 
 def _with_trust_scores(rows: list[dict]) -> list[dict]:
-    """점수가 비어 있으면 신뢰도를 계산해 채운다. 이미 있는 점수는 유지한다."""
+    """이번 동기화 결과로 신뢰도를 다시 계산한다."""
     from services.trust_score import calculate_trust_score
 
     scored: list[dict] = []
     for row in rows:
         item = dict(row)
-        if not item.get("trust_score"):
-            item["trust_score"] = calculate_trust_score(item)
+        item["trust_score"] = calculate_trust_score(item)
         scored.append(item)
     return scored
 
@@ -258,7 +365,8 @@ def sync_village_data(use_demo_fallback: bool = False) -> dict:
             raw_rows = list(DEMO_VILLAGES)
             source = "demo_seed_fallback"
         filtered_rows = filter_gwangju_jeonnam(raw_rows)
-        enriched_rows = _with_trust_scores(merge_with_grade_info(filtered_rows))
+        graded_rows, grade_message = merge_with_grade_info(filtered_rows)
+        enriched_rows = _with_trust_scores(graded_rows)
         by_id: dict[str, dict] = {}
         for row in enriched_rows:
             village_id = row.get("village_id")
@@ -272,6 +380,7 @@ def sync_village_data(use_demo_fallback: bool = False) -> dict:
             total_fetched=len(raw_rows),
             total_filtered=len(filtered_rows),
             status="success",
+            message=grade_message,
         )
         return {
             "status": "success",

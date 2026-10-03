@@ -45,8 +45,10 @@ async function loadDashboard() {
     summary.textContent = '등록된 마을이 없습니다.';
   } else if (!names.length) {
     summary.textContent = `등록 마을 ${total}곳입니다.`;
-  } else if (tied) {
+  } else if (tied && scores[0] === 40) {
     summary.textContent = `등록 마을 ${total}곳입니다. 등급과 후기가 없어 신뢰도는 모두 ${scores[0]}점입니다.`;
+  } else if (tied) {
+    summary.textContent = `등록 마을 ${total}곳입니다. 신뢰도 상위가 ${scores[0]}점으로 같습니다.`;
   } else {
     summary.textContent = `등록 마을 ${total}곳입니다. 신뢰도가 높은 마을은 ${names.join(', ')}입니다.`;
   }
