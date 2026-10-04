@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}내 마을{% endblock %}
+{% block content %}
+<h1>내 마을</h1>
+<form id="operator-login" class="filter-row">
+  <label>
+    로그인 아이디
+    <input type="text" name="login_id" id="login-id" autocomplete="username">
+  </label>
+  <button type="submit">조회</button>
+</form>
+<p id="operator-status" class="muted">로그인 아이디를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
+<h2>예약</h2>
+<div id="booking-list"></div>
+<h2>후기</h2>
+<div id="review-list"></div>
+<h2>홍보문구</h2>
+<form id="content-form">
+  <label>
+    짧은 설명
+    <textarea name="description" id="description" rows="3"></textarea>
+  </label>
+  <button type="submit">홍보문구 만들기</button>
+</form>
+<p id="content-status" class="muted">설명을 적으면 이 마을 소개글과 SNS 문구를 만듭니다.</p>
+<div id="content-list"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const TOKEN_KEY = "operator_login_id";
+const STATUS_LABEL = { pending: "대기", confirmed: "승인", rejected: "거절" };
+
+function fillList(element, rows, emptyText, render) {
+  element.replaceChildren();
+  if (!rows.length) {
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = emptyText;
+    element.append(note);
+    return;
+  }
+  rows.forEach((row) => {
+    const card = document.createElement("article");
+    card.className = "village-card";
+    card.textContent = render(row);
+    element.append(card);
+  });
+}
+
+async function loadOperator(event) {
+  if (event) event.preventDefault();
+  const token = document.getElementById("login-id").value.trim();
+  const status = document.getElementById("operator-status");
+  const bookings = document.getElementById("booking-list");
+  const reviews = document.getElementById("review-list");
+  if (!token) {
+    status.textContent = "로그인 아이디를 입력해 주세요.";
+    bookings.replaceChildren();
+    reviews.replaceChildren();
+    return;
+  }
+  sessionStorage.setItem(TOKEN_KEY, token);
+  const response = await fetch("/api/operator/dashboard", {
+    headers: { Authorization: "Bearer " + token },
+  });
+  if (response.status === 401) {
+    status.textContent = "운영자 인증이 필요합니다.";
+    bookings.replaceChildren();
+    reviews.replaceChildren();
+    return;
+  }
+  if (!response.ok) {
+    status.textContent = "마을 정보를 불러오지 못했습니다.";
+    return;
+  }
+  const data = await response.json();
+  const pending = data.pending_bookings || 0;
+  status.textContent = `마을 ${data.village_id} · 예약 ${data.total_bookings || 0}건 · 대기 ${pending}건`;
+  fillList(
+    bookings,
+    data.recent_bookings || [],
+    "예약이 없습니다.",
+    (row) => {
+      const label = STATUS_LABEL[row.status] || row.status || "";
+      return `${row.booking_id}번 ${label} ${row.visit_date || ""} ${row.num_people || 0}명`;
+    },
+  );
+  fillList(
+    reviews,
+    data.recent_reviews || [],
+    "후기가 없습니다.",
+    (row) => `${row.rating || "-"}점 ${row.comment || ""}`.trim(),
+  );
+  loadContents(token);
+}
+
+async function loadContents(token) {
+  const list = document.getElementById("content-list");
+  const response = await fetch("/api/operator/contents", {
+    headers: { Authorization: "Bearer " + token },
+  });
+  if (!response.ok) {
+    list.replaceChildren();
+    return;
+  }
+  const data = await response.json();
+  fillList(
+    list,
+    data.contents || [],
+    "만든 문구가 없습니다.",
+    (row) => `${row.content_type} ${row.body || ""}`.trim(),
+  );
+}
+
+async function createContent(event) {
+  event.preventDefault();
+  const token = document.getElementById("login-id").value.trim();
+  const status = document.getElementById("content-status");
+  const description = document.getElementById("description").value.trim();
+  if (!token) {
+    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    return;
+  }
+  if (!description) {
+    status.textContent = "짧은 설명을 입력해 주세요.";
+    return;
+  }
+  sessionStorage.setItem(TOKEN_KEY, token);
+  const response = await fetch("/api/operator/contents", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ description }),
+  });
+  if (response.status === 401) {
+    status.textContent = "운영자 인증이 필요합니다.";
+    return;
+  }
+  const data = await response.json();
+  if (!response.ok) {
+    status.textContent = data.detail || "홍보문구를 만들지 못했습니다.";
+    return;
+  }
+  if (!data.saved) {
+    status.textContent = data.message || "홍보문구를 만들지 못했습니다.";
+    return;
+  }
+  status.textContent = "소개글과 SNS 문구를 저장했습니다.";
+  loadContents(token);
+}
+
+document.getElementById("operator-login").addEventListener("submit", loadOperator);
+document.getElementById("content-form").addEventListener("submit", createContent);
+const saved = sessionStorage.getItem(TOKEN_KEY);
+if (saved) {
+  document.getElementById("login-id").value = saved;
+  loadOperator();
+}
+</script>
+{% endblock %}

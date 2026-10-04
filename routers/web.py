@@ -50,6 +50,13 @@ async def dashboard_page(request: Request):
     )
 
 
+@router.get("/operator", response_class=HTMLResponse)
+async def operator_page(request: Request):
+    return request.app.state.templates.TemplateResponse(
+        request, "operator.html", {"title": "내 마을"}
+    )
+
+
 @router.post("/api/recommend")
 async def api_recommend(body: RecommendRequest):
     villages = list_public_villages()

@@ -9,7 +9,7 @@ button { padding: 0.5rem 1rem; background: #2d6a4f; color: white; border: none; 
 .filter-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin-bottom: 1rem; }
 .filter-row label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9rem; }
 .filter-row input[type="search"] { min-width: 12rem; }
-select, input[type="search"] { padding: 0.4rem; }
+select, input[type="search"], input[type="text"] { padding: 0.4rem; }
 .village-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; }
 #results .card, .village-card { border: 1px solid #ddd; padding: 1rem; border-radius: 4px; background: #fff; }
 .village-card { margin: 0; }

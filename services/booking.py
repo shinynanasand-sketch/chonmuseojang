@@ -1,22 +1,10 @@
 """예약 생성/조회/상태변경."""
 
-from datetime import date
-
-_bookings: list[dict] = []
-_booking_id_counter = 1
-
-
-def _next_booking_id() -> int:
-    global _booking_id_counter
-    bid = _booking_id_counter
-    _booking_id_counter += 1
-    return bid
+from services.supabase_client import insert_booking, list_bookings, reset_booking_store, save_booking_status
 
 
 def reset_bookings() -> None:
-    global _bookings, _booking_id_counter
-    _bookings = []
-    _booking_id_counter = 1
+    reset_booking_store()
 
 
 def create_booking(
@@ -26,17 +14,16 @@ def create_booking(
     num_people: int,
     customer_name: str | None = None,
 ) -> dict:
-    booking = {
-        "booking_id": _next_booking_id(),
-        "village_id": village_id,
-        "customer_kakao_id": customer_kakao_id,
-        "customer_name": customer_name,
-        "visit_date": visit_date,
-        "num_people": num_people,
-        "status": "pending",
-    }
-    _bookings.append(booking)
-    return booking
+    return insert_booking(
+        {
+            "village_id": village_id,
+            "customer_kakao_id": customer_kakao_id,
+            "customer_name": customer_name,
+            "visit_date": visit_date,
+            "num_people": num_people,
+            "status": "pending",
+        }
+    )
 
 
 def get_booking_by_id(booking_id: int | str) -> dict | None:
@@ -44,22 +31,20 @@ def get_booking_by_id(booking_id: int | str) -> dict | None:
         bid = int(booking_id)
     except (TypeError, ValueError):
         return None
-    for booking in _bookings:
-        if booking["booking_id"] == bid:
-            return booking
-    return None
+    rows = list_bookings(booking_id=bid)
+    return rows[0] if rows else None
 
 
 def update_booking_status(booking_id: int | str, status: str) -> dict | None:
-    booking = get_booking_by_id(booking_id)
-    if not booking:
+    try:
+        bid = int(booking_id)
+    except (TypeError, ValueError):
         return None
-    booking["status"] = status
-    return booking
+    return save_booking_status(bid, status)
 
 
 def list_bookings_for_village(village_id: str) -> list[dict]:
-    return [b for b in _bookings if b["village_id"] == village_id]
+    return list_bookings(village_id=village_id)
 
 
 def list_bookings_for_operator(user_id: str) -> list[dict]:
@@ -71,7 +56,7 @@ def list_bookings_for_operator(user_id: str) -> list[dict]:
 
 def list_my_bookings(user_id: str) -> list[dict]:
     """관광객 발화 `내 예약`. customer_kakao_id가 요청자인 행만."""
-    return [b for b in _bookings if b.get("customer_kakao_id") == user_id]
+    return list_bookings(customer_kakao_id=user_id)
 
 
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
@@ -111,13 +96,23 @@ def get_public_dashboard_summary() -> dict:
     }
 
 
+def _without_customer_kakao_id(row: dict) -> dict:
+    visible = dict(row)
+    visible.pop("customer_kakao_id", None)
+    return visible
+
+
 def get_operator_dashboard_summary(operator: dict) -> dict:
+    from services.review import list_reviews_for_village
+
     village_id = operator["village_id"]
     village_bookings = list_bookings_for_village(village_id)
     pending = [b for b in village_bookings if b["status"] == "pending"]
+    reviews = list_reviews_for_village(village_id)
     return {
         "village_id": village_id,
         "total_bookings": len(village_bookings),
         "pending_bookings": len(pending),
-        "recent_bookings": village_bookings[-5:],
+        "recent_bookings": [_without_customer_kakao_id(row) for row in village_bookings[-5:]],
+        "recent_reviews": [_without_customer_kakao_id(row) for row in reviews],
     }

@@ -1,7 +1,6 @@
 """후기 생성/조회, 감성분석 연동."""
 
-_reviews: list[dict] = []
-_review_id_counter = 1
+from services.supabase_client import insert_review, list_reviews
 
 
 def create_review(
@@ -12,19 +11,20 @@ def create_review(
     rating: int | None = None,
     sentiment: str | None = None,
 ) -> dict:
-    global _review_id_counter
-    review = {
-        "review_id": _review_id_counter,
-        "village_id": village_id,
-        "booking_id": int(booking_id),
-        "customer_kakao_id": customer_kakao_id,
-        "comment": comment,
-        "rating": rating,
-        "sentiment": sentiment,
-    }
-    _review_id_counter += 1
-    _reviews.append(review)
-    return review
+    return insert_review(
+        {
+            "village_id": village_id,
+            "booking_id": int(booking_id),
+            "customer_kakao_id": customer_kakao_id,
+            "comment": comment,
+            "rating": rating,
+            "sentiment": sentiment,
+        }
+    )
+
+
+def list_reviews_for_village(village_id: str) -> list[dict]:
+    return list_reviews(village_id=village_id)
 
 
 def analyze_sentiment(text: str) -> str:

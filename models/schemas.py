@@ -5,6 +5,11 @@ class RecommendRequest(BaseModel):
     query: str = Field(..., min_length=1)
 
 
+class OperatorContentRequest(BaseModel):
+    description: str = ""
+    village_id: str | None = None
+
+
 class RecommendResult(BaseModel):
     village_id: str
     village_name: str

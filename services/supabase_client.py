@@ -5,6 +5,12 @@ from typing import Any
 
 _villages_cache: list[dict] = []
 _sync_logs: list[dict] = []
+_bookings: list[dict] = []
+_reviews: list[dict] = []
+_booking_id_counter = 1
+_review_id_counter = 1
+_contents: list[dict] = []
+_content_id_counter = 1
 _operators: list[dict] = [
     {
         "operator_id": 1,
@@ -246,8 +252,147 @@ def get_operator_by_login_id(login_id: str) -> dict | None:
     return None
 
 
+def reset_booking_store() -> None:
+    """테스트용 예약·후기 인메모리 초기화."""
+    global _bookings, _reviews, _booking_id_counter, _review_id_counter
+    _bookings = []
+    _reviews = []
+    _booking_id_counter = 1
+    _review_id_counter = 1
+
+
+def reset_content_store() -> None:
+    """테스트용 운영 콘텐츠 인메모리 초기화."""
+    global _contents, _content_id_counter
+    _contents = []
+    _content_id_counter = 1
+
+
 def reset_memory_store() -> None:
     """테스트용 인메모리 저장소 초기화."""
     global _villages_cache, _sync_logs
     _villages_cache = []
     _sync_logs = []
+    reset_booking_store()
+    reset_content_store()
+
+
+def insert_booking(row: dict) -> dict:
+    global _booking_id_counter
+    client = get_supabase_client()
+    if client:
+        result = client.table("bookings").insert(row).execute()
+        if result.data:
+            return result.data[0]
+        return dict(row)
+    saved = dict(row)
+    saved["booking_id"] = _booking_id_counter
+    _booking_id_counter += 1
+    _bookings.append(saved)
+    return dict(saved)
+
+
+def list_bookings(
+    *,
+    village_id: str | None = None,
+    customer_kakao_id: str | None = None,
+    booking_id: int | None = None,
+) -> list[dict]:
+    """필터가 없으면 빈 목록. 마을 또는 고객 또는 예약번호로만 읽는다."""
+    if village_id is None and customer_kakao_id is None and booking_id is None:
+        return []
+    client = get_supabase_client()
+    if client:
+        query = client.table("bookings").select("*")
+        if village_id is not None:
+            query = query.eq("village_id", village_id)
+        if customer_kakao_id is not None:
+            query = query.eq("customer_kakao_id", customer_kakao_id)
+        if booking_id is not None:
+            query = query.eq("booking_id", booking_id)
+        result = query.order("booking_id").execute()
+        return result.data or []
+    rows = _bookings
+    if village_id is not None:
+        rows = [row for row in rows if row.get("village_id") == village_id]
+    if customer_kakao_id is not None:
+        rows = [row for row in rows if row.get("customer_kakao_id") == customer_kakao_id]
+    if booking_id is not None:
+        rows = [row for row in rows if row.get("booking_id") == booking_id]
+    return [dict(row) for row in sorted(rows, key=lambda row: row.get("booking_id") or 0)]
+
+
+def save_booking_status(booking_id: int, status: str) -> dict | None:
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("bookings").update({"status": status}).eq("booking_id", booking_id).execute()
+        )
+        if not result.data:
+            return None
+        return result.data[0]
+    for row in _bookings:
+        if row.get("booking_id") == booking_id:
+            row["status"] = status
+            return dict(row)
+    return None
+
+
+def insert_review(row: dict) -> dict:
+    global _review_id_counter
+    client = get_supabase_client()
+    if client:
+        result = client.table("reviews").insert(row).execute()
+        if result.data:
+            return result.data[0]
+        return dict(row)
+    saved = dict(row)
+    saved["review_id"] = _review_id_counter
+    _review_id_counter += 1
+    _reviews.append(saved)
+    return dict(saved)
+
+
+def insert_content(row: dict) -> dict:
+    global _content_id_counter
+    client = get_supabase_client()
+    if client:
+        result = client.table("contents").insert(row).execute()
+        if result.data:
+            return result.data[0]
+        return dict(row)
+    saved = dict(row)
+    saved["content_id"] = _content_id_counter
+    _content_id_counter += 1
+    _contents.append(saved)
+    return dict(saved)
+
+
+def list_contents(*, village_id: str | None = None) -> list[dict]:
+    if village_id is None:
+        return []
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("contents")
+            .select("*")
+            .eq("village_id", village_id)
+            .order("content_id")
+            .execute()
+        )
+        return result.data or []
+    rows = [row for row in _contents if row.get("village_id") == village_id]
+    return [dict(row) for row in sorted(rows, key=lambda row: row.get("content_id") or 0)]
+
+
+def list_reviews(*, village_id: str | None = None) -> list[dict]:
+    if village_id is None:
+        return []
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("reviews").select("*").eq("village_id", village_id).order("review_id").execute()
+        )
+        return result.data or []
+    rows = [row for row in _reviews if row.get("village_id") == village_id]
+    return [dict(row) for row in sorted(rows, key=lambda row: row.get("review_id") or 0)]
