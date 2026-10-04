@@ -2,6 +2,8 @@
 
 배포 URL: **https://chonmuseojang.vercel.app**
 
+시연 로그인·예약 번호·카카오 ID는 [`docs/OPERATOR_DEMO.md`](docs/OPERATOR_DEMO.md)를 봅니다.
+
 > **보류:** 승인·후기 봇테스트와 개발채널 재연결은 나중에 한다. `/kakao/*` 코드와 V001 `kakao_user_id=206405` 매핑은 유지한다. 공공데이터·TourAPI, 예약·후기 저장, 운영자 웹, 홍보문구(FR-11)는 끝났습니다. 카카오 수동 시연은 재개 요청이 있을 때 합니다.
 
 ## 사전 조건

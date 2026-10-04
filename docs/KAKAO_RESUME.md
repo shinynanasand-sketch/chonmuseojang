@@ -2,7 +2,7 @@
 
 카카오 수동 시연은 보류합니다. 스킬 서버 코드와 운영자 매핑은 유지합니다. 웹·공공데이터를 먼저 진행한 뒤, 아래 순서로 다시 시작합니다.
 
-상세 설정은 [`../KAKAO_SETUP.md`](../KAKAO_SETUP.md), 시나리오 블록은 [`OPENBUILDER_SCENARIO.md`](OPENBUILDER_SCENARIO.md), 웹훅 URL은 [`OPENBUILDER_WEBHOOKS.md`](OPENBUILDER_WEBHOOKS.md)를 봅니다.
+카카오 사용자 ID의 수집·사용 범위는 [`PRIVACY_KAKAO_ID.md`](PRIVACY_KAKAO_ID.md)를 봅니다. 시연 로그인·예약 번호·카카오 ID는 [`OPERATOR_DEMO.md`](OPERATOR_DEMO.md)를 봅니다. 상세 설정은 [`../KAKAO_SETUP.md`](../KAKAO_SETUP.md), 시나리오 블록은 [`OPENBUILDER_SCENARIO.md`](OPENBUILDER_SCENARIO.md), 웹훅 URL은 [`OPENBUILDER_WEBHOOKS.md`](OPENBUILDER_WEBHOOKS.md)를 봅니다.
 
 ## 이미 된 것
 
