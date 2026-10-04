@@ -32,3 +32,19 @@ def test_score_within_valid_range(sample_village_for_trust_score):
 def test_score_handles_no_reviews():
     score = calculate_trust_score({"grade": None, "synced_days_ago": 3, "average_rating": None})
     assert isinstance(score, (int, float))
+
+
+def test_synced_at_age_lowers_score_without_synced_days_ago():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    fresh = calculate_trust_score({"grade": "으뜸촌", "synced_at": now.isoformat()})
+    stale = calculate_trust_score(
+        {"grade": "으뜸촌", "synced_at": (now - timedelta(days=200)).isoformat()}
+    )
+    assert stale < fresh
+
+
+def test_missing_sync_time_does_not_grant_freshness_points():
+    score = calculate_trust_score({"grade": None, "average_rating": None})
+    assert score == 20

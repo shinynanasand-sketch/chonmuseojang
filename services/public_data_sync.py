@@ -357,12 +357,16 @@ def _stored_has_real_villages() -> bool:
 
 
 def _with_trust_scores(rows: list[dict]) -> list[dict]:
-    """이번 동기화 결과로 신뢰도를 다시 계산한다."""
+    """이번 동기화 시각을 기록한 뒤 신뢰도를 계산한다."""
+    from datetime import datetime, timezone
+
     from services.trust_score import calculate_trust_score
 
+    synced_at = datetime.now(timezone.utc).isoformat()
     scored: list[dict] = []
     for row in rows:
         item = dict(row)
+        item["synced_at"] = synced_at
         item["trust_score"] = calculate_trust_score(item)
         scored.append(item)
     return scored

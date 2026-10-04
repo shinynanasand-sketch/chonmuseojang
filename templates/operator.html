@@ -10,6 +10,7 @@
   <button type="submit">조회</button>
 </form>
 <p id="operator-status" class="muted">로그인 아이디를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
+<p id="village-rank" class="muted"></p>
 <h2>예약</h2>
 <div id="booking-list"></div>
 <h2>후기</h2>
@@ -55,6 +56,7 @@ async function loadOperator(event) {
   const reviews = document.getElementById("review-list");
   if (!token) {
     status.textContent = "로그인 아이디를 입력해 주세요.";
+    document.getElementById("village-rank").textContent = "";
     bookings.replaceChildren();
     reviews.replaceChildren();
     return;
@@ -65,6 +67,7 @@ async function loadOperator(event) {
   });
   if (response.status === 401) {
     status.textContent = "운영자 인증이 필요합니다.";
+    document.getElementById("village-rank").textContent = "";
     bookings.replaceChildren();
     reviews.replaceChildren();
     return;
@@ -76,6 +79,12 @@ async function loadOperator(event) {
   const data = await response.json();
   const pending = data.pending_bookings || 0;
   status.textContent = `마을 ${data.village_id} · 예약 ${data.total_bookings || 0}건 · 대기 ${pending}건`;
+  const rank = document.getElementById("village-rank");
+  if (data.trust_rank && data.total_villages) {
+    rank.textContent = `전체 ${data.total_villages}곳 중 ${data.trust_rank}위, 신뢰도 ${data.trust_score}점`;
+  } else {
+    rank.textContent = data.rank_message || "전체 순위를 계산하지 못했습니다.";
+  }
   fillList(
     bookings,
     data.recent_bookings || [],

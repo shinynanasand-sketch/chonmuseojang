@@ -54,6 +54,49 @@ def test_mismatched_village_query_is_forbidden(test_client):
     assert response.status_code == 403
 
 
+def test_operator_sees_rank_without_other_village_bookings(test_client):
+    from datetime import datetime, timedelta, timezone
+
+    from services.supabase_client import upsert_villages
+
+    now = datetime.now(timezone.utc)
+    upsert_villages(
+        [
+            {
+                "village_id": "V001",
+                "village_name": "예시 갯벌마을",
+                "sigungu": "신안군",
+                "grade": "으뜸촌",
+                "synced_at": now.isoformat(),
+            },
+            {
+                "village_id": "V002",
+                "village_name": "예시 무등마을",
+                "sigungu": "북구",
+                "synced_at": (now - timedelta(days=200)).isoformat(),
+            },
+        ]
+    )
+    create_booking("V002", "kakao-other", "2099-01-01", 9)
+
+    response = test_client.get(
+        "/api/operator/dashboard",
+        headers={"Authorization": "Bearer owner_v001"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_villages"] == 2
+    assert body["trust_rank"] == 1
+    assert isinstance(body["trust_score"], (int, float))
+    assert "2099-01-01" not in response.text
+
+
+def test_home_nav_omits_operations_link(test_client):
+    html = test_client.get("/").text
+    assert "운영현황" not in html
+    assert 'href="/dashboard"' not in html
+
+
 def test_operator_page_asks_for_login_id_not_password(test_client):
     response = test_client.get("/operator")
     assert response.status_code == 200
