@@ -91,6 +91,45 @@ def test_operator_sees_rank_without_other_village_bookings(test_client):
     assert "2099-01-01" not in response.text
 
 
+def test_operator_rank_includes_demo_village_hidden_from_tourists(test_client):
+    from datetime import datetime, timezone
+
+    from services.supabase_client import upsert_villages
+
+    now = datetime.now(timezone.utc)
+    upsert_villages(
+        [
+            {
+                "village_id": "V001",
+                "village_name": "예시 갯벌마을",
+                "sigungu": "신안군",
+                "grade": "으뜸촌",
+                "synced_at": now.isoformat(),
+            },
+            {
+                "village_id": "PD100",
+                "village_name": "푸른바다마을",
+                "sigungu": "완도군",
+                "synced_at": now.isoformat(),
+            },
+        ]
+    )
+
+    response = test_client.get(
+        "/api/operator/dashboard",
+        headers={"Authorization": "Bearer owner_v001"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_villages"] == 2
+    assert isinstance(body["trust_rank"], int)
+    assert isinstance(body["trust_score"], (int, float))
+
+    public = test_client.get("/api/villages")
+    public_ids = [row["village_id"] for row in public.json()["villages"]]
+    assert public_ids == ["PD100"]
+
+
 def test_home_nav_omits_operations_link(test_client):
     html = test_client.get("/").text
     assert "운영현황" not in html

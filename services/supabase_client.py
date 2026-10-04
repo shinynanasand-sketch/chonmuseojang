@@ -212,6 +212,24 @@ def get_operator_by_village_id(village_id: str) -> dict | None:
     return None
 
 
+def set_operator_login_id(village_id: str, login_id: str) -> dict | None:
+    """웹 로그인만 바꾼다. kakao_user_id는 그대로 둔다."""
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("operators")
+            .update({"login_id": login_id})
+            .eq("village_id", village_id)
+            .execute()
+        )
+        return result.data[0] if result.data else None
+    for operator in _operators:
+        if operator.get("village_id") == village_id:
+            operator["login_id"] = login_id
+            return dict(operator)
+    return None
+
+
 def insert_operator(row: dict) -> dict:
     global _operators
     client = get_supabase_client()

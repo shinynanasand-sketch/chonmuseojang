@@ -129,15 +129,27 @@ def _without_customer_kakao_id(row: dict) -> dict:
     return visible
 
 
+def _villages_for_operator_rank(village_id: str) -> list[dict]:
+    """공개 목록에 담당 마을이 없으면 그 1건만 순위 계산에 보탠다."""
+    from services.supabase_client import get_village_by_id, list_public_villages
+
+    villages = list_public_villages()
+    if any(row.get("village_id") == village_id for row in villages):
+        return villages
+    own = get_village_by_id(village_id)
+    if own is None:
+        return villages
+    return [*villages, own]
+
+
 def get_operator_dashboard_summary(operator: dict) -> dict:
     from services.review import list_reviews_for_village
-    from services.supabase_client import list_public_villages
 
     village_id = operator["village_id"]
     village_bookings = list_bookings_for_village(village_id)
     pending = [b for b in village_bookings if b["status"] == "pending"]
     reviews = list_reviews_for_village(village_id)
-    rank = _village_rank(village_id, list_public_villages())
+    rank = _village_rank(village_id, _villages_for_operator_rank(village_id))
     return {
         "village_id": village_id,
         "total_bookings": len(village_bookings),
