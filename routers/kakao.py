@@ -6,6 +6,7 @@ from models.kakao_schemas import KakaoSkillRequest
 from services import auth, booking, kakao_client, review, trust_score
 from services.kakao_ask import answer_kakao_question
 from services.kakao_client import skill_http_response
+from services.kakao_phase_a import handle_phase_a
 
 router = APIRouter(prefix="/kakao", tags=["kakao"])
 
@@ -14,6 +15,13 @@ DEFAULT_VILLAGE_ID = "V001"
 
 def _skill_json(body: dict):
     return skill_http_response(body)
+
+
+def _phase_a(payload: KakaoSkillRequest):
+    body = handle_phase_a(payload)
+    if body is None:
+        return None
+    return _skill_json(body)
 
 
 def _param_str(params: dict[str, Any], key: str) -> str:
@@ -49,6 +57,9 @@ async def kakao_ping():
 @router.post("/ask")
 async def kakao_ask(payload: KakaoSkillRequest):
     """관광객은 비교 추천, 운영자는 자기 마을과 주변정보만 답한다."""
+    handled = _phase_a(payload)
+    if handled is not None:
+        return handled
     utterance = (payload.userRequest.utterance or "").strip() or _param_str(
         payload.action.params, "query"
     )
@@ -85,6 +96,9 @@ def _inquiry_response(utterance: str, user_id: str):
 
 @router.post("/booking")
 async def kakao_booking(payload: KakaoSkillRequest):
+    handled = _phase_a(payload)
+    if handled is not None:
+        return handled
     params = payload.action.params
     utterance = (payload.userRequest.utterance or "").strip()
     user_id = str(payload.userRequest.user.get("id") or "")
@@ -124,6 +138,9 @@ async def kakao_booking(payload: KakaoSkillRequest):
 
 @router.post("/approve")
 async def kakao_approve(payload: KakaoSkillRequest):
+    handled = _phase_a(payload)
+    if handled is not None:
+        return handled
     params = payload.action.params
     booking_id = _param_str(params, "booking_id")
     decision = _param_str(params, "decision")
@@ -169,6 +186,9 @@ async def kakao_approve(payload: KakaoSkillRequest):
 
 @router.post("/review")
 async def kakao_review(payload: KakaoSkillRequest):
+    handled = _phase_a(payload)
+    if handled is not None:
+        return handled
     params = payload.action.params
     booking_id_raw = _param_str(params, "booking_id")
     rating_raw = _param_str(params, "rating")

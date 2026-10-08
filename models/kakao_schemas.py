@@ -20,18 +20,31 @@ class KakaoUserRequest(BaseModel):
         return value if isinstance(value, dict) else {}
 
 
+class KakaoIntent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = ""
+    name: str = ""
+
+    @field_validator("id", "name", mode="before")
+    @classmethod
+    def _text_none_to_empty(cls, value: Any) -> str:
+        return "" if value is None else str(value)
+
+
 class KakaoAction(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str = ""
     params: dict[str, Any] = Field(default_factory=dict)
+    detailParams: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("name", mode="before")
     @classmethod
     def _name_none_to_empty(cls, value: Any) -> str:
         return "" if value is None else str(value)
 
-    @field_validator("params", mode="before")
+    @field_validator("params", "detailParams", mode="before")
     @classmethod
     def _params_none_to_dict(cls, value: Any) -> dict[str, Any]:
         return value if isinstance(value, dict) else {}
@@ -40,6 +53,7 @@ class KakaoAction(BaseModel):
 class KakaoSkillRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
+    intent: KakaoIntent = Field(default_factory=KakaoIntent)
     userRequest: KakaoUserRequest = Field(default_factory=KakaoUserRequest)
     action: KakaoAction = Field(default_factory=KakaoAction)
 
@@ -48,6 +62,8 @@ class KakaoSkillRequest(BaseModel):
     def _null_sections_to_defaults(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return {}
+        if data.get("intent") is None:
+            data = {**data, "intent": {}}
         if data.get("userRequest") is None:
             data = {**data, "userRequest": {}}
         if data.get("action") is None:

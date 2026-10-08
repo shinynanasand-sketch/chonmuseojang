@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from services.booking import create_booking
+from services.supabase_client import list_bookings
 
 
 @pytest.fixture
@@ -40,6 +41,19 @@ def test_unregistered_status_utterance_prompts_registration(test_client):
     response = test_client.post("/kakao/booking", json=payload)
     assert response.status_code == 200
     assert "등록" in response.text
+
+
+def test_status_intent_unregistered_prompts_registration_without_booking(test_client):
+    payload = {
+        "intent": {"name": "예약 현황 조회"},
+        "userRequest": {"utterance": "예약 현황", "user": {"id": "unknown_kakao_user"}},
+        "action": {"params": {}},
+    }
+    response = test_client.post("/kakao/booking", json=payload)
+    assert response.status_code == 200
+    assert "등록" in response.text
+    assert "context" not in response.json()
+    assert list_bookings(village_id="V001") == []
 
 
 def test_tourist_my_booking_does_not_prompt_registration(test_client):

@@ -9,10 +9,15 @@ from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
+_SKILL_TEXT_LIMIT = 1000
+
 
 def build_skill_response(title: str, description: str) -> dict:
-    """카카오 스킬 응답 (simpleText). 개행 없이 한 줄로 구성."""
+    """카카오 스킬 응답 (simpleText). 제목을 붙인 뒤 1000자·한 줄로 자른다."""
     text = f"{title}. {description}".strip() if description else title
+    text = " ".join(text.split())
+    if len(text) > _SKILL_TEXT_LIMIT:
+        text = text[: _SKILL_TEXT_LIMIT - 1] + "…"
     return {
         "version": "2.0",
         "template": {
@@ -29,6 +34,31 @@ def build_skill_response(title: str, description: str) -> dict:
 
 def build_error_skill_response(message: str) -> dict:
     return build_skill_response("안내", message)
+
+
+def build_list_card(header: str, items: list[dict]) -> dict:
+    """성공 목록. 5건을 넘으면 앞 5건만 넣고 헤더에 최근 5건이라고 적는다."""
+    shown = items[:5]
+    title = "최근 5건" if len(items) > 5 else header
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "listCard": {
+                        "header": {"title": title},
+                        "items": [
+                            {
+                                "title": str(item.get("title") or ""),
+                                "description": str(item.get("description") or ""),
+                            }
+                            for item in shown
+                        ],
+                    }
+                }
+            ]
+        },
+    }
 
 
 def skill_http_response(body: dict) -> Response:

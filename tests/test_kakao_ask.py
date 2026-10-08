@@ -114,3 +114,38 @@ def test_empty_tourist_question_and_nearby_failure_stay_skill_json(test_client):
     assert "갯벌마을" in text
     assert "불러오지 못했습니다" in text
     assert "\n" not in text
+
+
+def test_long_recommendation_simpletext_stays_within_1000(test_client):
+    long_name = "갯벌마을" * 80
+    nearby = {
+        "status": "success",
+        "attractions": [{"title": "관광지" * 120}] * 3,
+        "restaurants": [{"title": "음식점" * 120}] * 2,
+    }
+    villages = [
+        {
+            "village_id": "PD_LONG",
+            "village_name": long_name,
+            "sigungu": "신안군",
+            "program_type": "갯벌체험",
+        }
+    ]
+    with (
+        patch("services.kakao_ask.get_operator_by_kakao_id", return_value=None),
+        patch("services.kakao_ask.list_public_villages", return_value=villages),
+        patch("services.kakao_ask.get_nearby_for_village", return_value=nearby),
+    ):
+        response = test_client.post(
+            "/kakao/ask",
+            json={
+                "userRequest": {"utterance": "갯벌체험", "user": {"id": "tourist-long"}},
+                "action": {"params": {}},
+            },
+        )
+
+    assert response.status_code == 200
+    text = _skill_text(response)
+    assert text.startswith("추천.")
+    assert "\n" not in text
+    assert 1 <= len(text) <= 1000
