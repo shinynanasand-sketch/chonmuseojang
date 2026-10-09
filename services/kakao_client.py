@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 
 import httpx
 from starlette.responses import Response
@@ -36,24 +37,52 @@ def build_error_skill_response(message: str) -> dict:
     return build_skill_response("안내", message)
 
 
+def _clip_chars(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit]
+
+
+_KAKAO_KEEP = re.compile(r"[^0-9가-힣\-\s]")
+
+
+def _kakao_plain(text: str) -> str:
+    """괄호는 공백으로 열고, +와 그 밖 기호는 빼서 한글·숫자·하이픈만 남긴다."""
+    opened = (
+        text.replace("(", " ")
+        .replace(")", " ")
+        .replace("（", " ")
+        .replace("）", " ")
+        .replace("+", "")
+    )
+    return " ".join(_KAKAO_KEEP.sub("", opened).split())
+
+
 def build_list_card(header: str, items: list[dict]) -> dict:
-    """성공 목록. 5건을 넘으면 앞 5건만 넣고 헤더에 최근 5건이라고 적는다."""
+    """성공 목록. 리스트형 말풍선 글자 수에 맞춘다."""
     shown = items[:5]
     title = "최근 5건" if len(items) > 5 else header
+    card_items = []
+    for item in shown:
+        description = _clip_chars(_kakao_plain(str(item.get("description") or "")), 14)
+        item_title = _kakao_plain(str(item.get("title") or "")) or "마을"
+        if description:
+            card_items.append(
+                {
+                    "title": _clip_chars(item_title, 30),
+                    "description": description,
+                }
+            )
+        else:
+            card_items.append({"title": _clip_chars(item_title, 35)})
     return {
         "version": "2.0",
         "template": {
             "outputs": [
                 {
                     "listCard": {
-                        "header": {"title": title},
-                        "items": [
-                            {
-                                "title": str(item.get("title") or ""),
-                                "description": str(item.get("description") or ""),
-                            }
-                            for item in shown
-                        ],
+                        "header": {"title": _clip_chars(title, 15)},
+                        "items": card_items,
                     }
                 }
             ]

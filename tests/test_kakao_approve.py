@@ -197,8 +197,8 @@ def test_approve_reads_sys_number_json_not_origin(test_client, booking_for_appro
     assert get_booking_by_id(booking_id)["status"] == "confirmed"
 
 
-def test_recommend_success_uses_list_card(test_client):
-    """마을 추천 성공 응답은 listCard다. 엔티티는 없다"""
+def test_recommend_success_uses_simple_text(test_client):
+    """마을 추천 성공 응답은 simpleText다. 엔티티는 없다"""
     upsert_villages(
         [
             {
@@ -215,12 +215,43 @@ def test_recommend_success_uses_list_card(test_client):
         "action": {"params": {}},
     }
     body = test_client.post("/kakao/ask", json=payload).json()
-    assert "listCard" in body["template"]["outputs"][0]
+    text = body["template"]["outputs"][0]["simpleText"]["text"]
+    assert "갯벌체험마을" in text
+    assert "신안군" in text
+    assert "listCard" not in body["template"]["outputs"][0]
     assert "context" not in body
 
 
-def test_review_lookup_uses_village_id_and_list_card(test_client):
-    """후기 조회는 village_id로 그 마을 후기를 listCard로 안내한다"""
+def test_recommend_text_dedupes_same_village_name(test_client):
+    upsert_villages(
+        [
+            {
+                "village_id": "V010",
+                "village_name": "갯벌체험마을(노을마을)",
+                "sigungu": "신안군",
+                "program_type": "자연생태체험+건강+전통 문화체험+만들기체험+기타(영농체험+먹거리체험)",
+            },
+            {
+                "village_id": "V011",
+                "village_name": "갯벌체험마을(노을마을)",
+                "sigungu": "신안군",
+                "program_type": "자연생태체험+만들기체험",
+            },
+        ]
+    )
+    payload = {
+        "intent": {"name": "마을 추천"},
+        "userRequest": {"utterance": "아이와 갈 갯벌", "user": {"id": "guest"}},
+        "action": {"params": {}},
+    }
+    text = test_client.post("/kakao/ask", json=payload).json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert text.count("갯벌체험마을") == 1
+    assert "신안군" in text
+    assert "+" not in text
+
+
+def test_review_lookup_uses_village_id_and_simple_text(test_client):
+    """후기 조회는 village_id로 그 마을 후기를 simpleText로 안내한다"""
     insert_review(
         {
             "village_id": "V001",
@@ -236,8 +267,9 @@ def test_review_lookup_uses_village_id_and_list_card(test_client):
         "action": {"params": {"village_id": "V001"}},
     }
     body = test_client.post("/kakao/ask", json=payload).json()
-    card = body["template"]["outputs"][0]["listCard"]
-    assert card["items"][0]["title"] == "별점 5"
+    text = body["template"]["outputs"][0]["simpleText"]["text"]
+    assert "별점 5" in text
+    assert "아이들이 좋아했어요" in text
     assert "context" not in body
 
 
@@ -252,8 +284,8 @@ def test_review_lookup_on_review_route_does_not_save(test_client):
     assert list_reviews_for_village("V001") == []
 
 
-def test_booking_status_uses_list_card(test_client):
-    """예약 현황 성공 응답은 listCard다. start_date와 end_date는 없다"""
+def test_booking_status_uses_simple_text(test_client):
+    """예약 현황 성공 응답은 simpleText다. start_date와 end_date는 없다"""
     create_booking("V001", "customer_test", "2026-11-01", 4)
     payload = {
         "intent": {"name": "예약 현황 조회"},
@@ -261,7 +293,10 @@ def test_booking_status_uses_list_card(test_client):
         "action": {"params": {}},
     }
     body = test_client.post("/kakao/booking", json=payload).json()
-    assert "listCard" in body["template"]["outputs"][0]
+    text = body["template"]["outputs"][0]["simpleText"]["text"]
+    assert "대기" in text
+    assert "2026-11-01" in text
+    assert "4명" in text
     assert "start_date" not in payload["action"]["params"]
     assert "context" not in body
 

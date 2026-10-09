@@ -3,11 +3,7 @@
 from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
 from services.auth import register_operator_with_ids, resolve_kakao_role
-from services.kakao_client import (
-    build_error_skill_response,
-    build_list_card,
-    build_skill_response,
-)
+from services.kakao_client import build_error_skill_response, build_skill_response
 from services.kakao_params import booking_id_from_params, representative
 from services.recommend import keyword_recommendations
 from services.supabase_client import list_public_villages
@@ -29,6 +25,17 @@ _STATUS_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있습
 _OTHER_VILLAGE = "이 예약을 처리할 권한이 없습니다."
 _REGISTER_NEED = "마을명과 등록 코드를 한 문장으로 말해 주세요. 예시: 예시 갯벌마을 GB-001"
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
+
+
+def _open_parens(text: str) -> str:
+    opened = text.replace("(", " ").replace(")", " ").replace("（", " ").replace("）", " ")
+    return " ".join(opened.split())
+
+
+def _skill_lines(title: str, lines: list[str], total: int) -> dict:
+    shown = [line for line in lines if line][:5]
+    heading = "최근 5건" if total > 5 else title
+    return build_skill_response(heading, " / ".join(shown))
 
 
 def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
@@ -64,18 +71,16 @@ def _recommend(utterance: str) -> dict:
         )
     by_id = {row.get("village_id"): row for row in villages}
     items = []
+    seen_names: set[str] = set()
     for item in matches:
+        name = str(item.get("village_name") or "마을")
+        if name in seen_names:
+            continue
+        seen_names.add(name)
         village = by_id.get(item.get("village_id"), {})
-        place = str(village.get("sigungu") or village.get("address") or "")
-        program = str(village.get("program_type") or "")
-        reason = str(item.get("reason") or "")
-        items.append(
-            {
-                "title": str(item.get("village_name") or "마을"),
-                "description": " ".join(part for part in (place, program, reason) if part),
-            }
-        )
-    return build_list_card("마을 추천", items)
+        place = str(village.get("sigungu") or "").strip()
+        items.append(" ".join(part for part in (_open_parens(name), place) if part))
+    return _skill_lines("마을 추천", items, len(items))
 
 
 def _reviews(payload: KakaoSkillRequest) -> dict:
@@ -85,30 +90,22 @@ def _reviews(payload: KakaoSkillRequest) -> dict:
     rows = review.list_reviews_for_village(village_id)
     if not rows:
         return build_error_skill_response("등록된 후기가 없습니다.")
-    items = [
-        {
-            "title": f"별점 {row.get('rating')}",
-            "description": str(row.get("comment") or ""),
-        }
+    lines = [
+        " ".join(part for part in (f"별점 {row.get('rating')}", str(row.get("comment") or "").strip()) if part)
         for row in rows
     ]
-    return build_list_card("후기", items)
+    return _skill_lines("후기", lines, len(rows))
 
 
 def _status(village_id: str) -> dict:
     rows = booking.list_bookings_for_village(village_id)
     if not rows:
         return build_error_skill_response("예약이 없습니다.")
-    items = []
+    lines = []
     for row in rows:
         label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
-        items.append(
-            {
-                "title": f"{row.get('booking_id')}번 {label}",
-                "description": f"{row.get('visit_date')} {row.get('num_people')}명",
-            }
-        )
-    return build_list_card("예약 현황", items)
+        lines.append(f"{row.get('booking_id')}번 {label} {row.get('visit_date')} {row.get('num_people')}명")
+    return _skill_lines("예약 현황", lines, len(rows))
 
 
 def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
