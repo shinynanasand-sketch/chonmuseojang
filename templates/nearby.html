@@ -9,6 +9,67 @@
 {% endblock %}
 {% block scripts %}
 <script>
+function formatDistance(meters) {
+  const value = Number(meters);
+  if (!Number.isFinite(value)) return '거리 정보 없음';
+  return `${(value / 1000).toFixed(1)}km`;
+}
+
+function photoFrame(item) {
+  const frame = document.createElement('div');
+  frame.className = 'photo-frame';
+  const markEmpty = () => {
+    frame.replaceChildren();
+    const empty = document.createElement('p');
+    empty.className = 'photo-empty';
+    empty.textContent = '사진 없음';
+    frame.append(empty);
+  };
+  const url = String(item.image_url || '').trim();
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    markEmpty();
+    return frame;
+  }
+  const img = document.createElement('img');
+  img.alt = item.title || '주변 관광지';
+  img.loading = 'lazy';
+  img.addEventListener('error', markEmpty);
+  img.src = url;
+  frame.append(img);
+  return frame;
+}
+
+function placeCard(item) {
+  const card = document.createElement('article');
+  card.className = 'place-card';
+  const body = document.createElement('div');
+  body.className = 'place-body';
+  const kind = document.createElement('p');
+  kind.className = 'badge';
+  kind.textContent = item.content_type || '관광정보';
+  const title = document.createElement('h3');
+  title.textContent = item.title || '이름 없음';
+  const addr = document.createElement('p');
+  addr.textContent = item.addr || '주소 없음';
+  const dist = document.createElement('p');
+  dist.className = 'muted';
+  dist.textContent = formatDistance(item.distance_m);
+  body.append(kind, title, addr, dist);
+  card.append(photoFrame(item), body);
+  return card;
+}
+
+function placeSection(title, items) {
+  const section = document.createElement('section');
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  const grid = document.createElement('div');
+  grid.className = 'place-grid';
+  items.forEach((item) => grid.append(placeCard(item)));
+  section.append(heading, grid);
+  return section;
+}
+
 function renderNearby(data) {
   const box = document.createElement('div');
   const attractions = data.attractions || [];
@@ -21,15 +82,8 @@ function renderNearby(data) {
     box.append(p);
     return box;
   }
-  const list = document.createElement('ul');
-  [...attractions, ...restaurants].forEach((item) => {
-    const li = document.createElement('li');
-    const title = item.title || '이름 없음';
-    const kind = item.content_type ? `${item.content_type} · ` : '';
-    li.textContent = item.addr ? `${kind}${title} · ${item.addr}` : `${kind}${title}`;
-    list.append(li);
-  });
-  box.append(list);
+  if (attractions.length) box.append(placeSection('관광지', attractions));
+  if (restaurants.length) box.append(placeSection('음식점', restaurants));
   return box;
 }
 

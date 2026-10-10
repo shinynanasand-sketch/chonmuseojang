@@ -142,18 +142,46 @@ def _villages_for_operator_rank(village_id: str) -> list[dict]:
     return [*villages, own]
 
 
+def _rating_value(row: dict) -> float | None:
+    raw = row.get("rating")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _average_rating(reviews: list[dict]) -> float | None:
+    ratings = [value for row in reviews if (value := _rating_value(row)) is not None]
+    if not ratings:
+        return None
+    return round(sum(ratings) / len(ratings), 1)
+
+
 def get_operator_dashboard_summary(operator: dict) -> dict:
     from services.review import list_reviews_for_village
+    from services.supabase_client import get_village_by_id
 
     village_id = operator["village_id"]
+    village = get_village_by_id(village_id) or {}
     village_bookings = list_bookings_for_village(village_id)
     pending = [b for b in village_bookings if b["status"] == "pending"]
+    confirmed = [b for b in village_bookings if b["status"] == "confirmed"]
+    rejected = [b for b in village_bookings if b["status"] == "rejected"]
     reviews = list_reviews_for_village(village_id)
     rank = _village_rank(village_id, _villages_for_operator_rank(village_id))
     return {
         "village_id": village_id,
+        "village_name": village.get("village_name"),
+        "sigungu": village.get("sigungu"),
+        "grade": village.get("grade"),
         "total_bookings": len(village_bookings),
         "pending_bookings": len(pending),
+        "confirmed_bookings": len(confirmed),
+        "rejected_bookings": len(rejected),
+        "review_count": len(reviews),
+        "average_rating": _average_rating(reviews),
         "recent_bookings": [_without_customer_kakao_id(row) for row in village_bookings[-5:]],
         "recent_reviews": [_without_customer_kakao_id(row) for row in reviews],
         "total_villages": rank["total_villages"],

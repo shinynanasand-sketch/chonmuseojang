@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}내 마을{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
 {% block content %}
 <h1>내 마을</h1>
 <form id="operator-login" class="filter-row">
@@ -9,9 +12,14 @@
   </label>
   <button type="submit">조회</button>
 </form>
-<p id="operator-status" class="muted">로그인 아이디를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
-<p id="village-rank" class="muted"></p>
-<h2>예약</h2>
+<section>
+  <h2>내 운영 현황</h2>
+  <p id="operator-status" class="muted">로그인 아이디를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
+  <p id="village-rank" class="muted"></p>
+  <div id="stat-grid" class="stat-grid"></div>
+  <canvas id="booking-chart" width="400" height="180" hidden></canvas>
+</section>
+<h2>최근 예약</h2>
 <div id="booking-list"></div>
 <h2>후기</h2>
 <div id="review-list"></div>
@@ -30,6 +38,110 @@
 <script>
 const TOKEN_KEY = "operator_login_id";
 const STATUS_LABEL = { pending: "대기", confirmed: "승인", rejected: "거절" };
+let bookingChart = null;
+
+function clearOps() {
+  document.getElementById("village-rank").textContent = "";
+  document.getElementById("stat-grid").replaceChildren();
+  document.getElementById("booking-list").replaceChildren();
+  document.getElementById("review-list").replaceChildren();
+  const canvas = document.getElementById("booking-chart");
+  if (bookingChart) {
+    bookingChart.destroy();
+    bookingChart = null;
+  }
+  canvas.hidden = true;
+}
+
+function renderStats(data) {
+  const grid = document.getElementById("stat-grid");
+  const average = data.average_rating == null ? "-" : String(data.average_rating);
+  const items = [
+    ["대기", data.pending_bookings || 0],
+    ["승인", data.confirmed_bookings || 0],
+    ["거절", data.rejected_bookings || 0],
+    ["후기 평균", average],
+  ];
+  grid.replaceChildren();
+  items.forEach(([label, value]) => {
+    const card = document.createElement("article");
+    card.className = "stat-card";
+    const strong = document.createElement("strong");
+    strong.textContent = String(value);
+    const name = document.createElement("span");
+    name.textContent = label;
+    card.append(strong, name);
+    grid.append(card);
+  });
+}
+
+function renderChart(data) {
+  const canvas = document.getElementById("booking-chart");
+  const counts = [
+    data.pending_bookings || 0,
+    data.confirmed_bookings || 0,
+    data.rejected_bookings || 0,
+  ];
+  if (bookingChart) {
+    bookingChart.destroy();
+    bookingChart = null;
+  }
+  if (!counts.some((count) => count > 0) || typeof Chart === "undefined") {
+    canvas.hidden = true;
+    return;
+  }
+  canvas.hidden = false;
+  bookingChart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: ["대기", "승인", "거절"],
+      datasets: [{ label: "예약", data: counts }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function bookingCard(row) {
+  const card = document.createElement("article");
+  card.className = "village-card";
+  const title = document.createElement("h3");
+  title.textContent = `${row.booking_id}번`;
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.textContent = STATUS_LABEL[row.status] || row.status || "상태 없음";
+  title.append(badge);
+  const meta = document.createElement("p");
+  meta.textContent = `${row.visit_date || "날짜 없음"} · ${row.num_people || 0}명`;
+  card.append(title, meta);
+  return card;
+}
+
+function reviewCard(row) {
+  const card = document.createElement("article");
+  card.className = "village-card";
+  const title = document.createElement("h3");
+  const rating = row.rating == null || row.rating === "" ? "별점 없음" : `${row.rating}점`;
+  title.textContent = rating;
+  const comment = document.createElement("p");
+  comment.textContent = row.comment || "내용 없음";
+  card.append(title, comment);
+  return card;
+}
+
+function showCards(element, rows, emptyText, build) {
+  element.replaceChildren();
+  if (!rows.length) {
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = emptyText;
+    element.append(note);
+    return;
+  }
+  rows.forEach((row) => element.append(build(row)));
+}
 
 function fillList(element, rows, emptyText, render) {
   element.replaceChildren();
@@ -56,9 +168,7 @@ async function loadOperator(event) {
   const reviews = document.getElementById("review-list");
   if (!token) {
     status.textContent = "로그인 아이디를 입력해 주세요.";
-    document.getElementById("village-rank").textContent = "";
-    bookings.replaceChildren();
-    reviews.replaceChildren();
+    clearOps();
     return;
   }
   sessionStorage.setItem(TOKEN_KEY, token);
@@ -67,39 +177,29 @@ async function loadOperator(event) {
   });
   if (response.status === 401) {
     status.textContent = "운영자 인증이 필요합니다.";
-    document.getElementById("village-rank").textContent = "";
-    bookings.replaceChildren();
-    reviews.replaceChildren();
+    clearOps();
     return;
   }
   if (!response.ok) {
     status.textContent = "마을 정보를 불러오지 못했습니다.";
+    clearOps();
     return;
   }
   const data = await response.json();
-  const pending = data.pending_bookings || 0;
-  status.textContent = `마을 ${data.village_id} · 예약 ${data.total_bookings || 0}건 · 대기 ${pending}건`;
+  const name = data.village_name || data.village_id || "내 마을";
+  const place = data.sigungu ? `${name} · ${data.sigungu}` : name;
+  const grade = data.grade ? ` · ${data.grade}` : "";
+  status.textContent = `${place}${grade} · 예약 ${data.total_bookings || 0}건 · 후기 ${data.review_count || 0}건`;
   const rank = document.getElementById("village-rank");
   if (data.trust_rank && data.total_villages) {
     rank.textContent = `전체 ${data.total_villages}곳 중 ${data.trust_rank}위, 신뢰도 ${data.trust_score}점`;
   } else {
     rank.textContent = data.rank_message || "전체 순위를 계산하지 못했습니다.";
   }
-  fillList(
-    bookings,
-    data.recent_bookings || [],
-    "예약이 없습니다.",
-    (row) => {
-      const label = STATUS_LABEL[row.status] || row.status || "";
-      return `${row.booking_id}번 ${label} ${row.visit_date || ""} ${row.num_people || 0}명`;
-    },
-  );
-  fillList(
-    reviews,
-    data.recent_reviews || [],
-    "후기가 없습니다.",
-    (row) => `${row.rating || "-"}점 ${row.comment || ""}`.trim(),
-  );
+  renderStats(data);
+  renderChart(data);
+  showCards(bookings, data.recent_bookings || [], "예약이 없습니다.", bookingCard);
+  showCards(reviews, data.recent_reviews || [], "후기가 없습니다.", reviewCard);
   loadContents(token);
 }
 

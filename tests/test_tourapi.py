@@ -81,6 +81,51 @@ def test_uses_public_data_key_and_base_endpoint(monkeypatch):
     assert [item["title"] for item in result["restaurants"]] == ["해남식당"]
 
 
+def test_keeps_representative_photo_and_distance(monkeypatch):
+    payload = _payload()
+    items = payload["response"]["body"]["items"]["item"]
+    items[0]["firstimage"] = "https://example.test/daeheung.jpg"
+    items[0]["dist"] = "1200"
+    items[1]["firstimage"] = "  "
+    items[1]["firstimage2"] = "https://example.test/food.jpg"
+    items[1]["dist"] = "800.5"
+    monkeypatch.setenv("TOUR_API_SERVICE_KEY", "shared-key")
+    monkeypatch.setenv("TOUR_API_ENDPOINT", "https://example.test/tour")
+    monkeypatch.setattr(
+        "services.tourapi.httpx.Client",
+        lambda timeout=10.0: _Client(payload, {}),
+    )
+
+    result = fetch_nearby_attractions(34.68, 126.66)
+
+    attraction = result["attractions"][0]
+    assert attraction["image_url"] == "https://example.test/daeheung.jpg"
+    assert attraction["distance_m"] == 1200.0
+    assert attraction["title"] == "대흥사"
+    assert attraction["content_type"] == "관광지"
+    restaurant = result["restaurants"][0]
+    assert restaurant["image_url"] == "https://example.test/food.jpg"
+    assert restaurant["distance_m"] == 800.5
+
+
+def test_blank_photo_stays_empty(monkeypatch):
+    payload = _payload()
+    item = payload["response"]["body"]["items"]["item"][0]
+    item["firstimage"] = ""
+    item["firstimage2"] = "not-a-url"
+    monkeypatch.setenv("TOUR_API_SERVICE_KEY", "shared-key")
+    monkeypatch.setenv("TOUR_API_ENDPOINT", "https://example.test/tour")
+    monkeypatch.setattr(
+        "services.tourapi.httpx.Client",
+        lambda timeout=10.0: _Client(payload, {}),
+    )
+
+    result = fetch_nearby_attractions(34.68, 126.66)
+
+    assert result["attractions"][0]["image_url"] == ""
+    assert result["attractions"][0]["distance_m"] is None
+
+
 def test_returns_unavailable_when_call_fails(monkeypatch):
     monkeypatch.setenv("TOUR_API_SERVICE_KEY", "shared-key")
     monkeypatch.setenv("TOUR_API_ENDPOINT", "https://example.test/tour")

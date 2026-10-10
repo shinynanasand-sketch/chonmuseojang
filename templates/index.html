@@ -26,9 +26,24 @@ function text(value, fallback) {
 
 function shortProgram(value) {
   const raw = text(value, '').trim();
-  if (!raw) return '프로그램 미상';
+  if (!raw) return '';
   const head = raw.split('+')[0].trim() || raw;
-  return head.length > 40 ? `${head.slice(0, 40)}…` : head;
+  return head.length > 80 ? `${head.slice(0, 80)}…` : head;
+}
+
+function programText(village) {
+  const name = text(village.program_name, '').trim();
+  const type = shortProgram(village.program_type);
+  if (name && type && !name.includes(type)) return `${name} · ${type}`;
+  return name || type;
+}
+
+function detailLine(value) {
+  const raw = text(value, '').trim();
+  if (!raw) return null;
+  const p = document.createElement('p');
+  p.textContent = raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
+  return p;
 }
 
 function matches(village) {
@@ -52,8 +67,14 @@ function renderVillages() {
     card.className = 'village-card';
     const title = document.createElement('h2');
     title.textContent = text(village.village_name, '이름 없음');
+    if (village.grade) {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = village.grade;
+      title.append(badge);
+    }
     const meta = document.createElement('p');
-    meta.textContent = `${text(village.sigungu, '시군구 미상')} · ${shortProgram(village.program_type)}`;
+    meta.textContent = text(village.sigungu, '시군구 미상');
     const links = document.createElement('p');
     links.className = 'card-links';
     const nearby = document.createElement('a');
@@ -63,7 +84,11 @@ function renderVillages() {
     mapLink.href = `/map?sigungu=${encodeURIComponent(village.sigungu || '')}`;
     mapLink.textContent = '지도';
     links.append(nearby, mapLink);
-    card.append(title, meta, links);
+    card.append(title, meta);
+    [detailLine(village.address), detailLine(programText(village)), detailLine(village.facilities)]
+      .filter(Boolean)
+      .forEach((line) => card.append(line));
+    card.append(links);
     root.append(card);
   });
 }

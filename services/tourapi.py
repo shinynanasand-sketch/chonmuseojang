@@ -48,12 +48,32 @@ def _allowed_area(item: dict) -> bool:
     return not area or area in TARGET_AREA_CODES
 
 
+def _image_url(item: dict) -> str:
+    for key in ("firstimage", "firstimage2"):
+        value = str(item.get(key) or "").strip()
+        if value.startswith("http://") or value.startswith("https://"):
+            return value
+    return ""
+
+
+def _distance_m(item: dict) -> float | None:
+    raw = item.get("dist")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _summarize(item: dict) -> dict:
     type_id = str(item.get("contenttypeid") or "")
     return {
         "title": item.get("title"),
         "addr": item.get("addr1"),
         "content_type": CONTENT_LABELS.get(type_id, "관광정보"),
+        "image_url": _image_url(item),
+        "distance_m": _distance_m(item),
     }
 
 

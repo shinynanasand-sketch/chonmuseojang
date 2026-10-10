@@ -1,3 +1,18 @@
+function programText(item) {
+  const name = String(item.program_name || '').trim();
+  const type = String(item.program_type || '').split('+')[0].trim();
+  if (name && type && !name.includes(type)) return `${name} · ${type}`;
+  return name || type;
+}
+
+function detailLine(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const p = document.createElement('p');
+  p.textContent = raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
+  return p;
+}
+
 document.getElementById('recommend-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const query = document.getElementById('query').value;
@@ -15,11 +30,14 @@ document.getElementById('recommend-form')?.addEventListener('submit', async (e) 
     card.className = 'card';
     const title = document.createElement('strong');
     title.textContent = item.village_name || '이름 없음';
+    if (item.grade) {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = item.grade;
+      title.append(badge);
+    }
     const place = document.createElement('p');
-    const program = item.program_type ? item.program_type.split('+')[0].trim() : '';
-    place.textContent = program
-      ? `${item.sigungu || '시군구 미상'} · ${program}`
-      : (item.sigungu || '시군구 미상');
+    place.textContent = item.sigungu || '시군구 미상';
     const reason = document.createElement('p');
     reason.textContent = item.reason || '';
     const links = document.createElement('p');
@@ -30,7 +48,12 @@ document.getElementById('recommend-form')?.addEventListener('submit', async (e) 
       nearby.textContent = '주변정보';
       links.append(nearby);
     }
-    card.append(title, place, reason, links);
+    card.append(title, place, reason);
+    [item.address, programText(item), item.facilities].forEach((value) => {
+      const line = detailLine(value);
+      if (line) card.append(line);
+    });
+    card.append(links);
     container.appendChild(card);
   });
   if (!results.length) {

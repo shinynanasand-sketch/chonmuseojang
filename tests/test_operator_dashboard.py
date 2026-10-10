@@ -1,4 +1,4 @@
-from services.booking import create_booking, get_operator_dashboard_summary
+from services.booking import create_booking, get_operator_dashboard_summary, update_booking_status
 from services.review import create_review
 
 
@@ -130,6 +130,53 @@ def test_operator_rank_includes_demo_village_hidden_from_tourists(test_client):
     assert public_ids == ["PD100"]
 
 
+def test_operator_dashboard_counts_own_status_and_rating(test_client):
+    from datetime import datetime, timezone
+
+    from services.supabase_client import upsert_villages
+
+    now = datetime.now(timezone.utc)
+    upsert_villages(
+        [
+            {
+                "village_id": "V001",
+                "village_name": "예시 갯벌마을",
+                "sigungu": "신안군",
+                "grade": "으뜸촌",
+                "synced_at": now.isoformat(),
+            }
+        ]
+    )
+    pending = create_booking("V001", "kakao-hidden-a", "2026-10-01", 2)
+    confirmed = create_booking("V001", "kakao-hidden-a", "2026-10-02", 3)
+    rejected = create_booking("V001", "kakao-hidden-a", "2026-10-03", 1)
+    update_booking_status(confirmed["booking_id"], "confirmed")
+    update_booking_status(rejected["booking_id"], "rejected")
+    other = create_booking("V002", "kakao-hidden-b", "2026-10-04", 9)
+    update_booking_status(other["booking_id"], "confirmed")
+    create_review("V001", pending["booking_id"], "kakao-hidden-a", "좋았어요", rating=5, sentiment="긍정")
+    create_review("V001", confirmed["booking_id"], "kakao-hidden-a", "보통이에요", rating=3, sentiment="긍정")
+    create_review("V002", other["booking_id"], "kakao-hidden-b", "다른 마을", rating=1, sentiment="부정")
+
+    response = test_client.get(
+        "/api/operator/dashboard",
+        headers={"Authorization": "Bearer owner_v001"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["village_name"] == "예시 갯벌마을"
+    assert body["sigungu"] == "신안군"
+    assert body["grade"] == "으뜸촌"
+    assert body["total_bookings"] == 3
+    assert body["pending_bookings"] == 1
+    assert body["confirmed_bookings"] == 1
+    assert body["rejected_bookings"] == 1
+    assert body["review_count"] == 2
+    assert body["average_rating"] == 4.0
+    assert "kakao-hidden-a" not in response.text
+    assert "다른 마을" not in response.text
+
+
 def test_home_nav_omits_operations_link(test_client):
     html = test_client.get("/").text
     assert "운영현황" not in html
@@ -143,3 +190,4 @@ def test_operator_page_asks_for_login_id_not_password(test_client):
     assert 'type="password"' not in html
     assert 'name="login_id"' in html
     assert "내 마을" in html
+    assert "내 운영 현황" in html

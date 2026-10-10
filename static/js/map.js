@@ -2,10 +2,16 @@ function popupNode(village) {
   const box = document.createElement('div');
   const name = document.createElement('strong');
   name.textContent = village.village_name || '이름 없음';
+  const place = document.createElement('p');
+  place.className = 'popup-meta';
+  const program = village.program_type ? String(village.program_type).split('+')[0].trim() : '';
+  place.textContent = program
+    ? `${village.sigungu || '시군구 미상'} · ${program}`
+    : (village.sigungu || '시군구 미상');
   const link = document.createElement('a');
   link.href = `/nearby?village_id=${encodeURIComponent(village.village_id || '')}`;
   link.textContent = '주변정보';
-  box.append(name, document.createElement('br'), link);
+  box.append(name, place, link);
   return box;
 }
 
