@@ -1,7 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 CLAUDE_MODEL = "claude-haiku-4-5"
 OPENAI_MODEL = "gpt-4.1-mini"
 
@@ -72,9 +72,8 @@ class GeminiProvider(LLMProvider):
         if json_mode:
             payload["generationConfig"] = {
                 "responseMimeType": "application/json",
-                "temperature": 0.2,
-                "maxOutputTokens": 512,
-                "thinkingConfig": {"thinkingBudget": 0},
+                "maxOutputTokens": 1024,
+                "thinkingConfig": {"thinkingLevel": "minimal"},
             }
         with httpx.Client(timeout=timeout) as client:
             response = client.post(url, json=payload)
@@ -141,7 +140,7 @@ class OpenAIProvider(LLMProvider):
         }
         if json_mode:
             body["temperature"] = 0.2
-            body["max_tokens"] = 512
+            body["max_tokens"] = 1024
             body["response_format"] = _RECOMMENDATION_SCHEMA
         with httpx.Client(timeout=timeout) as client:
             response = client.post(

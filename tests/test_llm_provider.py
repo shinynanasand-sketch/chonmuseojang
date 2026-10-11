@@ -64,7 +64,10 @@ def test_gemini_recommend_uses_flash_json_and_timeout(monkeypatch):
     body = post.call_args.kwargs["json"]
     assert body["systemInstruction"]["parts"][0]["text"] == "시스템"
     assert body["generationConfig"]["responseMimeType"] == "application/json"
-    assert body["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+    assert body["generationConfig"]["maxOutputTokens"] == 1024
+    assert body["generationConfig"]["thinkingConfig"]["thinkingLevel"] == "minimal"
+    assert "temperature" not in body["generationConfig"]
+    assert "thinkingBudget" not in body["generationConfig"]["thinkingConfig"]
 
 
 def test_gemini_prose_call_omits_json_mime(monkeypatch):
