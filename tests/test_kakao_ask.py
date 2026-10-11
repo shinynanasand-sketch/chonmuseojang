@@ -64,7 +64,7 @@ def test_operator_ask_stays_on_own_village(test_client):
             return_value={"village_id": "V001", "village_name": "예시 갯벌마을", "sigungu": "신안군"},
         ),
         patch("services.kakao_ask.get_nearby_for_village", return_value=nearby) as mock_nearby,
-        patch("services.kakao_ask.keyword_recommendations") as mock_recommend,
+        patch("services.kakao_ask.recommend_villages") as mock_recommend,
     ):
         response = test_client.post(
             "/kakao/ask",
@@ -149,3 +149,24 @@ def test_long_recommendation_simpletext_stays_within_1000(test_client):
     assert text.startswith("추천.")
     assert "\n" not in text
     assert 1 <= len(text) <= 1000
+
+
+def test_tourist_ask_skips_nearby_when_recommend_uses_the_budget(test_client):
+    with (
+        patch("services.kakao_ask.get_operator_by_kakao_id", return_value=None),
+        patch("services.kakao_ask.list_public_villages", return_value=VILLAGES),
+        patch("services.kakao_ask.get_nearby_for_village") as mock_nearby,
+        patch("services.kakao_ask._seconds_since", return_value=2.5),
+    ):
+        response = test_client.post(
+            "/kakao/ask",
+            json={
+                "userRequest": {"utterance": "아이와 갈만한 갯벌체험", "user": {"id": "tourist-slow"}},
+                "action": {"params": {}},
+            },
+        )
+
+    assert response.status_code == 200
+    assert "갯벌마을" in _skill_text(response)
+    assert "장보고대교" not in _skill_text(response)
+    mock_nearby.assert_not_called()

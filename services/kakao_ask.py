@@ -1,12 +1,19 @@
 """카카오 질문 스킬. 관광객은 비교 추천, 운영자는 자기 마을만 답한다."""
 
+import time
+
 from services.auth import get_operator_by_kakao_id
 from services.kakao_client import build_error_skill_response, build_skill_response
-from services.recommend import keyword_recommendations
+from services.recommend import KAKAO_LLM_TIMEOUT, recommendation_lines, recommend_villages
 from services.supabase_client import get_village_by_id, list_public_villages
 from services.tourapi import get_nearby_for_village
 
 _MAX_TEXT = 1000
+_NEARBY_IF_ELAPSED_UNDER = 2.0
+
+
+def _seconds_since(started: float) -> float:
+    return time.monotonic() - started
 
 
 def _clip(text: str) -> str:
@@ -41,29 +48,19 @@ def _nearby_phrase(village_id: str) -> str:
 
 
 def _tourist_answer(utterance: str) -> dict:
+    started = time.monotonic()
     query = (utterance or "").strip()
     if not query:
         return build_error_skill_response("체험 종류나 시군 이름을 넣어 질문해 주세요.")
     villages = list_public_villages()
-    matches = keyword_recommendations(query, villages)[:2]
+    matches = recommend_villages(query, villages, timeout=KAKAO_LLM_TIMEOUT)
     if not matches:
         return build_error_skill_response(
             "조건에 맞는 마을을 찾지 못했습니다. 체험 종류나 시군 이름을 넣어 주세요."
         )
-    bits = []
-    for item in matches:
-        village = next(
-            (row for row in villages if row.get("village_id") == item.get("village_id")),
-            {},
-        )
-        name = item.get("village_name") or "이름 없음"
-        sigungu = village.get("sigungu") or ""
-        place = f"{name}({sigungu})" if sigungu else name
-        reason = item.get("reason") or ""
-        bits.append(f"{place}. {reason}".strip().rstrip("."))
+    description = " / ".join(recommendation_lines(matches, villages))
     top_id = str(matches[0].get("village_id") or "")
-    description = ". ".join(bits)
-    if top_id:
+    if top_id and _seconds_since(started) < _NEARBY_IF_ELAPSED_UNDER:
         description = f"{description}. {_nearby_phrase(top_id)}"
     return build_skill_response("추천", _clip(description))
 

@@ -1,10 +1,48 @@
 import os
 from abc import ABC, abstractmethod
 
+GEMINI_MODEL = "gemini-2.5-flash"
+CLAUDE_MODEL = "claude-haiku-4-5"
+OPENAI_MODEL = "gpt-4.1-mini"
+
+_RECOMMENDATION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "village_recommendations",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "recommendations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "village_id": {"type": "string"},
+                            "village_name": {"type": "string"},
+                            "reason": {"type": "string"},
+                        },
+                        "required": ["village_id", "village_name", "reason"],
+                    },
+                }
+            },
+            "required": ["recommendations"],
+        },
+    },
+}
+
 
 class LLMProvider(ABC):
     @abstractmethod
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        timeout: float = 30.0,
+        json_mode: bool = False,
+    ) -> str:
         pass
 
 
@@ -12,19 +50,33 @@ class GeminiProvider(LLMProvider):
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY", "")
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        timeout: float = 30.0,
+        json_mode: bool = False,
+    ) -> str:
         if not self.api_key:
             return "[]"
         import httpx
 
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-1.5-flash:generateContent?key={self.api_key}"
+            f"{GEMINI_MODEL}:generateContent?key={self.api_key}"
         )
         payload = {
-            "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}]
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"parts": [{"text": user_prompt}]}],
         }
-        with httpx.Client(timeout=30.0) as client:
+        if json_mode:
+            payload["generationConfig"] = {
+                "responseMimeType": "application/json",
+                "temperature": 0.2,
+                "maxOutputTokens": 512,
+                "thinkingConfig": {"thinkingBudget": 0},
+            }
+        with httpx.Client(timeout=timeout) as client:
             response = client.post(url, json=payload)
             response.raise_for_status()
             data = response.json()
@@ -35,12 +87,18 @@ class ClaudeProvider(LLMProvider):
     def __init__(self):
         self.api_key = os.getenv("CLAUDE_API_KEY", "")
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        timeout: float = 30.0,
+        json_mode: bool = False,
+    ) -> str:
         if not self.api_key:
             return "[]"
         import httpx
 
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={
@@ -49,8 +107,8 @@ class ClaudeProvider(LLMProvider):
                     "content-type": "application/json",
                 },
                 json={
-                    "model": "claude-3-5-sonnet-20241022",
-                    "max_tokens": 1024,
+                    "model": CLAUDE_MODEL,
+                    "max_tokens": 512 if json_mode else 1024,
                     "system": system_prompt,
                     "messages": [{"role": "user", "content": user_prompt}],
                 },
@@ -63,22 +121,33 @@ class OpenAIProvider(LLMProvider):
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY", "")
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        timeout: float = 30.0,
+        json_mode: bool = False,
+    ) -> str:
         if not self.api_key:
             return "[]"
         import httpx
 
-        with httpx.Client(timeout=30.0) as client:
+        body = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        if json_mode:
+            body["temperature"] = 0.2
+            body["max_tokens"] = 512
+            body["response_format"] = _RECOMMENDATION_SCHEMA
+        with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {self.api_key}"},
-                json={
-                    "model": "gpt-4o-mini",
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                },
+                json=body,
             )
             response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"]

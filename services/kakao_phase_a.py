@@ -5,7 +5,7 @@ from services import booking, review
 from services.auth import register_operator_with_ids, resolve_kakao_role
 from services.kakao_client import build_error_skill_response, build_skill_response
 from services.kakao_params import booking_id_from_params, representative
-from services.recommend import keyword_recommendations
+from services.recommend import KAKAO_LLM_TIMEOUT, recommendation_lines, recommend_villages
 from services.supabase_client import list_public_villages
 
 _BLOCKS = {
@@ -25,11 +25,6 @@ _STATUS_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있습
 _OTHER_VILLAGE = "이 예약을 처리할 권한이 없습니다."
 _REGISTER_NEED = "마을명과 등록 코드를 한 문장으로 말해 주세요. 예시: 예시 갯벌마을 GB-001"
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
-
-
-def _open_parens(text: str) -> str:
-    opened = text.replace("(", " ").replace(")", " ").replace("（", " ").replace("）", " ")
-    return " ".join(opened.split())
 
 
 def _skill_lines(title: str, lines: list[str], total: int) -> dict:
@@ -64,22 +59,12 @@ def _recommend(utterance: str) -> dict:
     if not query:
         return build_error_skill_response("체험 종류나 시군 이름을 넣어 질문해 주세요.")
     villages = list_public_villages()
-    matches = keyword_recommendations(query, villages)
+    matches = recommend_villages(query, villages, timeout=KAKAO_LLM_TIMEOUT)
     if not matches:
         return build_error_skill_response(
             "조건에 맞는 마을을 찾지 못했습니다. 조건을 조금 넓혀 주세요."
         )
-    by_id = {row.get("village_id"): row for row in villages}
-    items = []
-    seen_names: set[str] = set()
-    for item in matches:
-        name = str(item.get("village_name") or "마을")
-        if name in seen_names:
-            continue
-        seen_names.add(name)
-        village = by_id.get(item.get("village_id"), {})
-        place = str(village.get("sigungu") or "").strip()
-        items.append(" ".join(part for part in (_open_parens(name), place) if part))
+    items = recommendation_lines(matches, villages)
     return _skill_lines("마을 추천", items, len(items))
 
 

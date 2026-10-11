@@ -2,7 +2,7 @@
 
 Phase A 블록을 카카오 비즈니스 화면에 넣을 때는 [`PHASE_A_KAKAO_INPUT.md`](PHASE_A_KAKAO_INPUT.md)를 봅니다.
 
-스킬 서버 시연, 오픈빌더 봇테스트, 카카오톡 실기기 시연은 끝났습니다. 개발채널은 연결되어 있습니다. 비즈월렛·이벤트 API는 호출하지 않습니다.
+스킬 서버 시연, 기존 오픈빌더 봇테스트, 카카오톡 실기기 시연은 끝났습니다. 개발채널은 연결되어 있습니다. Phase A 여섯 블록은 서버가 처리하고, 오픈빌더 화면 입력과 그 봇테스트는 아직입니다. 비즈월렛·이벤트 API는 호출하지 않습니다.
 
 카카오 사용자 ID의 수집·사용 범위는 [`PRIVACY_KAKAO_ID.md`](PRIVACY_KAKAO_ID.md)를 봅니다. 시연 로그인·예약 번호·카카오 ID는 [`OPERATOR_DEMO.md`](OPERATOR_DEMO.md)를 봅니다. 상세 설정은 [`../KAKAO_SETUP.md`](../KAKAO_SETUP.md), 시나리오 블록은 [`OPENBUILDER_SCENARIO.md`](OPENBUILDER_SCENARIO.md), 웹훅 URL은 [`OPENBUILDER_WEBHOOKS.md`](OPENBUILDER_WEBHOOKS.md)를 봅니다.
 
@@ -36,8 +36,9 @@ Phase A 블록을 카카오 비즈니스 화면에 넣을 때는 [`PHASE_A_KAKAO
 
 ## 남은 것
 
+- 오픈빌더 Phase A 시나리오 3개·블록 6개. 넣는 값은 [`PHASE_A_KAKAO_INPUT.md`](PHASE_A_KAKAO_INPUT.md). 서버는 이미 처리한다. 화면 입력과 봇테스트는 아직이다
 - 비즈월렛
-- 이벤트 API 선톡 (비즈월렛 다음)
+- 이벤트 API 선톡 (Phase A 봇테스트와 비즈월렛 다음)
 
 ## 오픈빌더에서 확인한 것
 
