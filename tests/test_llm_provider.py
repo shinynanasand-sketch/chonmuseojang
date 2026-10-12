@@ -1,11 +1,15 @@
 from unittest.mock import MagicMock, patch
 
+import httpx
+import pytest
+
 from services.llm_provider import (
     CLAUDE_MODEL,
     GEMINI_MODEL,
     OPENAI_MODEL,
     ClaudeProvider,
     GeminiProvider,
+    LLMUnavailable,
     OpenAIProvider,
     get_llm_provider,
 )
@@ -101,6 +105,31 @@ def test_openai_prose_call_omits_json_schema(monkeypatch):
         OpenAIProvider().generate("시스템", "사용자")
 
     assert "response_format" not in post.call_args.kwargs["json"]
+
+
+def test_gemini_missing_key_is_unavailable(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    with patch("httpx.Client") as client_cls:
+        with pytest.raises(LLMUnavailable):
+            GeminiProvider().generate("시스템", "사용자", json_mode=True)
+    client_cls.assert_not_called()
+
+
+def test_openai_missing_key_is_unavailable(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    with pytest.raises(LLMUnavailable):
+        OpenAIProvider().generate("시스템", "사용자", json_mode=True)
+
+
+def test_gemini_503_is_unavailable(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    request = httpx.Request("POST", "https://example.test")
+    response = httpx.Response(503, request=request)
+    client, post = _http_client(response)
+    post.return_value = response
+    with patch("httpx.Client", return_value=client):
+        with pytest.raises(LLMUnavailable):
+            GeminiProvider().generate("시스템", "사용자", json_mode=True)
 
 
 def test_claude_uses_haiku(monkeypatch):

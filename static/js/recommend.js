@@ -15,48 +15,58 @@ function detailLine(value) {
 
 document.getElementById('recommend-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
+  const button = e.currentTarget.querySelector('button');
   const query = document.getElementById('query').value;
-  const res = await fetch('/api/recommend', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  const data = await res.json();
   const container = document.getElementById('results');
-  container.replaceChildren();
-  const results = data.results || [];
-  results.forEach((item) => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    const title = document.createElement('strong');
-    title.textContent = item.village_name || '이름 없음';
-    if (item.grade) {
-      const badge = document.createElement('span');
-      badge.className = 'badge';
-      badge.textContent = item.grade;
-      title.append(badge);
-    }
-    const place = document.createElement('p');
-    place.textContent = item.sigungu || '시군구 미상';
-    const reason = document.createElement('p');
-    reason.textContent = item.reason || '';
-    const links = document.createElement('p');
-    links.className = 'card-links';
-    if (item.village_id) {
-      const nearby = document.createElement('a');
-      nearby.href = `/nearby?village_id=${encodeURIComponent(item.village_id)}`;
-      nearby.textContent = '주변정보';
-      links.append(nearby);
-    }
-    card.append(title, place, reason);
-    [item.address, programText(item), item.facilities].forEach((value) => {
-      const line = detailLine(value);
-      if (line) card.append(line);
+  container.textContent = '추천 진행 중입니다';
+  if (button) button.disabled = true;
+  try {
+    const res = await fetch('/api/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
     });
-    card.append(links);
-    container.appendChild(card);
-  });
-  if (!results.length) {
-    container.textContent = data.message || '결과가 없습니다.';
+    if (!res.ok) throw new Error('request failed');
+    const data = await res.json();
+    container.replaceChildren();
+    const results = data.results || [];
+    results.forEach((item) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const title = document.createElement('strong');
+      title.textContent = item.village_name || '이름 없음';
+      if (item.grade) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = item.grade;
+        title.append(badge);
+      }
+      const place = document.createElement('p');
+      place.textContent = item.sigungu || '시군구 미상';
+      const reason = document.createElement('p');
+      reason.textContent = item.reason || '';
+      const links = document.createElement('p');
+      links.className = 'card-links';
+      if (item.village_id) {
+        const nearby = document.createElement('a');
+        nearby.href = `/nearby?village_id=${encodeURIComponent(item.village_id)}`;
+        nearby.textContent = '주변정보';
+        links.append(nearby);
+      }
+      card.append(title, place, reason);
+      [item.address, programText(item), item.facilities].forEach((value) => {
+        const line = detailLine(value);
+        if (line) card.append(line);
+      });
+      card.append(links);
+      container.appendChild(card);
+    });
+    if (!results.length) {
+      container.textContent = data.message || '결과가 없습니다.';
+    }
+  } catch {
+    container.textContent = '추천을 불러오지 못했습니다. 다시 시도해 주세요.';
+  } finally {
+    if (button) button.disabled = false;
   }
 });

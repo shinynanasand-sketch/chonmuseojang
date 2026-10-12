@@ -218,7 +218,7 @@ def test_recommend_success_uses_simple_text(test_client):
     text = body["template"]["outputs"][0]["simpleText"]["text"]
     assert "갯벌체험마을" in text
     assert "신안군" in text
-    assert "질문과 맞습니다" in text
+    assert "갯벌과 맞습니다" in text
     assert "listCard" not in body["template"]["outputs"][0]
     assert "context" not in body
 

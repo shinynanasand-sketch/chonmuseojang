@@ -34,6 +34,36 @@ _RECOMMENDATION_SCHEMA = {
 }
 
 
+class LLMUnavailable(Exception):
+    """키가 없거나 HTTP로 바로 거절된 호출이다."""
+
+
+_FAILOVER_STATUS = frozenset({401, 403, 408, 429, 500, 502, 503, 504})
+_PROVIDER_KEYS = {
+    "gemini": "GEMINI_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "claude": "CLAUDE_API_KEY",
+}
+
+
+def provider_has_key(name: str) -> bool:
+    env_name = _PROVIDER_KEYS.get(name)
+    if not env_name:
+        return False
+    return bool(os.getenv(env_name, "").strip())
+
+
+def _raise_if_unavailable(response) -> None:
+    import httpx
+
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in _FAILOVER_STATUS:
+            raise LLMUnavailable(str(exc.response.status_code)) from exc
+        raise
+
+
 class LLMProvider(ABC):
     @abstractmethod
     def generate(
@@ -58,7 +88,7 @@ class GeminiProvider(LLMProvider):
         json_mode: bool = False,
     ) -> str:
         if not self.api_key:
-            return "[]"
+            raise LLMUnavailable("missing")
         import httpx
 
         url = (
@@ -77,7 +107,7 @@ class GeminiProvider(LLMProvider):
             }
         with httpx.Client(timeout=timeout) as client:
             response = client.post(url, json=payload)
-            response.raise_for_status()
+            _raise_if_unavailable(response)
             data = response.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -94,7 +124,7 @@ class ClaudeProvider(LLMProvider):
         json_mode: bool = False,
     ) -> str:
         if not self.api_key:
-            return "[]"
+            raise LLMUnavailable("missing")
         import httpx
 
         with httpx.Client(timeout=timeout) as client:
@@ -112,7 +142,7 @@ class ClaudeProvider(LLMProvider):
                     "messages": [{"role": "user", "content": user_prompt}],
                 },
             )
-            response.raise_for_status()
+            _raise_if_unavailable(response)
             return response.json()["content"][0]["text"]
 
 
@@ -128,7 +158,7 @@ class OpenAIProvider(LLMProvider):
         json_mode: bool = False,
     ) -> str:
         if not self.api_key:
-            return "[]"
+            raise LLMUnavailable("missing")
         import httpx
 
         body = {
@@ -148,12 +178,12 @@ class OpenAIProvider(LLMProvider):
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json=body,
             )
-            response.raise_for_status()
+            _raise_if_unavailable(response)
             return response.json()["choices"][0]["message"]["content"]
 
 
-def get_llm_provider() -> LLMProvider:
-    provider_name = os.getenv("LLM_PROVIDER", "gemini").lower()
+def get_llm_provider(name: str | None = None) -> LLMProvider:
+    provider_name = (name or os.getenv("LLM_PROVIDER", "gemini")).lower()
     mapping = {
         "gemini": GeminiProvider,
         "claude": ClaudeProvider,

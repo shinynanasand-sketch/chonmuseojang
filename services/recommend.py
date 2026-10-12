@@ -1,11 +1,16 @@
 import json
+import os
 import re
+import time
 
-from services.llm_provider import get_llm_provider
+import httpx
+
+from services.llm_provider import LLMUnavailable, get_llm_provider, provider_has_key
 from services.trust_score import calculate_trust_score
 
 WEB_LLM_TIMEOUT = 8.0
 KAKAO_LLM_TIMEOUT = 3.5
+_MIN_SPARE_SECONDS = 2.0
 _CANDIDATE_LIMIT = 20
 _RESULT_LIMIT = 5
 
@@ -115,6 +120,93 @@ def _match_score(query: str, terms: list[str], row: dict) -> tuple[int, str]:
     return score, reason
 
 
+_REASON_LIMIT = 80
+
+
+def _has_batchim(word: str) -> bool:
+    if not word:
+        return False
+    code = ord(word[-1])
+    if 0xAC00 <= code <= 0xD7A3:
+        return (code - 0xAC00) % 28 != 0
+    return False
+
+
+def _concept(word: str) -> str:
+    for group in _SYNONYM_GROUPS:
+        if word in group:
+            return group[0]
+    return word
+
+
+def _reason_word(query: str, terms: list[str], value: str) -> str:
+    hitting = [term for term in terms if term and term in value]
+    if value and value in query and value not in hitting:
+        hitting.append(value)
+    if not hitting:
+        return ""
+    group_words = {word for group in _SYNONYM_GROUPS for word in group}
+    reduced = [
+        term
+        for term in hitting
+        if not any(
+            other != term and other in term and other in group_words and other in hitting
+            for other in hitting
+        )
+    ]
+    reduced.sort(key=lambda term: (0 if term in query else 1, len(term), term))
+    return reduced[0]
+
+
+def specific_reason(user_query: str, row: dict) -> str:
+    """질문과 맞은 말, 프로그램명, 맞은 시설로 80자 이내 한 줄을 만든다."""
+    query = (user_query or "").strip()
+    terms = _search_terms(query)
+    words: list[str] = []
+    used: set[str] = set()
+    matched_facility = ""
+    any_match = False
+    for field, _weight, _label in _SCORE_FIELDS:
+        matched_part = ""
+        for part in _field_parts(row, field):
+            if _term_hits(query, terms, part):
+                matched_part = part
+                break
+        if not matched_part:
+            continue
+        any_match = True
+        word = _reason_word(query, terms, matched_part)
+        concept = _concept(word) if word else ""
+        if word and concept not in used and len(words) < 2:
+            words.append(word)
+            used.add(concept)
+        if field == "facilities":
+            matched_facility = matched_part
+    program = str(row.get("program_name") or "").strip() or _primary_program(row)
+    facility = matched_facility if any_match else str(row.get("facilities") or "").strip()
+    detail = ", ".join(bit for bit in (_clip(program, 40), _clip(facility, 40)) if bit)
+    if words:
+        particle = "과" if _has_batchim(words[-1]) else "와"
+        head = f"{'·'.join(words)}{particle} 맞습니다."
+        sentence = f"{head} {detail}".strip() if detail else head
+    else:
+        sentence = detail
+    if sentence and not sentence.endswith("."):
+        sentence += "."
+    return _clip(sentence, _REASON_LIMIT)
+
+
+def _apply_specific_reasons(
+    user_query: str, matches: list[dict], village_rows: list[dict]
+) -> list[dict]:
+    by_id = {row.get("village_id"): row for row in village_rows}
+    applied = []
+    for item in matches:
+        row = by_id.get(item.get("village_id"), {})
+        applied.append({**item, "reason": specific_reason(user_query, row)})
+    return applied
+
+
 def _quality_key(row: dict, index: int) -> tuple:
     return (-_trust_value(row), -_grade_rank(row), index)
 
@@ -183,29 +275,75 @@ def _recommendation_items(parsed: object) -> list:
     return []
 
 
-def parse_recommendation_response(raw_response: str, village_rows: list[dict]) -> list[dict]:
+def _now() -> float:
+    return time.monotonic()
+
+
+def _load_recommendation_json(raw_response: str):
     text = (raw_response or "").strip()
     if not text:
-        return []
+        return None
     fenced = re.sub(r"^```(?:json)?\s*", "", text)
     fenced = re.sub(r"\s*```$", "", fenced).strip()
-    parsed = None
     for candidate in (text, fenced):
         try:
-            parsed = json.loads(candidate)
-            break
+            return json.loads(candidate)
         except json.JSONDecodeError:
-            parsed = None
-    if parsed is None:
-        match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
-        if not match:
-            return []
-        try:
-            parsed = json.loads(match.group(1))
-        except json.JSONDecodeError:
-            return []
+            continue
+    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+
+
+def _is_recommendation_document(parsed: object) -> bool:
+    if isinstance(parsed, list):
+        return True
+    if isinstance(parsed, dict):
+        return any(isinstance(parsed.get(key), list) for key in ("recommendations", "results", "villages"))
+    return False
+
+
+def parse_recommendation_response(raw_response: str, village_rows: list[dict]) -> list[dict]:
+    parsed = _load_recommendation_json(raw_response)
+    if not _is_recommendation_document(parsed):
+        return []
     items = [item for item in _recommendation_items(parsed) if isinstance(item, dict)]
     return items[:_RESULT_LIMIT]
+
+
+def _recommendation_outcome(raw_response: str, village_rows: list[dict]) -> tuple[str, list[dict]]:
+    parsed = _load_recommendation_json(raw_response)
+    if not _is_recommendation_document(parsed):
+        return "invalid", []
+    allowed_ids = {row.get("village_id") for row in village_rows}
+    items = [item for item in _recommendation_items(parsed) if isinstance(item, dict)]
+    kept = [item for item in items[:_RESULT_LIMIT] if item.get("village_id") in allowed_ids]
+    if kept:
+        return "ok", kept
+    if items:
+        return "rejected", []
+    return "empty", []
+
+
+def _recommend_provider_names() -> list[str]:
+    primary = os.getenv("LLM_PROVIDER", "gemini").lower()
+    if primary == "openai":
+        return ["openai", "gemini"]
+    if primary == "claude":
+        return ["claude"]
+    return ["gemini", "openai"]
+
+
+def _providers_to_call() -> list[str]:
+    names = _recommend_provider_names()
+    ready = [name for name in names if provider_has_key(name)]
+    if ready:
+        return ready
+    return names[:1]
 
 
 def keyword_recommendations(user_query: str, village_rows: list[dict]) -> list[dict]:
@@ -242,27 +380,37 @@ def recommend_villages(
         return []
 
     candidates = select_candidates(user_query, village_rows)
-    allowed_ids = {row.get("village_id") for row in candidates}
-    try:
-        llm = get_llm_provider()
-        context = format_village_context(candidates)
-        user_prompt = f"마을 목록:\n{context}\n\n사용자 질문: {user_query}"
-        raw_response = llm.generate(
-            _SYSTEM_PROMPT,
-            user_prompt,
-            timeout=timeout,
-            json_mode=True,
-        )
-        parsed = [
-            item
-            for item in parse_recommendation_response(raw_response, candidates)
-            if item.get("village_id") in allowed_ids
-        ]
-        if parsed:
-            return parsed
-    except Exception:
-        pass
-    return keyword_recommendations(user_query, candidates)
+    context = format_village_context(candidates)
+    user_prompt = f"마을 목록:\n{context}\n\n사용자 질문: {user_query}"
+    deadline = _now() + timeout
+    for index, name in enumerate(_providers_to_call()):
+        remaining = deadline - _now()
+        if index > 0 and remaining < _MIN_SPARE_SECONDS:
+            break
+        call_timeout = timeout if index == 0 else remaining
+        try:
+            llm = get_llm_provider(name)
+            raw_response = llm.generate(
+                _SYSTEM_PROMPT,
+                user_prompt,
+                timeout=call_timeout,
+                json_mode=True,
+            )
+        except httpx.TimeoutException:
+            break
+        except LLMUnavailable:
+            continue
+        except Exception:
+            break
+        kind, parsed = _recommendation_outcome(raw_response, candidates)
+        if kind == "ok":
+            return _apply_specific_reasons(user_query, parsed, candidates)
+        if kind == "invalid":
+            continue
+        break
+    return _apply_specific_reasons(
+        user_query, keyword_recommendations(user_query, candidates), candidates
+    )
 
 
 def recommendation_lines(matches: list[dict], villages: list[dict], limit: int = _RESULT_LIMIT) -> list[str]:

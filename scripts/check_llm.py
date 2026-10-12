@@ -121,14 +121,19 @@ def probe(provider: str) -> tuple[str, int, str]:
     return model, status, reason
 
 
+def _print_probe(name: str) -> int:
+    model, status, reason = probe(name)
+    print(f"provider={name} model={model} http={status} reason={reason}")
+    return status
+
+
 def main() -> int:
-    provider = os.getenv("LLM_PROVIDER", "gemini")
-    model, status, reason = probe(provider)
-    print(f"provider={provider}")
-    print(f"model={model}")
-    print(f"http={status}")
-    print(f"reason={reason}")
-    return 0 if status == 200 else 1
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    statuses = {name: _print_probe(name) for name in ("gemini", "openai")}
+    if provider == "claude":
+        statuses["claude"] = _print_probe("claude")
+    primary = provider if provider in statuses else "gemini"
+    return 0 if statuses.get(primary) == 200 else 1
 
 
 if __name__ == "__main__":
