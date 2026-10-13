@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS contents (
     title TEXT,
     body TEXT NOT NULL,
     photo_url TEXT,
+    is_public BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 

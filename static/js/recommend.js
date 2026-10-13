@@ -51,7 +51,10 @@ document.getElementById('recommend-form')?.addEventListener('submit', async (e) 
         const nearby = document.createElement('a');
         nearby.href = `/nearby?village_id=${encodeURIComponent(item.village_id)}`;
         nearby.textContent = '주변정보';
-        links.append(nearby);
+        const villagePage = document.createElement('a');
+        villagePage.href = `/village/${encodeURIComponent(item.village_id)}`;
+        villagePage.textContent = '마을 소개';
+        links.append(nearby, ' ', villagePage);
       }
       card.append(title, place, reason);
       [item.address, programText(item), item.facilities].forEach((value) => {

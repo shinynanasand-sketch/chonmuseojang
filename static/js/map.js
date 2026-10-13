@@ -11,7 +11,10 @@ function popupNode(village) {
   const link = document.createElement('a');
   link.href = `/nearby?village_id=${encodeURIComponent(village.village_id || '')}`;
   link.textContent = '주변정보';
-  box.append(name, place, link);
+  const villagePage = document.createElement('a');
+  villagePage.href = `/village/${encodeURIComponent(village.village_id || '')}`;
+  villagePage.textContent = '마을 소개';
+  box.append(name, place, link, ' ', villagePage);
   return box;
 }
 

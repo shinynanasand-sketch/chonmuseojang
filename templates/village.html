@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ promo.village_name or "마을" }}{% endblock %}
+{% block content %}
+<h1>{{ promo.village_name or "마을" }}</h1>
+<p class="muted">{{ promo.sigungu }}{% if promo.program_type %} · {{ promo.program_type }}{% endif %}</p>
+{% if promo.photo_url.startswith("http") %}
+<div class="photo-frame">
+  <img src="{{ promo.photo_url }}" alt="홍보 사진">
+</div>
+{% endif %}
+{% if promo.intro %}
+<h2>소개글</h2>
+<p>{{ promo.intro }}</p>
+{% endif %}
+{% if promo.sns %}
+<h2>SNS 문구</h2>
+<p>{{ promo.sns }}</p>
+{% endif %}
+{% endblock %}

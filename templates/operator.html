@@ -29,8 +29,13 @@
     짧은 설명
     <textarea name="description" id="description" rows="3"></textarea>
   </label>
+  <label>
+    사진
+    <input type="file" name="photo" id="photo" accept="image/jpeg,image/png,image/webp">
+  </label>
   <button type="submit">홍보문구 만들기</button>
 </form>
+<p><button type="button" id="publish-content">관광객에게 공개</button></p>
 <p id="content-status" class="muted">설명을 적으면 이 마을 소개글과 SNS 문구를 만듭니다.</p>
 <div id="content-list"></div>
 {% endblock %}
@@ -203,6 +208,37 @@ async function loadOperator(event) {
   loadContents(token);
 }
 
+function showContents(rows) {
+  const list = document.getElementById("content-list");
+  list.replaceChildren();
+  if (!rows.length) {
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = "만든 문구가 없습니다.";
+    list.append(note);
+    return;
+  }
+  rows.forEach((row) => {
+    const card = document.createElement("article");
+    card.className = "village-card";
+    const url = String(row.photo_url || "");
+    if (url.startsWith("https://") || url.startsWith("http://")) {
+      const frame = document.createElement("div");
+      frame.className = "photo-frame";
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = String(row.content_type || "홍보 사진");
+      frame.append(img);
+      card.append(frame);
+    }
+    const text = document.createElement("p");
+    const label = row.is_public ? "공개 " : "";
+    text.textContent = `${label}${row.content_type || ""} ${row.body || ""}`.trim();
+    card.append(text);
+    list.append(card);
+  });
+}
+
 async function loadContents(token) {
   const list = document.getElementById("content-list");
   const response = await fetch("/api/operator/contents", {
@@ -213,12 +249,7 @@ async function loadContents(token) {
     return;
   }
   const data = await response.json();
-  fillList(
-    list,
-    data.contents || [],
-    "만든 문구가 없습니다.",
-    (row) => `${row.content_type} ${row.body || ""}`.trim(),
-  );
+  showContents(data.contents || []);
 }
 
 async function createContent(event) {
@@ -235,13 +266,51 @@ async function createContent(event) {
     return;
   }
   sessionStorage.setItem(TOKEN_KEY, token);
-  const response = await fetch("/api/operator/contents", {
+  const button = event.target.querySelector("button");
+  const body = new FormData();
+  body.append("description", description);
+  const file = document.getElementById("photo").files[0];
+  if (file) body.append("photo", file);
+  status.textContent = "홍보문구를 만들고 있습니다";
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/operator/contents", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      body,
+    });
+    if (response.status === 401) {
+      status.textContent = "운영자 인증이 필요합니다.";
+      return;
+    }
+    const data = await response.json();
+    if (!response.ok) {
+      status.textContent = data.detail || "홍보문구를 만들지 못했습니다.";
+      return;
+    }
+    if (!data.saved) {
+      status.textContent = data.message || "홍보문구를 만들지 못했습니다.";
+      return;
+    }
+    status.textContent = "소개글과 SNS 문구를 저장했습니다.";
+    loadContents(token);
+  } catch (_error) {
+    status.textContent = "홍보문구를 만들지 못했습니다.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function publishContent() {
+  const token = document.getElementById("login-id").value.trim();
+  const status = document.getElementById("content-status");
+  if (!token) {
+    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    return;
+  }
+  const response = await fetch("/api/operator/contents/publish", {
     method: "POST",
-    headers: {
-      Authorization: "Bearer " + token,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ description }),
+    headers: { Authorization: "Bearer " + token },
   });
   if (response.status === 401) {
     status.textContent = "운영자 인증이 필요합니다.";
@@ -249,19 +318,18 @@ async function createContent(event) {
   }
   const data = await response.json();
   if (!response.ok) {
-    status.textContent = data.detail || "홍보문구를 만들지 못했습니다.";
+    status.textContent = data.detail || "홍보문구를 공개하지 못했습니다.";
     return;
   }
-  if (!data.saved) {
-    status.textContent = data.message || "홍보문구를 만들지 못했습니다.";
-    return;
-  }
-  status.textContent = "소개글과 SNS 문구를 저장했습니다.";
-  loadContents(token);
+  status.textContent = data.published
+    ? "관광객 화면에 공개했습니다."
+    : (data.message || "공개할 홍보문구가 없습니다.");
+  if (data.published) loadContents(token);
 }
 
 document.getElementById("operator-login").addEventListener("submit", loadOperator);
 document.getElementById("content-form").addEventListener("submit", createContent);
+document.getElementById("publish-content").addEventListener("click", publishContent);
 const saved = sessionStorage.getItem(TOKEN_KEY);
 if (saved) {
   document.getElementById("login-id").value = saved;

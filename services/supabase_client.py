@@ -386,6 +386,27 @@ def insert_content(row: dict) -> dict:
     return dict(saved)
 
 
+def set_village_public_contents(village_id: str, content_ids: list[int]) -> list[dict]:
+    """그 마을의 공개를 content_ids만 남긴다."""
+    chosen = {int(content_id) for content_id in content_ids}
+    client = get_supabase_client()
+    if client:
+        client.table("contents").update({"is_public": False}).eq("village_id", village_id).execute()
+        if chosen:
+            (
+                client.table("contents")
+                .update({"is_public": True})
+                .eq("village_id", village_id)
+                .in_("content_id", list(chosen))
+                .execute()
+            )
+        return list_contents(village_id=village_id)
+    for row in _contents:
+        if row.get("village_id") == village_id:
+            row["is_public"] = int(row.get("content_id") or 0) in chosen
+    return list_contents(village_id=village_id)
+
+
 def list_contents(*, village_id: str | None = None) -> list[dict]:
     if village_id is None:
         return []

@@ -10,6 +10,7 @@ from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
 from services.supabase_client import list_public_villages
 from services.tourapi import get_nearby_for_village
+from services.village_promo import public_village_promo
 from services.trust_score import calculate_trust_score
 
 router = APIRouter()
@@ -50,6 +51,16 @@ async def dashboard_page(request: Request):
     )
 
 
+@router.get("/village/{village_id}", response_class=HTMLResponse)
+async def village_page(request: Request, village_id: str):
+    promo = public_village_promo(village_id)
+    if promo is None:
+        raise HTTPException(status_code=404, detail="마을을 찾지 못했습니다.")
+    return request.app.state.templates.TemplateResponse(
+        request, "village.html", {"title": promo["village_name"] or "마을", "promo": promo}
+    )
+
+
 @router.get("/operator", response_class=HTMLResponse)
 async def operator_page(request: Request):
     return request.app.state.templates.TemplateResponse(
@@ -85,6 +96,14 @@ async def api_recommend(body: RecommendRequest):
             }
         )
     return {"status": "success", "results": enriched}
+
+
+@router.get("/api/villages/{village_id}/promo")
+async def api_village_promo(village_id: str):
+    promo = public_village_promo(village_id)
+    if promo is None:
+        raise HTTPException(status_code=404, detail="마을을 찾지 못했습니다.")
+    return promo
 
 
 @router.get("/api/villages")
