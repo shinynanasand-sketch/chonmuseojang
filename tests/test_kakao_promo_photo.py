@@ -1,7 +1,5 @@
 """카카오 홍보 사진은 담당 마을 소개글·SNS 초안만 저장한다."""
 
-import httpx
-
 from services.recommend import KAKAO_LLM_TIMEOUT
 from services.supabase_client import list_contents, list_reviews, upsert_villages
 
@@ -72,16 +70,6 @@ def _post(test_client, *, user, utterance="", params=None, user_params=None, cal
     )
 
 
-def _capture_schedule(monkeypatch):
-    scheduled = []
-
-    def schedule(base_url, body):
-        scheduled.append((base_url, body))
-
-    monkeypatch.setattr("routers.kakao.schedule_photo_draft", schedule)
-    return scheduled
-
-
 def _capture_callback(monkeypatch):
     sent = []
 
@@ -94,10 +82,6 @@ def _capture_callback(monkeypatch):
 
 def _callback_text(sent) -> str:
     return sent[0][1]["template"]["outputs"][0]["simpleText"]["text"]
-
-
-def _run_scheduled(test_client, scheduled):
-    return test_client.post("/kakao/photo-draft", json=scheduled[0][1])
 
 
 class _Vision:
@@ -182,7 +166,6 @@ def test_operator_photo_saves_own_village_draft(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
     stored = []
-    scheduled = _capture_schedule(monkeypatch)
     sent = _capture_callback(monkeypatch)
     _install_download(monkeypatch, _PNG)
     _install_vision(monkeypatch, vision, stored)
@@ -200,12 +183,6 @@ def test_operator_photo_saves_own_village_draft(test_client, monkeypatch):
     assert response.json() == {"version": "2.0", "useCallback": True}
     assert "template" not in response.json()
     assert "context" not in response.text
-    assert list_contents(village_id="V001") == []
-    assert _Client.opened == []
-    assert scheduled[0][1]["userRequest"]["callbackUrl"] == _CALLBACK
-
-    job = _run_scheduled(test_client, scheduled)
-    assert job.status_code == 200
     assert sent[0][0] == _CALLBACK
     text = _callback_text(sent)
     assert "simpleText" in sent[0][1]["template"]["outputs"][0]
@@ -241,7 +218,6 @@ def test_kakao_redirect_is_followed_and_saved(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
     stored = []
-    scheduled = _capture_schedule(monkeypatch)
     sent = _capture_callback(monkeypatch)
     _install_download(monkeypatch, _PNG)
     _install_vision(monkeypatch, vision, stored)
@@ -255,7 +231,7 @@ def test_kakao_redirect_is_followed_and_saved(test_client, monkeypatch):
     response = _post(test_client, user=_OPERATOR, utterance=start, callback=_CALLBACK)
 
     assert response.json() == {"version": "2.0", "useCallback": True}
-    _run_scheduled(test_client, scheduled)
+    assert "template" not in response.json()
     assert _Client.opened[0].timeout == 4.0
     assert _Client.opened[0].follow_redirects is False
     assert _Client.opened[0].urls == [("GET", start), ("GET", landed)]
@@ -270,7 +246,6 @@ def test_redirect_off_kakao_is_not_saved(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
     stored = []
-    scheduled = _capture_schedule(monkeypatch)
     sent = _capture_callback(monkeypatch)
     _install_download(monkeypatch, _PNG)
     _install_vision(monkeypatch, vision, stored)
@@ -282,7 +257,7 @@ def test_redirect_off_kakao_is_not_saved(test_client, monkeypatch):
     response = _post(test_client, user=_OPERATOR, utterance=start, callback=_CALLBACK)
 
     assert response.json()["useCallback"] is True
-    _run_scheduled(test_client, scheduled)
+    assert "template" not in response.json()
     assert _Client.opened[0].urls == [("GET", start)]
     assert "사진을 한 장 올려 주세요." in _callback_text(sent)
     assert stored == []
@@ -293,7 +268,6 @@ def test_redirect_off_kakao_is_not_saved(test_client, monkeypatch):
 def test_media_url_and_utterance_are_used_in_order(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
-    scheduled = _capture_schedule(monkeypatch)
     _capture_callback(monkeypatch)
     _install_download(monkeypatch, _PNG)
     _install_vision(monkeypatch, vision, [])
@@ -305,12 +279,10 @@ def test_media_url_and_utterance_are_used_in_order(test_client, monkeypatch):
         user_params={"media": {"type": "image", "url": _MEDIA}},
     )
     assert media.json()["useCallback"] is True
-    _run_scheduled(test_client, scheduled)
     assert _Client.opened[-1].urls == [("GET", _MEDIA)]
 
     spoken = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)
     assert spoken.json()["useCallback"] is True
-    _run_scheduled(test_client, scheduled[-1:])
     assert _Client.opened[-1].urls == [("GET", _UTTERANCE)]
 
 
@@ -333,13 +305,11 @@ def test_secure_urls_list_string_uses_the_first_https_address():
 
 def test_guest_photo_gets_register_hint_without_save(test_client, monkeypatch):
     _seed_two_villages()
-    scheduled = _capture_schedule(monkeypatch)
     _install_download(monkeypatch, _PNG)
     response = _post(test_client, user="tourist-photo", utterance=_UTTERANCE, callback=_CALLBACK)
     _assert_simple_text(response)
     assert "useCallback" not in response.json()
     assert "등록" in _skill_text(response)
-    assert scheduled == []
     assert _Client.opened == []
     assert list_contents(village_id="V001") == []
     assert list_reviews(village_id="V001") == []
@@ -348,26 +318,22 @@ def test_guest_photo_gets_register_hint_without_save(test_client, monkeypatch):
 def test_missing_photo_guides_without_save(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
-    scheduled = _capture_schedule(monkeypatch)
     monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda name=None: vision)
     response = _post(test_client, user=_OPERATOR, utterance="사진 올릴게요", callback=_CALLBACK)
     _assert_simple_text(response)
     assert "useCallback" not in response.json()
     assert "사진을 한 장 올려 주세요." in _skill_text(response)
-    assert scheduled == []
     assert vision.calls == []
     assert list_contents(village_id="V001") == []
 
 
 def test_photo_without_callback_returns_guide_without_download(test_client, monkeypatch):
     _seed_two_villages()
-    scheduled = _capture_schedule(monkeypatch)
     _install_download(monkeypatch, _PNG)
     response = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE)
     _assert_simple_text(response)
     assert "useCallback" not in response.json()
     assert "홍보문구를 만들지 못했습니다." in _skill_text(response)
-    assert scheduled == []
     assert _Client.opened == []
     assert list_contents(village_id="V001") == []
 
@@ -386,131 +352,32 @@ def test_oversize_and_non_image_are_rejected(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
     stored = []
-    scheduled = _capture_schedule(monkeypatch)
     sent = _capture_callback(monkeypatch)
     _install_vision(monkeypatch, vision, stored)
     _install_download(monkeypatch, _JPEG + b"a" * (2 * 1024 * 1024))
     huge = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)
     assert huge.json()["useCallback"] is True
-    _run_scheduled(test_client, scheduled)
     assert "2MB" in _callback_text(sent)
 
     _install_download(monkeypatch, b"hello")
     wrong = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)
     assert wrong.json()["useCallback"] is True
-    _run_scheduled(test_client, scheduled[-1:])
     assert "jpeg, png, webp" in _callback_text(sent[-1:])
     assert stored == []
     assert vision.calls == []
     assert list_contents(village_id="V001") == []
 
 
-def _forwarded(proto):
-    return {"x-forwarded-proto": proto, "x-forwarded-host": "chonmuseojang.vercel.app"}
-
-
-def _assert_draft_timeout(timeout):
-    assert timeout.connect == 2.0
-    assert timeout.write == 2.0
-    assert timeout.read == 1.0
-
-
-def test_forwarded_https_posts_before_callback_ack(test_client, monkeypatch):
-    calls = []
-
-    def post(url, json=None, timeout=None, follow_redirects=True):
-        calls.append(
-            {
-                "url": url,
-                "json": json,
-                "timeout": timeout,
-                "follow_redirects": follow_redirects,
-            }
-        )
-        return httpx.Response(200)
-
-    monkeypatch.setattr("routers.kakao.httpx.post", post)
-    response = _post(
-        test_client,
-        user=_OPERATOR,
-        utterance=_UTTERANCE,
-        callback=_CALLBACK,
-        headers=_forwarded("https"),
-    )
-
-    assert len(calls) == 1
-    assert response.json() == {"version": "2.0", "useCallback": True}
-    assert calls[0]["url"] == "https://chonmuseojang.vercel.app/kakao/photo-draft"
-    assert calls[0]["json"]["userRequest"]["callbackUrl"] == _CALLBACK
-    assert calls[0]["follow_redirects"] is False
-    _assert_draft_timeout(calls[0]["timeout"])
-
-
-def test_read_timeout_still_returns_callback_ack(test_client, monkeypatch):
-    calls = []
-
-    def post(url, json=None, timeout=None, follow_redirects=True):
-        calls.append(url)
-        _assert_draft_timeout(timeout)
-        raise httpx.ReadTimeout("sent")
-
-    monkeypatch.setattr("routers.kakao.httpx.post", post)
-    response = _post(
-        test_client,
-        user=_OPERATOR,
-        utterance=_UTTERANCE,
-        callback=_CALLBACK,
-        headers=_forwarded("https"),
-    )
-
-    assert calls == ["https://chonmuseojang.vercel.app/kakao/photo-draft"]
-    assert response.json() == {"version": "2.0", "useCallback": True}
-
-
-def test_http_308_retries_https_with_the_same_body(test_client, monkeypatch):
-    calls = []
-
-    def post(url, json=None, timeout=None, follow_redirects=True):
-        calls.append({"url": url, "json": json, "follow_redirects": follow_redirects, "timeout": timeout})
-        if len(calls) == 1:
-            return httpx.Response(
-                308,
-                headers={"location": "https://chonmuseojang.vercel.app/kakao/photo-draft"},
-            )
-        return httpx.Response(200)
-
-    monkeypatch.setattr("routers.kakao.httpx.post", post)
-    response = _post(
-        test_client,
-        user=_OPERATOR,
-        utterance=_UTTERANCE,
-        callback=_CALLBACK,
-        headers=_forwarded("http"),
-    )
-
-    assert len(calls) == 2
-    assert response.json() == {"version": "2.0", "useCallback": True}
-    assert [item["url"] for item in calls] == [
-        "http://chonmuseojang.vercel.app/kakao/photo-draft",
-        "https://chonmuseojang.vercel.app/kakao/photo-draft",
-    ]
-    assert calls[0]["json"] == calls[1]["json"]
-    assert calls[0]["json"]["userRequest"]["callbackUrl"] == _CALLBACK
-    assert all(item["follow_redirects"] is False for item in calls)
-    assert all(item["timeout"].read == 1.0 for item in calls)
-
-
 def test_llm_failure_does_not_save(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision("", fail=True)
     stored = []
-    scheduled = _capture_schedule(monkeypatch)
     sent = _capture_callback(monkeypatch)
     _install_download(monkeypatch, _PNG)
     _install_vision(monkeypatch, vision, stored)
     response = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)
     assert response.json()["useCallback"] is True
-    _run_scheduled(test_client, scheduled)
+    assert "template" not in response.json()
     assert "홍보문구를 만들지 못했습니다." in _callback_text(sent)
     assert stored == []
     assert list_contents(village_id="V001") == []

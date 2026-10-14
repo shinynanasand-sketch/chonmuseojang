@@ -1,17 +1,12 @@
-import logging
 from typing import Any
-from urllib.parse import urlparse
 
-import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks
 
 from models.kakao_schemas import KakaoSkillRequest
 from services import auth, booking, kakao_client, review, trust_score
 from services.kakao_ask import answer_kakao_question
 from services.kakao_client import skill_http_response
 from services.kakao_phase_a import finish_promo_photo, handle_phase_a, promo_photo_should_defer
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/kakao", tags=["kakao"])
 
@@ -59,64 +54,16 @@ async def kakao_ping():
     )
 
 
-def photo_draft_url(request: Request) -> str:
-    """프록시가 알려 준 공개 주소로 초안 요청을 만든다."""
-    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
-    host = (
-        request.headers.get("x-forwarded-host")
-        or request.headers.get("host")
-        or request.url.netloc
-    ).split(",")[0].strip()
-    return f"{proto}://{host}".rstrip("/") + "/kakao/photo-draft"
-
-
-def _https_draft_url(url: str, location: str) -> str:
-    target = (location or "").strip()
-    if target.startswith("https://"):
-        return target
-    parsed = urlparse(url)
-    return f"https://{parsed.netloc}{parsed.path}"
-
-
-_DRAFT_TIMEOUT = httpx.Timeout(connect=2.0, read=1.0, write=2.0, pool=2.0)
-
-
-def _post_draft(url: str, body: dict):
-    return httpx.post(url, json=body, timeout=_DRAFT_TIMEOUT, follow_redirects=False)
-
-
-def deliver_photo_draft(url: str, body: dict) -> None:
-    """본문을 보낸 뒤 읽기가 끊기면 전달된 것으로 본다. 308이면 https로 한 번만 다시 보낸다."""
-    try:
-        response = _post_draft(url, body)
-    except httpx.ReadTimeout:
-        return
-    except Exception:
-        logger.info("홍보 사진 별도 실행을 요청했습니다.")
-        return
-    if response.status_code != 308:
-        return
-    retry = _https_draft_url(url, response.headers.get("location", ""))
-    if retry == url:
-        return
-    try:
-        _post_draft(retry, body)
-    except httpx.ReadTimeout:
-        return
-    except Exception:
-        logger.info("홍보 사진 별도 실행을 요청했습니다.")
-
-
-def schedule_photo_draft(url: str, body: dict) -> None:
-    """카카오 응답을 만들기 전에 초안 요청을 보낸다."""
-    deliver_photo_draft(url, body)
+def save_promo_photo_after_ack(payload: KakaoSkillRequest) -> None:
+    """콜백 대기를 보낸 뒤 같은 실행에서 초안을 저장하고 콜백으로 보낸다."""
+    kakao_client.post_skill_callback(payload.userRequest.callbackUrl, finish_promo_photo(payload))
 
 
 @router.post("/ask")
-async def kakao_ask(payload: KakaoSkillRequest, request: Request):
+async def kakao_ask(payload: KakaoSkillRequest, background: BackgroundTasks):
     """관광객은 비교 추천, 운영자는 자기 마을과 주변정보만 답한다."""
     if promo_photo_should_defer(payload):
-        schedule_photo_draft(photo_draft_url(request), payload.model_dump())
+        background.add_task(save_promo_photo_after_ack, payload)
         return _skill_json({"version": "2.0", "useCallback": True})
     handled = _phase_a(payload)
     if handled is not None:
@@ -126,13 +73,6 @@ async def kakao_ask(payload: KakaoSkillRequest, request: Request):
     )
     user_id = str(payload.userRequest.user.get("id") or "")
     return _skill_json(answer_kakao_question(utterance, user_id))
-
-
-@router.post("/photo-draft")
-async def kakao_photo_draft(payload: KakaoSkillRequest):
-    """홍보 사진 초안을 저장하고 콜백 주소로 simpleText를 보낸다."""
-    kakao_client.post_skill_callback(payload.userRequest.callbackUrl, finish_promo_photo(payload))
-    return _skill_json({"ok": True})
 
 
 _REGISTER_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있습니다."
