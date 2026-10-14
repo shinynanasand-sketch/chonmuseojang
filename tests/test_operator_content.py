@@ -35,10 +35,29 @@ class _FakeLLM:
         return self.text
 
 
+def test_promo_draft_uses_openai(monkeypatch):
+    _seed_two_villages()
+    llm = _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요")
+    names = []
+
+    def get(name=None):
+        names.append(name)
+        return llm
+
+    monkeypatch.setattr("services.operator_assistant.get_llm_provider", get)
+    result = save_operator_contents(
+        {"operator_id": 1, "village_id": "V001"},
+        "가을에 조개를 잡아요",
+    )
+
+    assert result["saved"] is True
+    assert names == ["openai"]
+
+
 def test_prompt_contains_only_the_operator_village(monkeypatch):
     _seed_two_villages()
     llm = _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요")
-    monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda: llm)
+    monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda name=None: llm)
 
     result = save_operator_contents(
         {"operator_id": 1, "village_id": "V001"},
@@ -56,7 +75,7 @@ def test_prompt_contains_only_the_operator_village(monkeypatch):
 def test_saved_contents_stay_on_operator_village(test_client, monkeypatch):
     _seed_two_villages()
     llm = _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요")
-    monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda: llm)
+    monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda name=None: llm)
     insert_content(
         {
             "village_id": "V002",
@@ -108,7 +127,7 @@ def test_empty_llm_text_does_not_save(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM(""),
+        lambda name=None: _FakeLLM(""),
     )
     response = test_client.post(
         "/api/operator/contents",
@@ -132,7 +151,7 @@ def test_operator_page_has_description_field(test_client):
 def test_prompt_asks_for_a_longer_intro(monkeypatch):
     _seed_two_villages()
     llm = _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요")
-    monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda: llm)
+    monkeypatch.setattr("services.operator_assistant.get_llm_provider", lambda name=None: llm)
 
     save_operator_contents(
         {"operator_id": 1, "village_id": "V001"},
@@ -152,7 +171,7 @@ def test_text_without_photo_leaves_photo_url_empty(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
+        lambda name=None: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
     )
 
     created = test_client.post(
@@ -173,7 +192,7 @@ def test_photo_url_uses_the_operator_village(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
+        lambda name=None: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
     )
     seen = {}
 
@@ -201,7 +220,7 @@ def test_other_village_id_in_form_is_forbidden(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
+        lambda name=None: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
     )
     response = test_client.post(
         "/api/operator/contents",
@@ -218,7 +237,7 @@ def test_non_image_is_rejected(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
+        lambda name=None: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
     )
     response = test_client.post(
         "/api/operator/contents",
@@ -234,7 +253,7 @@ def test_photo_over_two_megabytes_is_rejected(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
+        lambda name=None: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
     )
     called = {"store": False}
 
@@ -259,7 +278,7 @@ def test_photo_upload_failure_does_not_save_text(test_client, monkeypatch):
     _seed_two_villages()
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
+        lambda name=None: _FakeLLM("소개글: 가을 갯벌\nSNS홍보문구: 갯벌 체험 오세요"),
     )
 
     def store(_village_id, _data):
@@ -283,7 +302,7 @@ def test_long_draft_is_clipped(monkeypatch):
     sns = "조개 잡으러 오세요. " * 20
     monkeypatch.setattr(
         "services.operator_assistant.get_llm_provider",
-        lambda: _FakeLLM(f"소개글: {intro}\nSNS홍보문구: {sns}"),
+        lambda name=None: _FakeLLM(f"소개글: {intro}\nSNS홍보문구: {sns}"),
     )
 
     result = save_operator_contents(

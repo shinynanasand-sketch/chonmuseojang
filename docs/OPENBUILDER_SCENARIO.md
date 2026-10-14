@@ -1,6 +1,6 @@
 # 오픈빌더 시나리오 ↔ 스킬 연결 (필수)
 
-Phase A로 새로 넣을 시나리오 3개·블록 6개는 [`PHASE_A_KAKAO_INPUT.md`](PHASE_A_KAKAO_INPUT.md)를 본다. 아래 3블록과 `decision` 파라미터는 2026-10-06 시연 기록이다. Phase A 예약승인·예약거절에는 `decision`을 만들지 않는다.
+Phase A로 새로 넣을 시나리오 3개·블록 6개는 [`PHASE_A_KAKAO_INPUT.md`](PHASE_A_KAKAO_INPUT.md)를 본다. 홍보 사진도 그 문서의 `운영자_예약관리`를 본다. 아래 3블록과 `decision` 파라미터는 2026-10-06 시연 기록이다. Phase A 예약승인·예약거절에는 `decision`을 만들지 않는다.
 
 스킬 URL만 등록하고 **적용 블록수 = 0**이면 카카오톡에서 말해도 웹훅이 호출되지 않습니다.  
 아래대로 **시나리오 블록에 스킬을 연결**하세요. (탈출 블록 사용 금지)

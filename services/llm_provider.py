@@ -1,3 +1,4 @@
+import base64
 import os
 from abc import ABC, abstractmethod
 
@@ -172,6 +173,45 @@ class OpenAIProvider(LLMProvider):
             body["temperature"] = 0.2
             body["max_tokens"] = 1024
             body["response_format"] = _RECOMMENDATION_SCHEMA
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json=body,
+            )
+            _raise_if_unavailable(response)
+            return response.json()["choices"][0]["message"]["content"]
+
+    def generate_with_image(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image: bytes,
+        media_type: str,
+        timeout: float = 30.0,
+    ) -> str:
+        """사진이 붙은 홍보 초안만 만든다. 추천 경로는 이 메서드를 부르지 않는다."""
+        if not self.api_key:
+            raise LLMUnavailable("missing")
+        import httpx
+
+        encoded = base64.b64encode(image).decode("ascii")
+        body = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{encoded}"},
+                        },
+                    ],
+                },
+            ],
+        }
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 "https://api.openai.com/v1/chat/completions",

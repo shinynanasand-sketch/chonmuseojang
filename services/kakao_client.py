@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from urllib.parse import urlparse
 
 import httpx
 from starlette.responses import Response
@@ -88,6 +89,19 @@ def build_list_card(header: str, items: list[dict]) -> dict:
             ]
         },
     }
+
+
+def post_skill_callback(url: str, body: dict) -> None:
+    """스킬 콜백 주소로 최종 simpleText를 보낸다. 이벤트 API는 쓰지 않는다."""
+    parsed = urlparse(url or "")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme != "https" or not (host == "kakao.com" or host.endswith(".kakao.com")):
+        return
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            client.post(url, json=body)
+    except Exception as exc:
+        logger.warning("카카오 스킬 콜백 실패: %s", exc)
 
 
 def skill_http_response(body: dict) -> Response:

@@ -1,10 +1,18 @@
 """Phase A 여섯 블록. 응답에 context를 넣지 않는다."""
 
+from urllib.parse import urlparse
+
 from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
-from services.auth import register_operator_with_ids, resolve_kakao_role
+from services.auth import get_operator_by_kakao_id, register_operator_with_ids, resolve_kakao_role
 from services.kakao_client import build_error_skill_response, build_skill_response
-from services.kakao_params import booking_id_from_params, representative
+from services.kakao_params import booking_id_from_params, kakao_photo_url, representative
+from services.operator_assistant import (
+    PhotoRejected,
+    _kakao_photo_host,
+    download_kakao_photo,
+    save_operator_photo_draft,
+)
 from services.recommend import KAKAO_LLM_TIMEOUT, recommendation_lines, recommend_villages
 from services.supabase_client import list_public_villages
 
@@ -16,6 +24,7 @@ _BLOCKS = {
     "예약거절": "reject",
     "운영자 등록": "register",
     "운영자등록": "register",
+    "홍보 사진": "promo_photo",
 }
 
 _APPROVE_GUIDE = "몇 번 예약을 승인하시겠어요? 예시: 7번 승인"
@@ -24,6 +33,9 @@ _OPERATOR_ONLY = "등록된 운영자만 승인/거절할 수 있습니다."
 _STATUS_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있습니다."
 _OTHER_VILLAGE = "이 예약을 처리할 권한이 없습니다."
 _REGISTER_NEED = "마을명과 등록 코드를 한 문장으로 말해 주세요. 예시: 예시 갯벌마을 GB-001"
+_PHOTO_GUIDE = "사진을 한 장 올려 주세요."
+_PHOTO_FAILED = "홍보문구를 만들지 못했습니다."
+_PHOTO_PUBLISH = "웹에서 관광객에게 공개를 누르면 마을 화면에 나갑니다."
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 
 
@@ -31,6 +43,33 @@ def _skill_lines(title: str, lines: list[str], total: int) -> dict:
     shown = [line for line in lines if line][:5]
     heading = "최근 5건" if total > 5 else title
     return build_skill_response(heading, " / ".join(shown))
+
+
+def _https_host(url: str, allowed) -> bool:
+    parsed = urlparse(url or "")
+    return parsed.scheme == "https" and allowed(parsed.hostname or "")
+
+
+def _kakao_callback_host(host: str) -> bool:
+    name = (host or "").lower().rstrip(".")
+    return name == "kakao.com" or name.endswith(".kakao.com")
+
+
+def promo_photo_should_defer(payload: KakaoSkillRequest) -> bool:
+    """운영자의 카카오 사진과 콜백 주소가 있을 때만 별도 실행으로 넘긴다."""
+    if (payload.intent.name or "").strip() != "홍보 사진":
+        return False
+    user_id = str(payload.userRequest.user.get("id") or "")
+    if resolve_kakao_role(user_id)["mode"] != "operator":
+        return False
+    if not _https_host(kakao_photo_url(payload), _kakao_photo_host):
+        return False
+    return _https_host(payload.userRequest.callbackUrl, _kakao_callback_host)
+
+
+def finish_promo_photo(payload: KakaoSkillRequest) -> dict:
+    user_id = str(payload.userRequest.user.get("id") or "")
+    return _promo_photo(user_id, resolve_kakao_role(user_id), payload)
 
 
 def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
@@ -46,6 +85,8 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
         return _reviews(payload)
     if kind == "register":
         return _register(user_id, payload)
+    if kind == "promo_photo":
+        return _promo_photo(user_id, role, payload)
     if role["mode"] != "operator":
         hint = _STATUS_HINT if kind == "status" else _OPERATOR_ONLY
         return build_error_skill_response(hint)
@@ -91,6 +132,31 @@ def _status(village_id: str) -> dict:
         label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
         lines.append(f"{row.get('booking_id')}번 {label} {row.get('visit_date')} {row.get('num_people')}명")
     return _skill_lines("예약 현황", lines, len(rows))
+
+
+def _promo_photo(user_id: str, role: dict, payload: KakaoSkillRequest) -> dict:
+    if role["mode"] != "operator":
+        return build_error_skill_response(_STATUS_HINT)
+    url = kakao_photo_url(payload)
+    if not url:
+        return build_error_skill_response(_PHOTO_GUIDE)
+    if not _https_host(url, _kakao_photo_host):
+        return build_error_skill_response(_PHOTO_GUIDE)
+    if not _https_host(payload.userRequest.callbackUrl, _kakao_callback_host):
+        return build_error_skill_response(_PHOTO_FAILED)
+    try:
+        photo = download_kakao_photo(url)
+    except PhotoRejected as exc:
+        return build_error_skill_response(exc.message)
+    operator = get_operator_by_kakao_id(user_id)
+    if not operator:
+        return build_error_skill_response(_STATUS_HINT)
+    result = save_operator_photo_draft(operator, photo)
+    if not result.get("saved"):
+        return build_error_skill_response(str(result.get("message") or _PHOTO_FAILED))
+    bodies = {row.get("content_type"): row.get("body") for row in result.get("contents") or []}
+    description = f"{bodies.get('소개글', '')} {bodies.get('SNS홍보문구', '')} {_PHOTO_PUBLISH}"
+    return build_skill_response("홍보문구", description)
 
 
 def _register(user_id: str, payload: KakaoSkillRequest) -> dict:

@@ -137,6 +137,13 @@ def test_recommend_and_map_link_to_village_page(test_client):
     assert "/village/" in village_map
 
 
+def test_home_links_to_village_page(test_client):
+    page = test_client.get("/")
+    assert page.status_code == 200
+    assert "/village/" in page.text
+    assert "마을 소개" in page.text
+
+
 def test_operator_page_has_publish_button(test_client):
     html = test_client.get("/operator").text
     assert "관광객에게 공개" in html

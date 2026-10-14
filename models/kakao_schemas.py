@@ -8,13 +8,15 @@ class KakaoUserRequest(BaseModel):
 
     utterance: str = ""
     user: dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
+    callbackUrl: str = ""
 
-    @field_validator("utterance", mode="before")
+    @field_validator("utterance", "callbackUrl", mode="before")
     @classmethod
     def _utterance_none_to_empty(cls, value: Any) -> str:
         return "" if value is None else str(value)
 
-    @field_validator("user", mode="before")
+    @field_validator("user", "params", mode="before")
     @classmethod
     def _user_none_to_dict(cls, value: Any) -> dict[str, Any]:
         return value if isinstance(value, dict) else {}

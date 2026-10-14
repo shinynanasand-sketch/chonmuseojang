@@ -83,7 +83,10 @@ function renderVillages() {
     const mapLink = document.createElement('a');
     mapLink.href = `/map?sigungu=${encodeURIComponent(village.sigungu || '')}`;
     mapLink.textContent = '지도';
-    links.append(nearby, mapLink);
+    const villagePage = document.createElement('a');
+    villagePage.href = `/village/${encodeURIComponent(village.village_id || '')}`;
+    villagePage.textContent = '마을 소개';
+    links.append(nearby, mapLink, villagePage);
     card.append(title, meta);
     [detailLine(village.address), detailLine(programText(village)), detailLine(village.facilities)]
       .filter(Boolean)

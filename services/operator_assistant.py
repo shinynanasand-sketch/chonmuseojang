@@ -3,8 +3,12 @@
 import os
 import re
 import uuid
+from urllib.parse import urljoin, urlparse
+
+import httpx
 
 from services.llm_provider import get_llm_provider
+from services.recommend import KAKAO_LLM_TIMEOUT
 from services.supabase_client import get_supabase_client, get_village_by_id, insert_content
 
 _INTRO = "소개글"
@@ -14,6 +18,10 @@ _INTRO_LIMIT = 400
 _SNS_SENTENCES = 2
 _SNS_LIMIT = 120
 _MAX_PHOTO_BYTES = 2 * 1024 * 1024
+_PHOTO_DOWNLOAD_TIMEOUT = 4.0
+_PHOTO_REDIRECTS = {301, 302, 303, 307, 308}
+_MAX_PHOTO_HOPS = 4
+_PHOTO_GUIDE = "사진을 한 장 올려 주세요."
 _PHOTO_BUCKET = "content-photos"
 _PHOTO_TYPES = {
     "jpg": "image/jpeg",
@@ -77,6 +85,48 @@ def _checked_photo(data: bytes) -> str:
     return kind
 
 
+def _kakao_photo_host(host: str) -> bool:
+    name = (host or "").lower().rstrip(".")
+    return any(name == suffix or name.endswith("." + suffix) for suffix in ("kakaocdn.net", "kakao.com"))
+
+
+def download_kakao_photo(url: str) -> bytes:
+    """카카오 CDN의 https 사진만 4초 안에 받는다. 카카오 호스트 리다이렉트는 따라간다."""
+    current = url
+    try:
+        with httpx.Client(timeout=_PHOTO_DOWNLOAD_TIMEOUT, follow_redirects=False) as client:
+            for _ in range(_MAX_PHOTO_HOPS):
+                parsed = urlparse(current)
+                if parsed.scheme != "https" or not _kakao_photo_host(parsed.hostname or ""):
+                    raise PhotoRejected(_PHOTO_GUIDE)
+                with client.stream("GET", current) as response:
+                    if response.status_code in _PHOTO_REDIRECTS:
+                        location = str(response.headers.get("location") or "").strip()
+                        if not location:
+                            raise PhotoRejected(_PHOTO_GUIDE)
+                        current = urljoin(current, location)
+                        continue
+                    if response.status_code != 200:
+                        raise PhotoRejected(_PHOTO_GUIDE)
+                    chunks: list[bytes] = []
+                    total = 0
+                    for chunk in response.iter_bytes():
+                        total += len(chunk)
+                        if total > _MAX_PHOTO_BYTES:
+                            raise PhotoRejected("사진은 2MB 이하만 올릴 수 있습니다.")
+                        chunks.append(chunk)
+                    data = b"".join(chunks)
+                    break
+            else:
+                raise PhotoRejected(_PHOTO_GUIDE)
+    except PhotoRejected:
+        raise
+    except Exception:
+        raise PhotoRejected(_PHOTO_GUIDE) from None
+    _checked_photo(data)
+    return data
+
+
 def store_content_photo(village_id: str, data: bytes) -> str:
     """담당 마을 경로로 사진을 올리고 공개 주소를 돌려준다."""
     kind = _image_kind(data) or "jpg"
@@ -95,7 +145,7 @@ def store_content_photo(village_id: str, data: bytes) -> str:
 
 def generate_operator_content(operator: dict, village: dict, user_message: str) -> dict[str, str]:
     """담당 마을 1건과 운영자 설명만으로 소개글·SNS 문구를 만든다."""
-    llm = get_llm_provider()
+    llm = get_llm_provider("openai")
     village_name = village.get("village_name")
     system_prompt = (
         f"당신은 마을 {village_name} (ID: {operator['village_id']})의 AI 사무장입니다. "
@@ -116,6 +166,79 @@ def generate_operator_content(operator: dict, village: dict, user_message: str) 
     except Exception:
         return {}
     return _split_drafts(raw)
+
+
+def generate_operator_photo_content(
+    operator: dict,
+    village: dict,
+    photo: bytes,
+    media_type: str,
+) -> dict[str, str]:
+    """담당 마을 1건과 사진만으로 소개글·SNS 문구를 만든다."""
+    llm = get_llm_provider("openai")
+    village_name = village.get("village_name")
+    system_prompt = (
+        f"당신은 마을 {village_name} (ID: {operator['village_id']})의 AI 사무장입니다. "
+        "다른 마을 정보는 절대 언급하지 마세요. "
+        "가격과 전화번호는 만들지 마세요. "
+        "사진에 보이는 체험만 소개글에 포함하세요. "
+        f"소개글은 4문장, 400자 이내입니다. "
+        f"SNS 문구는 2문장, 120자 이내입니다. "
+        f"앞부분은 '{_INTRO}: '으로, 뒷부분은 '{_SNS}: '으로 시작하세요."
+    )
+    context = (
+        f"마을명: {village_name}\n"
+        f"위치: {village.get('sigungu')}\n"
+        f"체험: {village.get('program_type')}\n"
+    )
+    try:
+        raw = llm.generate_with_image(
+            system_prompt,
+            f"{context}\n\n이 사진으로 소개글과 SNS 문구를 작성하세요.",
+            photo,
+            media_type,
+            timeout=KAKAO_LLM_TIMEOUT,
+        )
+    except Exception:
+        return {}
+    return _split_drafts(raw)
+
+
+def save_operator_photo_draft(operator: dict, photo: bytes) -> dict:
+    """카카오 사진으로 소개글·SNS 초안만 저장한다. 공개와 후기는 바꾸지 않는다."""
+    try:
+        kind = _checked_photo(photo)
+    except PhotoRejected as exc:
+        return {"saved": False, "message": exc.message}
+    village = get_village_by_id(operator["village_id"])
+    if not village:
+        return {"saved": False, "message": "마을 정보를 찾지 못했습니다."}
+    drafts = generate_operator_photo_content(operator, village, photo, _PHOTO_TYPES[kind])
+    if not drafts:
+        return {"saved": False, "message": "홍보문구를 만들지 못했습니다."}
+    drafts[_INTRO] = _clip_draft(drafts[_INTRO], _INTRO_SENTENCES, _INTRO_LIMIT)
+    drafts[_SNS] = _clip_draft(drafts[_SNS], _SNS_SENTENCES, _SNS_LIMIT)
+    if not drafts[_INTRO] or not drafts[_SNS]:
+        return {"saved": False, "message": "홍보문구를 만들지 못했습니다."}
+    try:
+        photo_url = store_content_photo(operator["village_id"], photo)
+    except Exception:
+        return {"saved": False, "message": "사진을 저장하지 못했습니다."}
+    saved = []
+    for content_type in (_INTRO, _SNS):
+        saved.append(
+            insert_content(
+                {
+                    "village_id": operator["village_id"],
+                    "operator_id": operator.get("operator_id"),
+                    "content_type": content_type,
+                    "body": drafts[content_type],
+                    "photo_url": photo_url,
+                    "is_public": False,
+                }
+            )
+        )
+    return {"saved": True, "contents": saved}
 
 
 def save_operator_contents(operator: dict, description: str, photo: bytes | None = None) -> dict:
