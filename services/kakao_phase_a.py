@@ -50,6 +50,12 @@ def _https_host(url: str, allowed) -> bool:
     return parsed.scheme == "https" and allowed(parsed.hostname or "")
 
 
+def _kakao_photo_address(url: str) -> bool:
+    """이미지 플러그인은 http, 그 외 카카오 사진은 https다."""
+    parsed = urlparse(url or "")
+    return parsed.scheme in {"http", "https"} and _kakao_photo_host(parsed.hostname or "")
+
+
 def _kakao_callback_host(host: str) -> bool:
     name = (host or "").lower().rstrip(".")
     return name == "kakao.com" or name.endswith(".kakao.com")
@@ -62,7 +68,7 @@ def promo_photo_should_defer(payload: KakaoSkillRequest) -> bool:
     user_id = str(payload.userRequest.user.get("id") or "")
     if resolve_kakao_role(user_id)["mode"] != "operator":
         return False
-    if not _https_host(kakao_photo_url(payload), _kakao_photo_host):
+    if not _kakao_photo_address(kakao_photo_url(payload)):
         return False
     return _https_host(payload.userRequest.callbackUrl, _kakao_callback_host)
 
@@ -140,7 +146,7 @@ def _promo_photo(user_id: str, role: dict, payload: KakaoSkillRequest) -> dict:
     url = kakao_photo_url(payload)
     if not url:
         return build_error_skill_response(_PHOTO_GUIDE)
-    if not _https_host(url, _kakao_photo_host):
+    if not _kakao_photo_address(url):
         return build_error_skill_response(_PHOTO_GUIDE)
     if not _https_host(payload.userRequest.callbackUrl, _kakao_callback_host):
         return build_error_skill_response(_PHOTO_FAILED)

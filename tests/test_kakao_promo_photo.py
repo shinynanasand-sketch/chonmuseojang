@@ -303,6 +303,80 @@ def test_secure_urls_list_string_uses_the_first_https_address():
     assert kakao_photo_url(payload) == "https://t1.kakaocdn.net/1.jpg"
 
 
+_PLUGIN_HTTP = (
+    "http://secure.kakaocdn.net/dna/O5UOr/K6auLPnoAf/XXX/img.jpg"
+    "?credential=abc&signature=d%3D"
+)
+
+
+def _plugin_body(url: str) -> str:
+    return (
+        '{"privacyAgreement":"Y","imageQuantity":"1","secureUrls":"List(%s)"}' % url
+    )
+
+
+def test_secureimage_plugin_http_list_is_the_photo_url():
+    from models.kakao_schemas import KakaoSkillRequest
+    from services.kakao_params import kakao_photo_url
+
+    raw = _plugin_body(_PLUGIN_HTTP)
+    payload = KakaoSkillRequest.model_validate(
+        {
+            "intent": {"name": "홍보 사진"},
+            "action": {
+                "params": {"secureimage": raw},
+                "detailParams": {
+                    "secureimage": {
+                        "origin": "List(%s)" % _PLUGIN_HTTP,
+                        "value": raw,
+                        "groupName": "",
+                    }
+                },
+            },
+        }
+    )
+    assert kakao_photo_url(payload) == _PLUGIN_HTTP
+
+
+def test_plugin_http_photo_is_downloaded_for_operator(test_client, monkeypatch):
+    _seed_two_villages()
+    vision = _Vision(_DRAFT)
+    stored = []
+    sent = _capture_callback(monkeypatch)
+    _install_download(monkeypatch, _PNG)
+    _install_vision(monkeypatch, vision, stored)
+
+    response = _post(
+        test_client,
+        user=_OPERATOR,
+        utterance="사진을 보냈습니다",
+        callback=_CALLBACK,
+        params={"secureimage": _plugin_body(_PLUGIN_HTTP)},
+    )
+
+    assert response.json() == {"version": "2.0", "useCallback": True}
+    assert _Client.opened[0].urls[0] == ("GET", _PLUGIN_HTTP)
+    assert stored == [("V001", _PNG)]
+    assert "가을 갯벌" in _callback_text(sent)
+    assert list_contents(village_id="V002") == []
+
+
+def test_plugin_http_off_kakao_is_not_downloaded(test_client, monkeypatch):
+    _seed_two_villages()
+    _install_download(monkeypatch, _PNG)
+    response = _post(
+        test_client,
+        user=_OPERATOR,
+        utterance="사진을 보냈습니다",
+        callback=_CALLBACK,
+        params={"secureimage": _plugin_body("http://169.254.169.254/latest/meta-data")},
+    )
+    _assert_simple_text(response)
+    assert "사진을 한 장 올려 주세요." in _skill_text(response)
+    assert _Client.opened == []
+    assert list_contents(village_id="V001") == []
+
+
 def test_guest_photo_gets_register_hint_without_save(test_client, monkeypatch):
     _seed_two_villages()
     _install_download(monkeypatch, _PNG)

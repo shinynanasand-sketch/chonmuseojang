@@ -97,7 +97,7 @@ def download_kakao_photo(url: str) -> bytes:
         with httpx.Client(timeout=_PHOTO_DOWNLOAD_TIMEOUT, follow_redirects=False) as client:
             for _ in range(_MAX_PHOTO_HOPS):
                 parsed = urlparse(current)
-                if parsed.scheme != "https" or not _kakao_photo_host(parsed.hostname or ""):
+                if parsed.scheme not in {"http", "https"} or not _kakao_photo_host(parsed.hostname or ""):
                     raise PhotoRejected(_PHOTO_GUIDE)
                 with client.stream("GET", current) as response:
                     if response.status_code in _PHOTO_REDIRECTS:

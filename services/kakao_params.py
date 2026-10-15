@@ -122,9 +122,15 @@ def _collect_secure_urls(value: Any, found: list[str]) -> None:
     _collect_secure_urls(parsed, found)
 
 
+def _http_url(text: str) -> bool:
+    """이미지 플러그인 secureUrls는 http, 그 외 카카오 주소는 https다."""
+    stripped = text.strip()
+    return (stripped.startswith("https://") or stripped.startswith("http://")) and " " not in stripped
+
+
 def _urls_from_secure_field(value: Any) -> list[str]:
     if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip().startswith("https://")]
+        return [str(item).strip() for item in value if _http_url(str(item))]
     if isinstance(value, dict):
         for key in ("url", "value"):
             if key in value:
@@ -133,8 +139,8 @@ def _urls_from_secure_field(value: Any) -> list[str]:
     text = str(value or "").strip()
     if text.startswith("List(") and text.endswith(")"):
         inner = text[len("List(") : -1]
-        return [part.strip() for part in inner.split(",") if part.strip().startswith("https://")]
-    if text.startswith("https://") and " " not in text:
+        return [part.strip() for part in inner.split(",") if _http_url(part)]
+    if _http_url(text):
         return [text]
     if text[:1] in "{[":
         try:
