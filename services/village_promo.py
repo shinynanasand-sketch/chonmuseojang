@@ -1,6 +1,12 @@
 """관광객에게 보여줄 마을 홍보. 확인된 최신 소개글·SNS만 공개한다."""
 
-from services.supabase_client import get_village_by_id, list_contents, set_village_public_contents
+from services.supabase_client import (
+    get_village_by_id,
+    list_contents,
+    list_public_contents,
+    list_villages,
+    set_village_public_contents,
+)
 
 _INTRO = "소개글"
 _SNS = "SNS홍보문구"
@@ -39,6 +45,35 @@ def public_village_promo(village_id: str) -> dict | None:
         "sns": str(sns.get("body") or ""),
         "photo_url": _http_photo(intro) or _http_photo(sns),
     }
+
+
+def list_published_villages() -> list[dict]:
+    """공개된 소개글·SNS가 있는 마을만. 예시 마을도 공개했으면 포함한다."""
+    by_id = {row.get("village_id"): row for row in list_villages()}
+    grouped: dict[str, list[dict]] = {}
+    for row in list_public_contents():
+        village_id = str(row.get("village_id") or "")
+        if village_id:
+            grouped.setdefault(village_id, []).append(row)
+    items = []
+    for village_id, rows in grouped.items():
+        village = by_id.get(village_id)
+        if not village:
+            continue
+        latest = _latest_by_type(rows)
+        intro = str(latest.get(_INTRO, {}).get("body") or "").strip()
+        sns = str(latest.get(_SNS, {}).get("body") or "").strip()
+        if not intro and not sns:
+            continue
+        items.append(
+            {
+                "village_id": village_id,
+                "village_name": village.get("village_name") or village_id,
+                "sigungu": village.get("sigungu") or "",
+            }
+        )
+    items.sort(key=lambda item: item["village_name"])
+    return items
 
 
 def publish_operator_contents(operator: dict) -> dict:

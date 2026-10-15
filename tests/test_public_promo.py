@@ -147,3 +147,55 @@ def test_home_links_to_village_page(test_client):
 def test_operator_page_has_publish_button(test_client):
     html = test_client.get("/operator").text
     assert "관광객에게 공개" in html
+
+
+def test_published_menu_lists_demo_village_and_skips_drafts(test_client):
+    upsert_villages(
+        [
+            {
+                "village_id": "V001",
+                "village_name": "예시 갯벌마을",
+                "sigungu": "신안군",
+                "program_type": "갯벌체험",
+            },
+            {
+                "village_id": "V003",
+                "village_name": "진도 농촌마을",
+                "sigungu": "진도군",
+                "program_type": "농사체험",
+            },
+        ]
+    )
+    _content("V001", "소개글", "공개 소개", public=True)
+    _content("V001", "SNS홍보문구", "공개 문구", public=True)
+    _content("V003", "소개글", "비공개 소개")
+    insert_review(
+        {
+            "village_id": "V001",
+            "booking_id": 1,
+            "customer_kakao_id": "guest",
+            "comment": "비밀 후기",
+            "rating": 5,
+        }
+    )
+
+    page = test_client.get("/villages")
+    assert page.status_code == 200
+    assert 'href="/village/V001"' in page.text
+    assert "예시 갯벌마을" in page.text
+    assert "신안군" in page.text
+    assert "진도 농촌마을" not in page.text
+    assert "비공개 소개" not in page.text
+    assert "비밀 후기" not in page.text
+    assert 'href="/villages"' in page.text
+    assert 'href="/operator"' in page.text
+
+
+def test_published_menu_is_empty_without_public_copy(test_client):
+    _seed_village()
+    _content("V001", "소개글", "아직 초안")
+    page = test_client.get("/villages")
+    assert page.status_code == 200
+    assert "공개된 마을 소개가 없습니다." in page.text
+    assert "갯벌마을" not in page.text
+    assert "아직 초안" not in page.text

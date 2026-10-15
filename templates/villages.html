@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}마을 소개{% endblock %}
+{% block content %}
+<h1>마을 소개</h1>
+{% if villages %}
+<section class="village-grid">
+  {% for village in villages %}
+  <article class="village-card">
+    <h2><a href="/village/{{ village.village_id }}">{{ village.village_name }}</a></h2>
+    <p class="muted">{{ village.sigungu }}</p>
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<p class="muted">공개된 마을 소개가 없습니다.</p>
+{% endif %}
+{% endblock %}

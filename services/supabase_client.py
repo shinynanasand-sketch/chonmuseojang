@@ -407,6 +407,31 @@ def set_village_public_contents(village_id: str, content_ids: list[int]) -> list
     return list_contents(village_id=village_id)
 
 
+def list_public_contents() -> list[dict]:
+    """관광객 목록용. 공개된 소개글·SNS만 돌려준다."""
+    fields = ("village_id", "content_type", "body", "photo_url", "content_id")
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("contents")
+            .select(",".join(fields))
+            .eq("is_public", True)
+            .in_("content_type", ["소개글", "SNS홍보문구"])
+            .order("content_id")
+            .execute()
+        )
+        return result.data or []
+    rows = [
+        row
+        for row in _contents
+        if row.get("is_public") and row.get("content_type") in {"소개글", "SNS홍보문구"}
+    ]
+    slim = []
+    for row in sorted(rows, key=lambda item: item.get("content_id") or 0):
+        slim.append({field: row.get(field) for field in fields})
+    return slim
+
+
 def list_contents(*, village_id: str | None = None) -> list[dict]:
     if village_id is None:
         return []

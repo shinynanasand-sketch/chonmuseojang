@@ -10,7 +10,7 @@ from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
 from services.supabase_client import list_public_villages
 from services.tourapi import get_nearby_for_village
-from services.village_promo import public_village_promo
+from services.village_promo import list_published_villages, public_village_promo
 from services.trust_score import calculate_trust_score
 
 router = APIRouter()
@@ -48,6 +48,15 @@ async def nearby_page(request: Request):
 async def dashboard_page(request: Request):
     return request.app.state.templates.TemplateResponse(
         request, "dashboard.html", {"title": "운영 현황"}
+    )
+
+
+@router.get("/villages", response_class=HTMLResponse)
+async def villages_page(request: Request):
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "villages.html",
+        {"title": "마을 소개", "villages": list_published_villages()},
     )
 
 
