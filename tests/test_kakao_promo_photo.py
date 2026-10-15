@@ -192,7 +192,7 @@ def test_operator_photo_saves_own_village_draft(test_client, monkeypatch):
     assert "갯벌 체험 오세요" in text
     assert "웹에서 관광객에게 공개를 누르면 마을 화면에 나갑니다." in text
     assert _Client.opened[0].urls == [("GET", _SECURE)]
-    assert _Client.opened[0].timeout == 4.0
+    assert _Client.opened[0].timeout == 10.0
     assert _Client.opened[0].follow_redirects is False
     assert stored == [("V001", _PNG)]
     rows = list_contents(village_id="V001")
@@ -232,7 +232,7 @@ def test_kakao_redirect_is_followed_and_saved(test_client, monkeypatch):
 
     assert response.json() == {"version": "2.0", "useCallback": True}
     assert "template" not in response.json()
-    assert _Client.opened[0].timeout == 4.0
+    assert _Client.opened[0].timeout == 10.0
     assert _Client.opened[0].follow_redirects is False
     assert _Client.opened[0].urls == [("GET", start), ("GET", landed)]
     assert stored == [("V001", _PNG)]
@@ -422,16 +422,55 @@ def test_non_kakao_host_is_not_downloaded(test_client, monkeypatch):
     assert list_contents(village_id="V001") == []
 
 
+def _large_jpeg() -> bytes:
+    import io
+    import os
+
+    from PIL import Image
+
+    side = 1800
+    image = Image.frombytes("RGB", (side, side), os.urandom(side * side * 3))
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
+
+
+def test_large_jpeg_is_shrunk_before_save(test_client, monkeypatch):
+    _seed_two_villages()
+    photo = _large_jpeg()
+    assert 2 * 1024 * 1024 < len(photo) < 8 * 1024 * 1024
+    vision = _Vision(_DRAFT)
+    stored = []
+    sent = _capture_callback(monkeypatch)
+    _install_download(monkeypatch, photo)
+    _install_vision(monkeypatch, vision, stored)
+
+    response = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)
+
+    assert response.json()["useCallback"] is True
+    assert stored[0][0] == "V001"
+    saved = stored[0][1]
+    assert saved.startswith(b"\xff\xd8\xff")
+    assert len(saved) <= 2 * 1024 * 1024
+    assert vision.calls[0]["image"] == saved
+    assert vision.calls[0]["media_type"] == "image/jpeg"
+    assert "가을 갯벌" in _callback_text(sent)
+    rows = list_contents(village_id="V001")
+    assert {row["content_type"] for row in rows} == {"소개글", "SNS홍보문구"}
+    assert list_contents(village_id="V002") == []
+    assert list_reviews(village_id="V001") == []
+
+
 def test_oversize_and_non_image_are_rejected(test_client, monkeypatch):
     _seed_two_villages()
     vision = _Vision(_DRAFT)
     stored = []
     sent = _capture_callback(monkeypatch)
     _install_vision(monkeypatch, vision, stored)
-    _install_download(monkeypatch, _JPEG + b"a" * (2 * 1024 * 1024))
+    _install_download(monkeypatch, _JPEG + b"a" * (8 * 1024 * 1024))
     huge = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)
     assert huge.json()["useCallback"] is True
-    assert "2MB" in _callback_text(sent)
+    assert "8MB" in _callback_text(sent)
 
     _install_download(monkeypatch, b"hello")
     wrong = _post(test_client, user=_OPERATOR, utterance=_UTTERANCE, callback=_CALLBACK)

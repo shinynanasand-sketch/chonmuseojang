@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv",
     "supabase",
     "python-multipart>=0.0.32",
+    "pillow>=12.3.0",
 ]
 
 [project.optional-dependencies]

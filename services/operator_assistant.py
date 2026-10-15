@@ -1,11 +1,13 @@
 """운영자 AI사무장용 프롬프트 (단일 village_id 컨텍스트)."""
 
+import io
 import os
 import re
 import uuid
 from urllib.parse import urljoin, urlparse
 
 import httpx
+from PIL import Image, UnidentifiedImageError
 
 from services.llm_provider import get_llm_provider
 from services.recommend import KAKAO_LLM_TIMEOUT
@@ -18,7 +20,9 @@ _INTRO_LIMIT = 400
 _SNS_SENTENCES = 2
 _SNS_LIMIT = 120
 _MAX_PHOTO_BYTES = 2 * 1024 * 1024
-_PHOTO_DOWNLOAD_TIMEOUT = 4.0
+_MAX_PHOTO_DOWNLOAD = 8 * 1024 * 1024
+_PHOTO_DOWNLOAD_TIMEOUT = 10.0
+_PHOTO_TOO_LARGE = "사진은 8MB 이하만 올릴 수 있습니다."
 _PHOTO_REDIRECTS = {301, 302, 303, 307, 308}
 _MAX_PHOTO_HOPS = 4
 _PHOTO_GUIDE = "사진을 한 장 올려 주세요."
@@ -85,13 +89,42 @@ def _checked_photo(data: bytes) -> str:
     return kind
 
 
+def _fit_photo(data: bytes) -> bytes:
+    """2MB를 넘는 jpeg, png, webp를 2MB 이하 jpeg로 줄인다."""
+    try:
+        image = Image.open(io.BytesIO(data))
+        image.load()
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise PhotoRejected("사진은 jpeg, png, webp만 올릴 수 있습니다.") from None
+    image = image.convert("RGB")
+    edge = min(max(image.size), 1600)
+    quality = 85
+    while True:
+        working = image.copy()
+        if max(working.size) > edge:
+            working.thumbnail((edge, edge))
+        buf = io.BytesIO()
+        working.save(buf, format="JPEG", quality=quality, optimize=True)
+        out = buf.getvalue()
+        if len(out) <= _MAX_PHOTO_BYTES:
+            return out
+        if quality > 40:
+            quality -= 15
+            continue
+        if edge > 480:
+            edge = int(edge * 0.75)
+            quality = 75
+            continue
+        raise PhotoRejected(_PHOTO_TOO_LARGE)
+
+
 def _kakao_photo_host(host: str) -> bool:
     name = (host or "").lower().rstrip(".")
     return any(name == suffix or name.endswith("." + suffix) for suffix in ("kakaocdn.net", "kakao.com"))
 
 
 def download_kakao_photo(url: str) -> bytes:
-    """카카오 CDN의 https 사진만 4초 안에 받는다. 카카오 호스트 리다이렉트는 따라간다."""
+    """카카오 CDN 사진을 10초 안에 받는다. 8MB까지 받고, 2MB를 넘으면 jpeg로 줄인다."""
     current = url
     try:
         with httpx.Client(timeout=_PHOTO_DOWNLOAD_TIMEOUT, follow_redirects=False) as client:
@@ -112,8 +145,8 @@ def download_kakao_photo(url: str) -> bytes:
                     total = 0
                     for chunk in response.iter_bytes():
                         total += len(chunk)
-                        if total > _MAX_PHOTO_BYTES:
-                            raise PhotoRejected("사진은 2MB 이하만 올릴 수 있습니다.")
+                        if total > _MAX_PHOTO_DOWNLOAD:
+                            raise PhotoRejected(_PHOTO_TOO_LARGE)
                         chunks.append(chunk)
                     data = b"".join(chunks)
                     break
@@ -123,6 +156,8 @@ def download_kakao_photo(url: str) -> bytes:
         raise
     except Exception:
         raise PhotoRejected(_PHOTO_GUIDE) from None
+    if len(data) > _MAX_PHOTO_BYTES:
+        data = _fit_photo(data)
     _checked_photo(data)
     return data
 
