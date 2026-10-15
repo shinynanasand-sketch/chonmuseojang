@@ -1,6 +1,7 @@
 """운영자 AI사무장용 프롬프트 (단일 village_id 컨텍스트)."""
 
 import io
+import logging
 import os
 import re
 import uuid
@@ -10,8 +11,9 @@ import httpx
 from PIL import Image, UnidentifiedImageError
 
 from services.llm_provider import get_llm_provider
-from services.recommend import KAKAO_LLM_TIMEOUT
 from services.supabase_client import get_supabase_client, get_village_by_id, insert_content
+
+logger = logging.getLogger(__name__)
 
 _INTRO = "소개글"
 _SNS = "SNS홍보문구"
@@ -22,6 +24,7 @@ _SNS_LIMIT = 120
 _MAX_PHOTO_BYTES = 2 * 1024 * 1024
 _MAX_PHOTO_DOWNLOAD = 8 * 1024 * 1024
 _PHOTO_DOWNLOAD_TIMEOUT = 10.0
+PHOTO_LLM_TIMEOUT = 15.0
 _PHOTO_TOO_LARGE = "사진은 8MB 이하만 올릴 수 있습니다."
 _PHOTO_REDIRECTS = {301, 302, 303, 307, 308}
 _MAX_PHOTO_HOPS = 4
@@ -232,9 +235,10 @@ def generate_operator_photo_content(
             f"{context}\n\n이 사진으로 소개글과 SNS 문구를 작성하세요.",
             photo,
             media_type,
-            timeout=KAKAO_LLM_TIMEOUT,
+            timeout=PHOTO_LLM_TIMEOUT,
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("홍보 사진 초안 생성 실패: %s", type(exc).__name__)
         return {}
     return _split_drafts(raw)
 

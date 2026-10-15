@@ -1,6 +1,6 @@
 """카카오 홍보 사진은 담당 마을 소개글·SNS 초안만 저장한다."""
 
-from services.recommend import KAKAO_LLM_TIMEOUT
+from services.operator_assistant import PHOTO_LLM_TIMEOUT
 from services.supabase_client import list_contents, list_reviews, upsert_villages
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
@@ -210,7 +210,8 @@ def test_operator_photo_saves_own_village_draft(test_client, monkeypatch):
     assert "전화번호" in prompt
     assert vision.calls[0]["image"] == _PNG
     assert vision.calls[0]["media_type"] == "image/png"
-    assert vision.calls[0]["timeout"] == KAKAO_LLM_TIMEOUT
+    assert vision.calls[0]["timeout"] == PHOTO_LLM_TIMEOUT
+    assert PHOTO_LLM_TIMEOUT == 15.0
     assert "kakaocdn" not in text
 
 
