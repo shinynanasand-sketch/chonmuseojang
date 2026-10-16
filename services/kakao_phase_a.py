@@ -1,20 +1,24 @@
-"""Phase A 여섯 블록. 응답에 context를 넣지 않는다."""
+"""Phase A 블록. 응답에 context를 넣지 않는다."""
+
+import re
 
 from urllib.parse import urlparse
 
 from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
-from services.auth import get_operator_by_kakao_id, register_operator_with_ids, resolve_kakao_role
+from services.auth import get_operator_by_kakao_id, register_operator, register_operator_with_ids, resolve_kakao_role
 from services.kakao_client import build_error_skill_response, build_skill_response
-from services.kakao_params import booking_id_from_params, kakao_photo_url, representative
+from services.kakao_params import booking_id_from_params, kakao_photo_url, parse_sys_date, representative
 from services.operator_assistant import (
     PhotoRejected,
     _kakao_photo_host,
     download_kakao_photo,
     save_operator_photo_draft,
 )
+from services.program_share import list_calendar, list_program_notes, save_calendar_entry, save_program_note
 from services.recommend import KAKAO_LLM_TIMEOUT, recommendation_lines, recommend_villages
-from services.supabase_client import list_public_villages
+from services.supabase_client import get_village_by_id, list_public_villages
+from services.village_programs import program_labels
 
 _BLOCKS = {
     "마을 추천": "recommend",
@@ -25,6 +29,10 @@ _BLOCKS = {
     "운영자 등록": "register",
     "운영자등록": "register",
     "홍보 사진": "promo_photo",
+    "체험 글 저장": "note_save",
+    "체험 글 조회": "note_list",
+    "체험 달력 등록": "calendar_save",
+    "체험 달력 조회": "calendar_list",
 }
 
 _APPROVE_GUIDE = "몇 번 예약을 승인하시겠어요? 예시: 7번 승인"
@@ -36,7 +44,22 @@ _REGISTER_NEED = "마을명과 등록 코드를 한 문장으로 말해 주세�
 _PHOTO_GUIDE = "사진을 한 장 올려 주세요."
 _PHOTO_FAILED = "홍보문구를 만들지 못했습니다."
 _PHOTO_PUBLISH = "웹에서 관광객에게 공개를 누르면 마을 화면에 나갑니다."
+_VILLAGE_ONLY = "예약·홍보는 마을 운영자만 할 수 있습니다."
+_NOTE_ONLY = "체험 글은 체험 담당만 저장할 수 있습니다."
+_CALENDAR_ONLY = "체험 달력은 마을 운영자만 등록할 수 있습니다."
+_SHARE_ONLY = "등록된 운영자만 체험 글과 달력을 볼 수 있습니다."
+_NOTE_NEED = "체험 글 뒤에 내용을 말해 주세요."
+_CALENDAR_NEED = "체험 이름과 날짜를 말해 주세요. 예시: 조개잡이 2026-11-01"
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
+_REGISTER_REASONS = {
+    "bad_format": _REGISTER_NEED,
+    "village_not_found": "등록 코드가 마을과 맞지 않습니다.",
+    "code_mismatch": "등록 코드가 마을과 맞지 않습니다.",
+    "already_registered": "이 마을에는 이미 마을 운영자가 있습니다. 체험 이름을 붙여 주세요.",
+    "village_operator_required": "먼저 마을 운영자를 등록해 주세요.",
+    "program_not_found": "이 마을 체험이 아닙니다.",
+    "program_taken": "이 체험에는 이미 담당자가 있습니다.",
+}
 
 
 def _skill_lines(title: str, lines: list[str], total: int) -> dict:
@@ -79,7 +102,7 @@ def finish_promo_photo(payload: KakaoSkillRequest) -> dict:
 
 
 def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
-    """블록 이름 앞에서 운영자를 조회한다. 여섯 블록이 아니면 None."""
+    """블록 이름 앞에서 운영자를 조회한다. 모르는 블록이면 None."""
     user_id = str(payload.userRequest.user.get("id") or "")
     role = resolve_kakao_role(user_id)
     kind = _BLOCKS.get((payload.intent.name or "").strip())
@@ -91,11 +114,17 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
         return _reviews(payload)
     if kind == "register":
         return _register(user_id, payload)
+    if kind in {"note_save", "note_list", "calendar_save", "calendar_list"}:
+        return _share(kind, user_id, payload)
     if kind == "promo_photo":
+        if role.get("role") == "program":
+            return build_error_skill_response(_VILLAGE_ONLY)
         return _promo_photo(user_id, role, payload)
     if role["mode"] != "operator":
         hint = _STATUS_HINT if kind == "status" else _OPERATOR_ONLY
         return build_error_skill_response(hint)
+    if role.get("role") == "program":
+        return build_error_skill_response(_VILLAGE_ONLY)
     if kind == "status":
         return _status(str(role["village_id"]))
     return _decide(kind, str(role["village_id"]), payload)
@@ -169,15 +198,24 @@ def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
     params = payload.action.params
     village_id = str(representative(params, "village_id") or "").strip()
     code = str(representative(params, "registration_code") or "").strip()
-    if not village_id or not code:
+    program = str(representative(params, "program_label") or "").strip()
+    utterance = payload.userRequest.utterance or ""
+    if not program:
+        program = _program_after_code(utterance, code)
+    if village_id and code:
+        result = register_operator_with_ids(user_id, village_id, code, program)
+    elif utterance.strip():
+        result = register_operator(user_id, utterance)
+    else:
         return build_error_skill_response(_REGISTER_NEED)
-    result = register_operator_with_ids(user_id, village_id, code)
     if result.get("ok"):
-        return build_skill_response(
-            "등록 완료",
-            f"{result['village_id']} 운영자로 등록되었습니다.",
-        )
-    return build_error_skill_response("등록 코드가 마을과 맞지 않습니다.")
+        if result.get("role") == "program":
+            text = f"{result['village_id']} 체험 담당으로 등록되었습니다."
+        else:
+            text = f"{result['village_id']} 운영자로 등록되었습니다."
+        return build_skill_response("등록 완료", text)
+    reason = str(result.get("reason") or "")
+    return build_error_skill_response(_REGISTER_REASONS.get(reason, "등록 코드가 마을과 맞지 않습니다."))
 
 
 def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
@@ -195,3 +233,95 @@ def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
         return build_skill_response("승인 완료", "예약이 승인되었습니다.")
     booking.update_booking_status(booking_id, "rejected")
     return build_skill_response("거절 완료", "예약이 거절되었습니다.")
+
+
+def _program_after_code(utterance: str, code: str) -> str:
+    text = (utterance or "").strip()
+    if text.startswith("등록 "):
+        text = text[3:].strip()
+    if not code or code not in text:
+        return ""
+    return text.split(code, 1)[1].strip()
+
+
+def _note_body(utterance: str) -> str:
+    text = (utterance or "").strip()
+    for prefix in ("체험 글 저장", "체험 글"):
+        if text.startswith(prefix):
+            return text[len(prefix) :].strip()
+    return text
+
+
+def _label_in_text(village_id: str, text: str) -> str:
+    village = get_village_by_id(village_id) or {}
+    found = [label for label in program_labels(village) if label and label in text]
+    if not found:
+        return ""
+    return max(found, key=len)
+
+
+def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
+    operator = get_operator_by_kakao_id(user_id)
+    if not operator:
+        return build_error_skill_response(_SHARE_ONLY)
+    if kind == "note_list":
+        rows = list_program_notes(operator).get("notes") or []
+        if not rows:
+            return build_error_skill_response("등록된 체험 글이 없습니다.")
+        lines = [f"{row.get('label')} {row.get('body')}".strip() for row in rows]
+        return _skill_lines("체험 글", lines, len(rows))
+    if kind == "calendar_list":
+        rows = list_calendar(operator).get("entries") or []
+        if not rows:
+            return build_error_skill_response("등록된 체험 일정이 없습니다.")
+        lines = [
+            " ".join(
+                part
+                for part in (str(row.get("label") or ""), str(row.get("visit_date") or ""), str(row.get("note") or ""))
+                if part
+            )
+            for row in rows
+        ]
+        return _skill_lines("체험 달력", lines, len(rows))
+    if kind == "note_save":
+        body = _note_body(payload.userRequest.utterance or "")
+        if not body:
+            return build_error_skill_response(_NOTE_NEED)
+        result = save_program_note(operator, body)
+        if result.get("ok"):
+            return build_skill_response("체험 글", f"{result['label']} 내용을 저장했습니다.")
+        if result.get("reason") == "read_only":
+            return build_error_skill_response(_NOTE_ONLY)
+        if result.get("reason") == "program_not_found":
+            return build_error_skill_response("이 마을 체험이 아닙니다.")
+        return build_error_skill_response(_NOTE_NEED)
+    label, visit_date, note = _calendar_fields(operator, payload)
+    if not label or not visit_date:
+        return build_error_skill_response(_CALENDAR_NEED)
+    result = save_calendar_entry(operator, label, visit_date, note)
+    if result.get("ok"):
+        return build_skill_response("체험 달력", f"{result['label']} {result['visit_date']} 일정을 등록했습니다.")
+    if result.get("reason") == "forbidden":
+        return build_error_skill_response(_CALENDAR_ONLY)
+    if result.get("reason") == "program_not_found":
+        return build_error_skill_response("이 마을 체험이 아닙니다.")
+    return build_error_skill_response(_CALENDAR_NEED)
+
+
+def _calendar_fields(operator: dict, payload: KakaoSkillRequest) -> tuple[str, str, str]:
+    params = payload.action.params
+    utterance = payload.userRequest.utterance or ""
+    visit_date = parse_sys_date(representative(params, "visit_date")) or ""
+    if not visit_date:
+        found = re.search(r"\d{4}-\d{2}-\d{2}", utterance)
+        visit_date = found.group(0) if found else ""
+    label = str(representative(params, "program_label") or "").strip()
+    if not label:
+        label = _label_in_text(str(operator.get("village_id") or ""), utterance)
+    note = str(representative(params, "note") or "").strip()
+    if not note and label and visit_date:
+        remainder = utterance
+        for piece in ("체험 달력 등록", "체험 달력", label, visit_date):
+            remainder = remainder.replace(piece, " ")
+        note = " ".join(remainder.split())
+    return label, visit_date, note

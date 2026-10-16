@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from models.schemas import OperatorContentRequest, ProgramStatusRequest
-from services.auth import get_current_operator, require_village_access
+from services.auth import require_village_access, require_village_operator
 from services.booking import get_operator_dashboard_summary
 from services.operator_assistant import PhotoRejected, save_operator_contents
 from services.village_promo import publish_operator_contents
@@ -19,7 +19,7 @@ def _reject_other_village(village_id: str | None, current_operator: dict) -> Non
 @router.get("/dashboard")
 async def operator_dashboard(
     village_id: str | None = None,
-    current_operator: dict = Depends(get_current_operator),
+    current_operator: dict = Depends(require_village_operator),
 ):
     _reject_other_village(village_id, current_operator)
     return get_operator_dashboard_summary(current_operator)
@@ -28,7 +28,7 @@ async def operator_dashboard(
 @router.get("/contents")
 async def operator_contents(
     village_id: str | None = None,
-    current_operator: dict = Depends(get_current_operator),
+    current_operator: dict = Depends(require_village_operator),
 ):
     _reject_other_village(village_id, current_operator)
     return {"contents": list_contents(village_id=current_operator["village_id"])}
@@ -56,7 +56,7 @@ async def _content_fields(request: Request) -> tuple[str, str | None, bytes | No
 async def publish_operator_content(
     request: Request,
     village_id: str | None = None,
-    current_operator: dict = Depends(get_current_operator),
+    current_operator: dict = Depends(require_village_operator),
 ):
     other_village = village_id
     if "application/json" in request.headers.get("content-type", ""):
@@ -71,7 +71,7 @@ async def publish_operator_content(
 async def create_operator_contents(
     request: Request,
     village_id: str | None = None,
-    current_operator: dict = Depends(get_current_operator),
+    current_operator: dict = Depends(require_village_operator),
 ):
     description, other_village, photo = await _content_fields(request)
     _reject_other_village(other_village or village_id, current_operator)
@@ -87,7 +87,7 @@ async def create_operator_contents(
 @router.get("/programs")
 async def operator_programs(
     village_id: str | None = None,
-    current_operator: dict = Depends(get_current_operator),
+    current_operator: dict = Depends(require_village_operator),
 ):
     _reject_other_village(village_id, current_operator)
     village = get_village_by_id(current_operator["village_id"]) or {}
@@ -97,7 +97,7 @@ async def operator_programs(
 @router.post("/programs/status")
 async def update_program_status(
     body: ProgramStatusRequest,
-    current_operator: dict = Depends(get_current_operator),
+    current_operator: dict = Depends(require_village_operator),
 ):
     _reject_other_village(body.village_id, current_operator)
     label = body.label.strip()

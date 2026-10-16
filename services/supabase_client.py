@@ -12,6 +12,9 @@ _review_id_counter = 1
 _contents: list[dict] = []
 _content_id_counter = 1
 _program_status: list[dict] = []
+_program_notes: list[dict] = []
+_calendar: list[dict] = []
+_calendar_id_counter = 1
 _operators: list[dict] = [
     {
         "operator_id": 1,
@@ -21,6 +24,7 @@ _operators: list[dict] = [
         "operator_name": "V001 운영자",
         "registered_at": "2026-09-01T00:00:00+00:00",
         "is_active": True,
+        "role": "village",
     },
     {
         "operator_id": 2,
@@ -30,6 +34,7 @@ _operators: list[dict] = [
         "operator_name": "V002 운영자",
         "registered_at": "2026-09-01T00:00:00+00:00",
         "is_active": True,
+        "role": "village",
     },
     {
         "operator_id": 3,
@@ -39,6 +44,7 @@ _operators: list[dict] = [
         "operator_name": "테스트 운영자",
         "registered_at": "2026-09-01T00:00:00+00:00",
         "is_active": True,
+        "role": "village",
     },
 ]
 
@@ -196,21 +202,35 @@ def get_operator_by_id(operator_id: int) -> dict | None:
     return None
 
 
-def get_operator_by_village_id(village_id: str) -> dict | None:
+def _is_village_role(operator: dict) -> bool:
+    return (operator.get("role") or "village") == "village"
+
+
+def list_operators_for_village(village_id: str) -> list[dict]:
     client = get_supabase_client()
     if client:
-        result = (
-            client.table("operators")
-            .select("*")
-            .eq("village_id", village_id)
-            .limit(1)
-            .execute()
-        )
-        return result.data[0] if result.data else None
-    for operator in _operators:
-        if operator.get("village_id") == village_id:
+        result = client.table("operators").select("*").eq("village_id", village_id).execute()
+        return result.data or []
+    return [operator for operator in _operators if operator.get("village_id") == village_id]
+
+
+def get_village_operator(village_id: str) -> dict | None:
+    for operator in list_operators_for_village(village_id):
+        if _is_village_role(operator):
             return operator
     return None
+
+
+def get_program_operator(village_id: str, program_key: str) -> dict | None:
+    for operator in list_operators_for_village(village_id):
+        if operator.get("role") == "program" and operator.get("program_key") == program_key:
+            return operator
+    return None
+
+
+def get_operator_by_village_id(village_id: str) -> dict | None:
+    """마을 운영자 한 명. 체험 담당은 포함하지 않는다."""
+    return get_village_operator(village_id)
 
 
 def set_operator_login_id(village_id: str, login_id: str) -> dict | None:
@@ -221,11 +241,12 @@ def set_operator_login_id(village_id: str, login_id: str) -> dict | None:
             client.table("operators")
             .update({"login_id": login_id})
             .eq("village_id", village_id)
+            .eq("role", "village")
             .execute()
         )
         return result.data[0] if result.data else None
     for operator in _operators:
-        if operator.get("village_id") == village_id:
+        if operator.get("village_id") == village_id and _is_village_role(operator):
             operator["login_id"] = login_id
             return dict(operator)
     return None
@@ -234,10 +255,11 @@ def set_operator_login_id(village_id: str, login_id: str) -> dict | None:
 def insert_operator(row: dict) -> dict:
     global _operators
     client = get_supabase_client()
-    if client:
-        result = client.table("operators").insert(row).execute()
-        return result.data[0] if result.data else row
     saved = dict(row)
+    saved.setdefault("role", "village")
+    if client:
+        result = client.table("operators").insert(saved).execute()
+        return result.data[0] if result.data else saved
     if "operator_id" not in saved:
         saved["operator_id"] = max((op.get("operator_id") or 0) for op in _operators) + 1
     _operators.append(saved)
@@ -293,6 +315,14 @@ def reset_program_store() -> None:
     _program_status = []
 
 
+def reset_share_store() -> None:
+    """테스트용 체험 글·달력 초기화."""
+    global _program_notes, _calendar, _calendar_id_counter
+    _program_notes = []
+    _calendar = []
+    _calendar_id_counter = 1
+
+
 def reset_memory_store() -> None:
     """테스트용 인메모리 저장소 초기화."""
     global _villages_cache, _sync_logs
@@ -301,6 +331,7 @@ def reset_memory_store() -> None:
     reset_booking_store()
     reset_content_store()
     reset_program_store()
+    reset_share_store()
 
 
 def insert_booking(row: dict) -> dict:
@@ -448,6 +479,13 @@ def _missing_program_table(exc: Exception) -> bool:
     return "village_program_status" in message and "schema cache" in message
 
 
+def _missing_share_table(exc: Exception) -> bool:
+    message = str(exc)
+    if "schema cache" not in message and getattr(exc, "code", None) != "PGRST205":
+        return False
+    return "program_notes" in message or "experience_calendar" in message or getattr(exc, "code", None) == "PGRST205"
+
+
 def list_program_status(village_id: str) -> list[dict]:
     if not village_id:
         return []
@@ -541,3 +579,95 @@ def list_reviews(*, village_id: str | None = None) -> list[dict]:
         return result.data or []
     rows = [row for row in _reviews if row.get("village_id") == village_id]
     return [dict(row) for row in sorted(rows, key=lambda row: row.get("review_id") or 0)]
+
+
+def upsert_program_note(row: dict) -> dict:
+    client = get_supabase_client()
+    if client:
+        try:
+            result = client.table("program_notes").upsert(row).execute()
+        except Exception as exc:
+            if _missing_share_table(exc):
+                raise RuntimeError("체험 글 저장소가 아직 없습니다.") from exc
+            raise
+        return result.data[0] if result.data else row
+    for existing in _program_notes:
+        if existing.get("village_id") == row["village_id"] and existing.get("program_key") == row["program_key"]:
+            existing.update(row)
+            return dict(existing)
+    _program_notes.append(dict(row))
+    return dict(row)
+
+
+def list_program_notes_for_village(village_id: str) -> list[dict]:
+    if not village_id:
+        return []
+    client = get_supabase_client()
+    if client:
+        try:
+            result = (
+                client.table("program_notes").select("*").eq("village_id", village_id).execute()
+            )
+        except Exception as exc:
+            if _missing_share_table(exc):
+                return []
+            raise
+        rows = result.data or []
+    else:
+        rows = [row for row in _program_notes if row.get("village_id") == village_id]
+    return [dict(row) for row in sorted(rows, key=lambda row: str(row.get("label") or ""))]
+
+
+def upsert_calendar_entry(row: dict) -> dict:
+    global _calendar_id_counter
+    client = get_supabase_client()
+    if client:
+        try:
+            result = (
+                client.table("experience_calendar")
+                .upsert(row, on_conflict="village_id,program_key,visit_date")
+                .execute()
+            )
+        except Exception as exc:
+            if _missing_share_table(exc):
+                raise RuntimeError("체험 달력 저장소가 아직 없습니다.") from exc
+            raise
+        return result.data[0] if result.data else row
+    for existing in _calendar:
+        if (
+            existing.get("village_id") == row["village_id"]
+            and existing.get("program_key") == row["program_key"]
+            and existing.get("visit_date") == row["visit_date"]
+        ):
+            existing.update(row)
+            return dict(existing)
+    saved = dict(row)
+    saved["calendar_id"] = _calendar_id_counter
+    _calendar_id_counter += 1
+    _calendar.append(saved)
+    return dict(saved)
+
+
+def list_calendar_for_village(village_id: str) -> list[dict]:
+    if not village_id:
+        return []
+    client = get_supabase_client()
+    if client:
+        try:
+            result = (
+                client.table("experience_calendar").select("*").eq("village_id", village_id).execute()
+            )
+        except Exception as exc:
+            if _missing_share_table(exc):
+                return []
+            raise
+        rows = result.data or []
+    else:
+        rows = [row for row in _calendar if row.get("village_id") == village_id]
+    return [
+        dict(row)
+        for row in sorted(
+            rows,
+            key=lambda row: (str(row.get("visit_date") or ""), str(row.get("label") or "")),
+        )
+    ]

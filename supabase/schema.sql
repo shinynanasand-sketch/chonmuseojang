@@ -26,15 +26,26 @@ CREATE INDEX IF NOT EXISTS idx_villages_program_type ON villages_cache(program_t
 
 CREATE TABLE IF NOT EXISTS operators (
     operator_id SERIAL PRIMARY KEY,
-    village_id TEXT NOT NULL UNIQUE REFERENCES villages_cache(village_id),
+    village_id TEXT NOT NULL REFERENCES villages_cache(village_id),
     kakao_user_id TEXT NOT NULL UNIQUE,
     login_id TEXT UNIQUE,
     password_hash TEXT,
     operator_name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     registered_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_login_at TIMESTAMP
+    last_login_at TIMESTAMP,
+    role TEXT NOT NULL DEFAULT 'village' CHECK (role IN ('village', 'program')),
+    program_key TEXT,
+    CONSTRAINT operators_role_program_key CHECK (
+        (role = 'village' AND program_key IS NULL)
+        OR (role = 'program' AND program_key IS NOT NULL)
+    )
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS operators_one_village_role
+    ON operators (village_id) WHERE role = 'village';
+CREATE UNIQUE INDEX IF NOT EXISTS operators_one_program_role
+    ON operators (village_id, program_key) WHERE role = 'program';
 
 CREATE INDEX IF NOT EXISTS idx_operators_kakao ON operators(kakao_user_id);
 
@@ -90,6 +101,27 @@ CREATE TABLE IF NOT EXISTS village_program_status (
     PRIMARY KEY (village_id, program_key)
 );
 
+CREATE TABLE IF NOT EXISTS program_notes (
+    village_id TEXT NOT NULL REFERENCES villages_cache(village_id),
+    program_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    body TEXT NOT NULL,
+    updated_by INTEGER REFERENCES operators(operator_id),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (village_id, program_key)
+);
+
+CREATE TABLE IF NOT EXISTS experience_calendar (
+    calendar_id SERIAL PRIMARY KEY,
+    village_id TEXT NOT NULL REFERENCES villages_cache(village_id),
+    program_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    visit_date DATE NOT NULL,
+    note TEXT,
+    created_by INTEGER REFERENCES operators(operator_id),
+    UNIQUE (village_id, program_key, visit_date)
+);
+
 CREATE TABLE IF NOT EXISTS sync_logs (
     log_id SERIAL PRIMARY KEY,
     source TEXT NOT NULL,
@@ -107,4 +139,6 @@ ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.village_program_status ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.program_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.experience_calendar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;

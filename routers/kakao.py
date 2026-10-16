@@ -82,16 +82,19 @@ def _inquiry_response(utterance: str, user_id: str):
     if utterance.startswith("등록 "):
         result = auth.register_operator(user_id, utterance)
         if result.get("ok"):
-            return kakao_client.build_skill_response(
-                "등록 완료",
-                f"{result['village_id']} 운영자로 등록되었습니다.",
-            )
+            if result.get("role") == "program":
+                text = f"{result['village_id']} 체험 담당으로 등록되었습니다."
+            else:
+                text = f"{result['village_id']} 운영자로 등록되었습니다."
+            return kakao_client.build_skill_response("등록 완료", text)
         return kakao_client.build_error_skill_response(_REGISTER_HINT)
 
     if utterance == "예약 현황":
         role = auth.resolve_kakao_role(user_id)
         if role["mode"] != "operator":
             return kakao_client.build_error_skill_response(_REGISTER_HINT)
+        if role.get("role") == "program":
+            return kakao_client.build_error_skill_response("예약 현황은 마을 운영자만 볼 수 있습니다.")
         lines = booking.format_booking_lines(booking.list_bookings_for_operator(user_id))
         return kakao_client.build_skill_response("예약 현황", lines)
 
@@ -155,9 +158,9 @@ async def kakao_approve(payload: KakaoSkillRequest):
     kakao_user_id = str(payload.userRequest.user.get("id") or "")
 
     role = auth.resolve_kakao_role(kakao_user_id)
-    if role["mode"] != "operator":
+    if role["mode"] != "operator" or role.get("role") == "program":
         return _skill_json(
-            kakao_client.build_error_skill_response("등록된 운영자만 승인/거절할 수 있습니다.")
+            kakao_client.build_error_skill_response("예약·홍보는 마을 운영자만 할 수 있습니다.")
         )
 
     existing = booking.get_booking_by_id(booking_id) if booking_id else None

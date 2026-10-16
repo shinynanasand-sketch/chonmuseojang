@@ -24,11 +24,11 @@ UPDATE villages_cache
 SET registration_code = 'GB-001'
 WHERE village_id = 'V001' AND registration_code IS NULL;
 
-INSERT INTO operators (village_id, kakao_user_id, login_id, operator_name, is_active)
+INSERT INTO operators (village_id, kakao_user_id, login_id, operator_name, is_active, role)
 VALUES
-    ('V001', 'kakao_owner_v001', 'owner_v001', 'V001 운영자', TRUE),
-    ('V002', 'kakao_owner_v002', 'owner_v002', 'V002 운영자', TRUE)
-ON CONFLICT (village_id) DO UPDATE SET
+    ('V001', 'kakao_owner_v001', 'owner_v001', 'V001 운영자', TRUE, 'village'),
+    ('V002', 'kakao_owner_v002', 'owner_v002', 'V002 운영자', TRUE, 'village')
+ON CONFLICT (village_id) WHERE role = 'village' DO UPDATE SET
     kakao_user_id = EXCLUDED.kakao_user_id,
     login_id = EXCLUDED.login_id,
     operator_name = EXCLUDED.operator_name,

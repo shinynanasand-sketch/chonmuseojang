@@ -48,9 +48,11 @@ def list_bookings_for_village(village_id: str) -> list[dict]:
 
 
 def list_bookings_for_operator(user_id: str) -> list[dict]:
-    """운영자 발화 `예약 현황`. 관광객이면 호출하지 않는다."""
-    from services.auth import scoped_village_id
+    """운영자 발화 `예약 현황`. 마을 운영자만 조회한다."""
+    from services.auth import resolve_kakao_role, scoped_village_id
 
+    if resolve_kakao_role(user_id).get("role") == "program":
+        raise PermissionError("village operator required")
     return list_bookings_for_village(scoped_village_id(user_id))
 
 
