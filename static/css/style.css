@@ -37,3 +37,15 @@ select, input[type="search"], input[type="text"] { padding: 0.4rem; }
 .stat-card { border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem; background: #fff; }
 .stat-card strong { display: block; font-size: 1.4rem; }
 .popup-meta { margin: 0.35rem 0; }
+.month-bar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin: 1rem 0; }
+.month-bar button, #entry-form button, #day-entries button { font-size: 1rem; min-height: 2.75rem; }
+.week-names, .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.35rem; }
+.week-names span { text-align: center; font-size: 0.9rem; color: #555; }
+.day-cell { min-height: 3.4rem; font-size: 1.15rem; background: #fff; color: #1b1b1b; border: 1px solid #ddd; }
+.day-cell.has { background: #d8f3dc; }
+.day-cell.selected { outline: 3px solid #2d6a4f; }
+#entry-form[hidden] { display: none; }
+#entry-form:not([hidden]) { display: grid; gap: 0.75rem; margin-top: 1rem; }
+#entry-form label { display: grid; gap: 0.35rem; font-size: 1rem; }
+#entry-form input, #entry-form select { font-size: 1.1rem; min-height: 2.75rem; }
+#day-entries p { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; border-bottom: 1px solid #eee; padding: 0.5rem 0; }

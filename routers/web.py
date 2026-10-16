@@ -10,6 +10,11 @@ from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
 from services.supabase_client import list_program_status_map, list_public_villages
 from services.tourapi import get_nearby_for_village
+from services.calendar_board import (
+    calendar_snapshot,
+    delete_calendar_from_token,
+    save_calendar_from_token,
+)
 from services.village_promo import list_published_villages, public_village_promo
 from services.village_programs import programs_for
 from services.trust_score import calculate_trust_score
@@ -69,6 +74,59 @@ async def village_page(request: Request, village_id: str):
     return request.app.state.templates.TemplateResponse(
         request, "village.html", {"title": promo["village_name"] or "마을", "promo": promo}
     )
+
+
+def _calendar_result(result: dict):
+    if result.get("ok"):
+        return result
+    reason = result.get("reason")
+    if reason == "not_found":
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    if reason == "forbidden":
+        raise HTTPException(status_code=403, detail="체험 달력은 마을 운영자만 등록할 수 있습니다.")
+    raise HTTPException(status_code=400, detail="체험 이름, 날짜, 단체, 인원을 확인해 주세요.")
+
+
+@router.get("/calendar/{token}", response_class=HTMLResponse)
+async def calendar_page(request: Request, token: str):
+    if calendar_snapshot(token) is None:
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    return request.app.state.templates.TemplateResponse(
+        request, "calendar.html", {"title": "체험 달력", "token": token}
+    )
+
+
+@router.get("/api/calendar/{token}")
+async def calendar_api(token: str):
+    snapshot = calendar_snapshot(token)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    return snapshot
+
+
+@router.post("/api/calendar/{token}")
+async def calendar_save(token: str, request: Request):
+    body = await request.json()
+    result = save_calendar_from_token(
+        token,
+        str(body.get("label") or ""),
+        str(body.get("visit_date") or ""),
+        str(body.get("group_name") or ""),
+        body.get("num_people"),
+    )
+    return _calendar_result(result)
+
+
+@router.delete("/api/calendar/{token}")
+async def calendar_delete(token: str, request: Request):
+    body = await request.json()
+    result = delete_calendar_from_token(
+        token,
+        str(body.get("label") or ""),
+        str(body.get("visit_date") or ""),
+        str(body.get("group_name") or ""),
+    )
+    return _calendar_result(result)
 
 
 @router.get("/operator", response_class=HTMLResponse)

@@ -3,6 +3,7 @@
 from datetime import date, datetime, timezone
 
 from services.supabase_client import (
+    delete_calendar_entry_row,
     get_village_by_id,
     list_calendar_for_village,
     list_program_notes_for_village,
@@ -118,6 +119,32 @@ def save_calendar_entry(
         "group_name": group,
         "num_people": count,
     }
+
+
+def delete_calendar_entry(operator: dict, label: str, visit_date: str, group_name: str) -> dict:
+    """마을 운영자만 자기 마을의 체험·날짜·단체 한 건을 지운다."""
+    if not operator or not operator.get("village_id"):
+        return {"ok": False, "reason": "forbidden"}
+    if _role(operator) != "village":
+        return {"ok": False, "reason": "forbidden"}
+    canonical = _canonical_label(str(operator["village_id"]), label)
+    group = " ".join(str(group_name or "").split())
+    try:
+        parsed = date.fromisoformat(visit_date)
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "bad_format"}
+    if not canonical or not group:
+        return {"ok": False, "reason": "bad_format"}
+    try:
+        delete_calendar_entry_row(
+            str(operator["village_id"]),
+            program_key(canonical),
+            parsed.isoformat(),
+            group,
+        )
+    except RuntimeError:
+        return {"ok": False, "reason": "storage_unavailable"}
+    return {"ok": True, "village_id": operator["village_id"]}
 
 
 def list_calendar(operator: dict) -> dict:

@@ -649,6 +649,43 @@ def upsert_calendar_entry(row: dict) -> dict:
     return dict(saved)
 
 
+def delete_calendar_entry_row(
+    village_id: str, program_key: str, visit_date: str, group_name: str
+) -> None:
+    global _calendar
+    client = get_supabase_client()
+    if client:
+        (
+            client.table("experience_calendar")
+            .delete()
+            .eq("village_id", village_id)
+            .eq("program_key", program_key)
+            .eq("visit_date", visit_date)
+            .eq("group_name", group_name)
+            .execute()
+        )
+        return
+    _calendar = [
+        row
+        for row in _calendar
+        if not (
+            row.get("village_id") == village_id
+            and row.get("program_key") == program_key
+            and row.get("visit_date") == visit_date
+            and row.get("group_name") == group_name
+        )
+    ]
+
+
+def delete_calendar_for_village(village_id: str) -> None:
+    global _calendar
+    client = get_supabase_client()
+    if client:
+        client.table("experience_calendar").delete().eq("village_id", village_id).execute()
+        return
+    _calendar = [row for row in _calendar if row.get("village_id") != village_id]
+
+
 def list_calendar_for_village(village_id: str) -> list[dict]:
     if not village_id:
         return []

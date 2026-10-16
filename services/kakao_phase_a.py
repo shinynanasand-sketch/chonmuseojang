@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
 from services.auth import get_operator_by_kakao_id, register_operator, register_operator_with_ids, resolve_kakao_role
+from services.calendar_link import attach_calendar_card
 from services.kakao_client import build_error_skill_response, build_skill_response
 from services.kakao_params import booking_id_from_params, kakao_photo_url, parse_sys_date, representative
 from services.operator_assistant import (
@@ -281,15 +282,17 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
     if kind == "calendar_list":
         rows = list_calendar(operator).get("entries") or []
         if not rows:
-            return build_error_skill_response("등록된 체험 일정이 없습니다.")
-        lines = [
-            (
-                f"{row.get('label')} {row.get('visit_date')} {row.get('group_name')} "
-                f"{row.get('num_people')}명"
-            )
-            for row in rows
-        ]
-        return _skill_lines("체험 달력", lines, len(rows))
+            body = build_error_skill_response("등록된 체험 일정이 없습니다.")
+        else:
+            lines = [
+                (
+                    f"{row.get('label')} {row.get('visit_date')} {row.get('group_name')} "
+                    f"{row.get('num_people')}명"
+                )
+                for row in rows
+            ]
+            body = _skill_lines("체험 달력", lines, len(rows))
+        return attach_calendar_card(body, operator)
     if kind == "note_save":
         body = _note_body(payload.userRequest.utterance or "")
         if not body:
