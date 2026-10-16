@@ -135,19 +135,34 @@ def test_village_operator_reads_notes_but_does_not_write(share_villages):
 
 def test_program_operator_cannot_write_calendar(share_villages):
     owners = _owners()
-    assert save_calendar_entry(owners["shell"], "조개잡이", "2026-11-01", "오전") == {
+    assert save_calendar_entry(owners["shell"], "조개잡이", "2026-11-01", "광주소등학교", 30) == {
         "ok": False,
         "reason": "forbidden",
     }
 
 
-def test_village_operator_calendar_is_shared_inside_village_only(share_villages):
+def test_calendar_groups_belong_to_one_program(share_villages):
     owners = _owners()
-    assert save_calendar_entry(owners["village"], "조개잡이", "2026-11-01", "오전")["ok"] is True
-    home = list_calendar(owners["salt"])["entries"]
-    assert home[0]["label"] == "조개잡이"
-    assert home[0]["visit_date"] == "2026-11-01"
+    assert save_calendar_entry(owners["village"], "조개잡이", "2026-11-01", "광주소등학교", 30)["ok"] is True
+    assert save_calendar_entry(owners["village"], "조개잡이", "2026-11-01", "무안유치원", 20)["ok"] is True
+    shell = list_calendar(owners["shell"])["entries"]
+    assert [(row["group_name"], row["num_people"]) for row in shell] == [
+        ("광주소등학교", 30),
+        ("무안유치원", 20),
+    ]
+    assert list_calendar(owners["salt"])["entries"] == []
     assert list_calendar(owners["other"])["entries"] == []
+    village = list_calendar(owners["village"])["entries"]
+    assert len(village) == 2
+
+
+def test_same_group_on_same_day_updates_headcount(share_villages):
+    owners = _owners()
+    save_calendar_entry(owners["village"], "조개잡이", "2026-11-01", "광주소등학교", 30)
+    save_calendar_entry(owners["village"], "조개잡이", "2026-11-01", "광주소등학교", 40)
+    rows = list_calendar(owners["shell"])["entries"]
+    assert len(rows) == 1
+    assert rows[0]["num_people"] == 40
 
 
 def test_other_village_notes_stay_hidden(share_villages):
@@ -215,6 +230,7 @@ def test_program_operator_web_routes_are_forbidden(test_client):
 def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
     register_operator("share_owner", "등록 공유마을 SH-001")
     register_operator("shell_owner", "등록 공유마을 SH-001 조개잡이")
+    register_operator("salt_owner", "등록 공유마을 SH-001 소금체험")
     saved = test_client.post(
         "/kakao/ask",
         json=_skill("체험 글 저장", "shell_owner", "체험 글 아이들이 조개를 잡습니다"),
@@ -236,7 +252,7 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
     assert "조개잡이" in listed.text
     assert "아이들이 조개를 잡습니다" in listed.text
 
-    calendar = test_client.post(
+    missing = test_client.post(
         "/kakao/ask",
         json=_skill(
             "체험 달력 등록",
@@ -245,20 +261,38 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
             {"program_label": "조개잡이", "visit_date": "2026-11-01", "note": "오전"},
         ),
     )
-    assert "2026-11-01" in calendar.text
+    assert "광주소등학교 30명" in missing.text
+    assert list_calendar(get_operator_by_kakao_id("share_owner"))["entries"] == []
+
+    calendar = test_client.post(
+        "/kakao/ask",
+        json=_skill(
+            "체험 달력 등록",
+            "share_owner",
+            "조개잡이 2026-11-01 광주소등학교 30명",
+            {"program_label": "조개잡이", "visit_date": "2026-11-01"},
+        ),
+    )
+    assert "조개잡이 2026-11-01 광주소등학교 30명" in calendar.text
 
     seen = test_client.post(
         "/kakao/ask",
         json=_skill("체험 달력 조회", "shell_owner", "체험 달력 조회"),
     )
-    assert "2026-11-01" in seen.text
+    assert "조개잡이 2026-11-01 광주소등학교 30명" in seen.text
+
+    hidden = test_client.post(
+        "/kakao/ask",
+        json=_skill("체험 달력 조회", "salt_owner", "체험 달력 조회"),
+    )
+    assert "광주소등학교" not in hidden.text
 
     blocked = test_client.post(
         "/kakao/ask",
         json=_skill(
             "체험 달력 등록",
             "shell_owner",
-            "조개잡이 2026-11-02",
+            "조개잡이 2026-11-02 무안유치원 20명",
             {"program_label": "조개잡이", "visit_date": "2026-11-02"},
         ),
     )

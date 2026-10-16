@@ -52,9 +52,11 @@ CREATE TABLE IF NOT EXISTS experience_calendar (
     program_key TEXT NOT NULL,
     label TEXT NOT NULL,
     visit_date DATE NOT NULL,
+    group_name TEXT NOT NULL,
+    num_people INTEGER NOT NULL,
     note TEXT,
     created_by INTEGER REFERENCES operators(operator_id),
-    UNIQUE (village_id, program_key, visit_date)
+    UNIQUE (village_id, program_key, visit_date, group_name)
 );
 
 ALTER TABLE public.program_notes ENABLE ROW LEVEL SECURITY;

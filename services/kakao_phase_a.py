@@ -49,7 +49,9 @@ _NOTE_ONLY = "체험 글은 체험 담당만 저장할 수 있습니다."
 _CALENDAR_ONLY = "체험 달력은 마을 운영자만 등록할 수 있습니다."
 _SHARE_ONLY = "등록된 운영자만 체험 글과 달력을 볼 수 있습니다."
 _NOTE_NEED = "체험 글 뒤에 내용을 말해 주세요."
-_CALENDAR_NEED = "체험 이름과 날짜를 말해 주세요. 예시: 조개잡이 2026-11-01"
+_CALENDAR_NEED = (
+    "체험 이름, 날짜, 단체, 인원을 한 문장에 넣어 주세요. 예: 조개잡이 2026-11-01 광주소등학교 30명"
+)
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 _REGISTER_REASONS = {
     "bad_format": _REGISTER_NEED,
@@ -275,10 +277,9 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
         if not rows:
             return build_error_skill_response("등록된 체험 일정이 없습니다.")
         lines = [
-            " ".join(
-                part
-                for part in (str(row.get("label") or ""), str(row.get("visit_date") or ""), str(row.get("note") or ""))
-                if part
+            (
+                f"{row.get('label')} {row.get('visit_date')} {row.get('group_name')} "
+                f"{row.get('num_people')}명"
             )
             for row in rows
         ]
@@ -295,12 +296,13 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
         if result.get("reason") == "program_not_found":
             return build_error_skill_response("이 마을 체험이 아닙니다.")
         return build_error_skill_response(_NOTE_NEED)
-    label, visit_date, note = _calendar_fields(operator, payload)
-    if not label or not visit_date:
+    label, visit_date, group_name, num_people = _calendar_fields(operator, payload)
+    if not label or not visit_date or not group_name or num_people is None:
         return build_error_skill_response(_CALENDAR_NEED)
-    result = save_calendar_entry(operator, label, visit_date, note)
+    result = save_calendar_entry(operator, label, visit_date, group_name, num_people)
     if result.get("ok"):
-        return build_skill_response("체험 달력", f"{result['label']} {result['visit_date']} 일정을 등록했습니다.")
+        line = f"{result['label']} {result['visit_date']} {result['group_name']} {result['num_people']}명"
+        return build_skill_response("체험 달력", f"{line} 일정을 등록했습니다.")
     if result.get("reason") == "forbidden":
         return build_error_skill_response(_CALENDAR_ONLY)
     if result.get("reason") == "program_not_found":
@@ -308,7 +310,18 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
     return build_error_skill_response(_CALENDAR_NEED)
 
 
-def _calendar_fields(operator: dict, payload: KakaoSkillRequest) -> tuple[str, str, str]:
+def _group_and_count(text: str) -> tuple[str, int | None]:
+    found = re.search(r"(\d+)\s*명", text or "")
+    if not found:
+        return "", None
+    count = int(found.group(1))
+    group = " ".join(text[: found.start()].split())
+    if count < 1 or not group:
+        return "", None
+    return group, count
+
+
+def _calendar_fields(operator: dict, payload: KakaoSkillRequest) -> tuple[str, str, str, int | None]:
     params = payload.action.params
     utterance = payload.userRequest.utterance or ""
     visit_date = parse_sys_date(representative(params, "visit_date")) or ""
@@ -318,10 +331,10 @@ def _calendar_fields(operator: dict, payload: KakaoSkillRequest) -> tuple[str, s
     label = str(representative(params, "program_label") or "").strip()
     if not label:
         label = _label_in_text(str(operator.get("village_id") or ""), utterance)
-    note = str(representative(params, "note") or "").strip()
-    if not note and label and visit_date:
-        remainder = utterance
-        for piece in ("체험 달력 등록", "체험 달력", label, visit_date):
-            remainder = remainder.replace(piece, " ")
-        note = " ".join(remainder.split())
-    return label, visit_date, note
+    remainder = utterance
+    for piece in ("체험 달력 등록", "체험 달력", label, visit_date):
+        remainder = remainder.replace(piece, " ")
+    group_name, num_people = _group_and_count(" ".join(remainder.split()))
+    if num_people is None:
+        group_name, num_people = _group_and_count(str(representative(params, "note") or ""))
+    return label, visit_date, group_name, num_people

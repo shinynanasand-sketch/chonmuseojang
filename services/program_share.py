@@ -72,8 +72,15 @@ def list_program_notes(operator: dict) -> dict:
     return {"ok": True, "notes": notes}
 
 
-def save_calendar_entry(operator: dict, label: str, visit_date: str, note: str = "") -> dict:
-    """마을 운영자만 체험 일정을 등록한다."""
+def save_calendar_entry(
+    operator: dict,
+    label: str,
+    visit_date: str,
+    group_name: str,
+    num_people: int,
+    note: str = "",
+) -> dict:
+    """마을 운영자만 체험 일정에 단체와 인원을 등록한다."""
     if not operator or not operator.get("village_id"):
         return {"ok": False, "reason": "forbidden"}
     if _role(operator) != "village":
@@ -81,9 +88,13 @@ def save_calendar_entry(operator: dict, label: str, visit_date: str, note: str =
     canonical = _canonical_label(str(operator["village_id"]), label)
     if not canonical:
         return {"ok": False, "reason": "program_not_found"}
+    group = " ".join(str(group_name or "").split())
     try:
         parsed = date.fromisoformat(visit_date)
+        count = int(num_people)
     except (TypeError, ValueError):
+        return {"ok": False, "reason": "bad_format"}
+    if not group or count < 1:
         return {"ok": False, "reason": "bad_format"}
     try:
         upsert_calendar_entry(
@@ -92,18 +103,29 @@ def save_calendar_entry(operator: dict, label: str, visit_date: str, note: str =
                 "program_key": program_key(canonical),
                 "label": canonical,
                 "visit_date": parsed.isoformat(),
+                "group_name": group,
+                "num_people": count,
                 "note": note.strip(),
                 "created_by": operator.get("operator_id"),
             }
         )
     except RuntimeError:
         return {"ok": False, "reason": "storage_unavailable"}
-    return {"ok": True, "label": canonical, "visit_date": parsed.isoformat()}
+    return {
+        "ok": True,
+        "label": canonical,
+        "visit_date": parsed.isoformat(),
+        "group_name": group,
+        "num_people": count,
+    }
 
 
 def list_calendar(operator: dict) -> dict:
-    """같은 마을 운영자와 체험 담당만 달력을 읽는다."""
+    """마을 운영자는 마을 전체를, 체험 담당은 자기 체험만 읽는다."""
     if not operator or not operator.get("village_id"):
         return {"ok": False, "reason": "forbidden", "entries": []}
     entries = list_calendar_for_village(str(operator["village_id"]))
+    if _role(operator) == "program":
+        key = str(operator.get("program_key") or "")
+        entries = [row for row in entries if row.get("program_key") == key]
     return {"ok": True, "entries": entries}

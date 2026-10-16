@@ -625,7 +625,7 @@ def upsert_calendar_entry(row: dict) -> dict:
         try:
             result = (
                 client.table("experience_calendar")
-                .upsert(row, on_conflict="village_id,program_key,visit_date")
+                .upsert(row, on_conflict="village_id,program_key,visit_date,group_name")
                 .execute()
             )
         except Exception as exc:
@@ -638,6 +638,7 @@ def upsert_calendar_entry(row: dict) -> dict:
             existing.get("village_id") == row["village_id"]
             and existing.get("program_key") == row["program_key"]
             and existing.get("visit_date") == row["visit_date"]
+            and existing.get("group_name") == row.get("group_name")
         ):
             existing.update(row)
             return dict(existing)
@@ -668,6 +669,10 @@ def list_calendar_for_village(village_id: str) -> list[dict]:
         dict(row)
         for row in sorted(
             rows,
-            key=lambda row: (str(row.get("visit_date") or ""), str(row.get("label") or "")),
+            key=lambda row: (
+                str(row.get("visit_date") or ""),
+                str(row.get("label") or ""),
+                str(row.get("group_name") or ""),
+            ),
         )
     ]
