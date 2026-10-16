@@ -334,6 +334,15 @@ def reset_memory_store() -> None:
     reset_share_store()
 
 
+def delete_bookings_for_village(village_id: str) -> None:
+    global _bookings
+    client = get_supabase_client()
+    if client:
+        client.table("bookings").delete().eq("village_id", village_id).execute()
+        return
+    _bookings = [row for row in _bookings if row.get("village_id") != village_id]
+
+
 def insert_booking(row: dict) -> dict:
     global _booking_id_counter
     client = get_supabase_client()

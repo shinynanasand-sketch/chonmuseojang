@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     customer_name TEXT,
     visit_date DATE,
     num_people INTEGER,
+    program_key TEXT,
+    program_label TEXT,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected')),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()

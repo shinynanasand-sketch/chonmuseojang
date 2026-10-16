@@ -1,6 +1,11 @@
 """예약 생성/조회/상태변경."""
 
+import re
+
 from services.supabase_client import insert_booking, list_bookings, reset_booking_store, save_booking_status
+
+_DATE_IN_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}")
+_COUNT_IN_TEXT = re.compile(r"(\d+)\s*명")
 
 
 def reset_bookings() -> None:
@@ -13,17 +18,105 @@ def create_booking(
     visit_date: str,
     num_people: int,
     customer_name: str | None = None,
+    program_label: str | None = None,
 ) -> dict:
-    return insert_booking(
-        {
-            "village_id": village_id,
-            "customer_kakao_id": customer_kakao_id,
-            "customer_name": customer_name,
-            "visit_date": visit_date,
-            "num_people": num_people,
-            "status": "pending",
+    row = {
+        "village_id": village_id,
+        "customer_kakao_id": customer_kakao_id,
+        "customer_name": customer_name,
+        "visit_date": visit_date,
+        "num_people": num_people,
+        "status": "pending",
+    }
+    label = (program_label or "").strip()
+    if label:
+        from services.village_programs import program_key
+
+        row["program_label"] = label
+        row["program_key"] = program_key(label)
+    return insert_booking(row)
+
+
+def _phrase_in(text: str, phrase: str) -> bool:
+    if not phrase:
+        return False
+    start = 0
+    while True:
+        index = text.find(phrase, start)
+        if index < 0:
+            return False
+        end = index + len(phrase)
+        before_ok = index == 0 or text[index - 1].isspace()
+        after_ok = end == len(text) or text[end].isspace()
+        if before_ok and after_ok:
+            return True
+        start = index + 1
+
+
+def _program_matches(utterance: str) -> list[tuple[dict, str]]:
+    from services.supabase_client import list_villages
+    from services.village_programs import program_labels
+
+    found: list[tuple[dict, str]] = []
+    for village in list_villages():
+        for label in program_labels(village):
+            if _phrase_in(utterance, label):
+                found.append((village, label))
+    if not found:
+        return []
+    longest = max(len(label) for _, label in found)
+    found = [(village, label) for village, label in found if len(label) == longest]
+    named = [
+        (village, label)
+        for village, label in found
+        if _phrase_in(utterance, str(village.get("village_name") or ""))
+    ]
+    picked = named or found
+    by_village: dict[str, tuple[dict, str]] = {}
+    for village, label in picked:
+        by_village[str(village.get("village_id"))] = (village, label)
+    return list(by_village.values())
+
+
+def accept_named_booking(user_id: str, utterance: str, params: dict) -> dict:
+    """체험 이름이 한 마을에만 있으면 그 마을 대기 예약. 요청의 마을 번호는 쓰지 않는다."""
+    text = utterance or ""
+    visit_date = str(params.get("visit_date") or "").strip()
+    if not visit_date:
+        found = _DATE_IN_TEXT.search(text)
+        visit_date = found.group(0) if found else ""
+    raw = params.get("num_people")
+    if raw in (None, ""):
+        counted = _COUNT_IN_TEXT.search(text)
+        raw = counted.group(1) if counted else ""
+    if not visit_date or raw in (None, ""):
+        return {"ok": False, "text": "방문일과 인원수를 입력해 주세요."}
+    try:
+        num_people = int(raw)
+    except (TypeError, ValueError):
+        return {"ok": False, "text": "인원수는 숫자로 입력해 주세요."}
+    if num_people < 1:
+        return {"ok": False, "text": "인원수는 숫자로 입력해 주세요."}
+    matches = _program_matches(text)
+    if not matches:
+        return {
+            "ok": False,
+            "text": "예약은 체험 이름, 날짜, 인원을 한 문장에 넣어 주세요. 예: 조개잡이 2026-11-01 30명",
         }
+    if len(matches) > 1:
+        return {
+            "ok": False,
+            "text": "같은 체험 이름이 여러 마을에 있습니다. 마을 이름을 같이 말해 주세요.",
+        }
+    village, label = matches[0]
+    saved = create_booking(
+        village_id=str(village["village_id"]),
+        customer_kakao_id=user_id,
+        visit_date=visit_date,
+        num_people=num_people,
+        program_label=label,
     )
+    return {"ok": True, "booking": saved}
 
 
 def get_booking_by_id(booking_id: int | str) -> dict | None:

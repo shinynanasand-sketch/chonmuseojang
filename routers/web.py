@@ -14,6 +14,7 @@ from services.calendar_board import (
     calendar_snapshot,
     delete_calendar_from_token,
     save_calendar_from_token,
+    set_booking_status_from_token,
 )
 from services.village_promo import list_published_villages, public_village_promo
 from services.village_programs import programs_for
@@ -114,6 +115,13 @@ async def calendar_save(token: str, request: Request):
         str(body.get("group_name") or ""),
         body.get("num_people"),
     )
+    return _calendar_result(result)
+
+
+@router.post("/api/calendar/{token}/bookings/{booking_id}")
+async def calendar_booking_status(token: str, booking_id: int, request: Request):
+    body = await request.json()
+    result = set_booking_status_from_token(token, booking_id, str(body.get("status") or ""))
     return _calendar_result(result)
 
 

@@ -134,31 +134,21 @@ async def _kakao_booking(payload: KakaoSkillRequest):
     if inquiry is not None:
         return _skill_json(inquiry)
 
-    visit_date = _param_str(params, "visit_date")
-    num_people_raw = _param_str(params, "num_people")
-
-    if not visit_date or not num_people_raw:
-        return _skill_json(
-            kakao_client.build_error_skill_response("방문일과 인원수를 입력해 주세요.")
-        )
-
-    num_people = _parse_int(num_people_raw)
-    if num_people is None or num_people < 1:
-        return _skill_json(
-            kakao_client.build_error_skill_response("인원수는 숫자로 입력해 주세요.")
-        )
-
-    village_id = _param_str(params, "village_id") or DEFAULT_VILLAGE_ID
-    new_booking = booking.create_booking(
-        village_id=village_id,
-        customer_kakao_id=user_id,
-        visit_date=visit_date,
-        num_people=num_people,
+    result = booking.accept_named_booking(
+        user_id,
+        utterance,
+        {
+            "visit_date": _param_str(params, "visit_date"),
+            "num_people": _param_str(params, "num_people"),
+        },
     )
+    if not result.get("ok"):
+        return _skill_json(kakao_client.build_error_skill_response(result["text"]))
+    new_booking = result["booking"]
     return _skill_json(
         kakao_client.build_skill_response(
             "예약이 접수되었습니다",
-            f"예약번호 {new_booking['booking_id']}번으로 접수되었습니다. 상태는 '내 예약'으로 확인할 수 있습니다.",
+            f"예약번호 {new_booking['booking_id']}번 대기로 접수되었습니다.",
         )
     )
 

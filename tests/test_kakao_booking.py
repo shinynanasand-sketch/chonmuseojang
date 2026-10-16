@@ -81,7 +81,7 @@ def test_booking_does_not_push_owner_notification(mock_notify, test_client, samp
     assert mock_notify.called is False
     text = response.json()["template"]["outputs"][0]["simpleText"]["text"]
     assert "알려드릴게요" not in text
-    assert "내 예약" in text
+    assert "체험 이름" in text
 
 
 def test_booking_accepts_full_kakao_payload(test_client):

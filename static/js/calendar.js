@@ -24,6 +24,10 @@ function entriesOn(day) {
   return (snapshot.entries || []).filter((row) => row.visit_date === day);
 }
 
+function bookingsOn(day) {
+  return (snapshot.bookings || []).filter((row) => row.visit_date === day);
+}
+
 async function load(keepStatus) {
   const response = await fetch(`/api/calendar/${token}`);
   if (!response.ok) {
@@ -65,7 +69,7 @@ function draw() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "day-cell";
-    if (entriesOn(key).length) button.classList.add("has");
+    if (entriesOn(key).length || bookingsOn(key).length) button.classList.add("has");
     if (key === selected) button.classList.add("selected");
     button.textContent = String(day);
     button.addEventListener("click", () => showDay(key));
@@ -78,12 +82,27 @@ function showDay(key) {
   dayTitle.textContent = key;
   dayEntries.innerHTML = "";
   const rows = entriesOn(key);
-  if (!rows.length) {
+  const bookings = bookingsOn(key);
+  if (!rows.length && !bookings.length) {
     const empty = document.createElement("p");
     empty.className = "muted";
     empty.textContent = "이 날짜의 일정이 없습니다.";
     dayEntries.appendChild(empty);
   }
+  bookings.forEach((row) => {
+    const item = document.createElement("p");
+    item.textContent = `${row.booking_id}번 ${row.status_label} ${row.label} ${row.num_people}명`;
+    if (snapshot.can_write) {
+      ["confirmed", "rejected"].forEach((status) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = status === "confirmed" ? "승인" : "거절";
+        button.addEventListener("click", () => decideBooking(row, status));
+        item.appendChild(button);
+      });
+    }
+    dayEntries.appendChild(item);
+  });
   rows.forEach((row) => {
     const item = document.createElement("p");
     item.textContent = `${row.label} ${row.group_name} ${row.num_people}명`;
@@ -97,6 +116,16 @@ function showDay(key) {
     dayEntries.appendChild(item);
   });
   draw();
+}
+
+async function decideBooking(row, status) {
+  const response = await fetch(`/api/calendar/${token}/bookings/${row.booking_id}`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({status}),
+  });
+  statusNode.textContent = response.ok ? "예약 상태를 바꿨습니다." : "예약 상태를 바꾸지 못했습니다.";
+  if (response.ok) await load(true);
 }
 
 async function removeEntry(row) {
