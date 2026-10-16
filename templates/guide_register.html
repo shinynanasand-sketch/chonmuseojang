@@ -14,13 +14,18 @@
     </label>
     <button type="submit">등록 코드 보기</button>
   </form>
-  <table class="guide-table">
+  <p>마을 이름 일부를 입력하면 그 마을만 나옵니다.</p>
+  <label>마을 이름
+    <input id="village-search" type="search" autocomplete="off">
+  </label>
+  <p id="guide-search-empty" hidden>맞는 마을이 없습니다.</p>
+  <table class="guide-table" hidden>
     <thead>
       <tr><th>시군구</th><th>마을 이름</th><th>체험 이름</th><th>등록 코드</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr>
+      <tr hidden data-village="{{ row.village_name }}">
         <td>{{ row.sigungu }}</td>
         <td>{{ row.village_name }}</td>
         <td>{{ row.programs }}</td>
@@ -30,4 +35,7 @@
     </tbody>
   </table>
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/guide-register.js?v=20261017e"></script>
 {% endblock %}

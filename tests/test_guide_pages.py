@@ -43,6 +43,17 @@ def test_register_page_hides_code_until_password(test_client, guide_password):
     assert _CODE in again.text
 
 
+def test_register_page_hides_rows_until_village_search(test_client, guide_password):
+    _put_village()
+    page = test_client.get("/guide/register")
+    assert "마을 이름 일부를 입력하면 그 마을만 나옵니다." in page.text
+    assert 'id="village-search"' in page.text
+    assert "guide-register.js" in page.text
+    assert 'data-village="안내코드마을"' in page.text
+    assert "<tr hidden" in page.text
+    assert "맞는 마을이 없습니다." in page.text
+
+
 def test_register_page_without_password_stays_closed(test_client, monkeypatch):
     monkeypatch.setenv("GUIDE_PASSWORD", "")
     _put_village()
