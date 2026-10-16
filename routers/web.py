@@ -10,6 +10,7 @@ from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
 from services.supabase_client import list_program_status_map, list_public_villages
 from services.tourapi import get_nearby_for_village
+from services.dev_admin import clear_village_records, dev_open, issue_dev_cookie, village_choices
 from services.guide_access import codes_open, guide_rows, issue_unlock_cookie
 from services.calendar_board import (
     calendar_snapshot,
@@ -121,6 +122,52 @@ async def guide_register_page(request: Request):
 async def guide_register_submit(request: Request):
     form = await request.form()
     return _guide_register_response(request, str(form.get("password") or ""))
+
+
+def _dev_response(request: Request, posted: str | None, notice_override: str | None = None):
+    unlocked, notice = dev_open(request.cookies.get("dev_admin", ""), posted)
+    if notice_override:
+        notice = notice_override
+    response = request.app.state.templates.TemplateResponse(
+        request,
+        "guide_dev.html",
+        {
+            "title": "개발 초기화",
+            "rows": village_choices() if unlocked else [],
+            "unlocked": unlocked,
+            "notice": notice,
+        },
+    )
+    if posted and unlocked:
+        response.set_cookie(
+            "dev_admin",
+            issue_dev_cookie(),
+            max_age=12 * 60 * 60,
+            httponly=True,
+            samesite="lax",
+        )
+    return response
+
+
+@router.get("/guide/dev", response_class=HTMLResponse)
+async def guide_dev_page(request: Request):
+    return _dev_response(request, None)
+
+
+@router.post("/guide/dev", response_class=HTMLResponse)
+async def guide_dev_submit(request: Request):
+    form = await request.form()
+    return _dev_response(request, str(form.get("password") or ""))
+
+
+@router.post("/guide/dev/reset", response_class=HTMLResponse)
+async def guide_dev_reset(request: Request):
+    unlocked, _notice = dev_open(request.cookies.get("dev_admin", ""), None)
+    if not unlocked:
+        raise HTTPException(status_code=403, detail="개발 화면이 열리지 않았습니다.")
+    form = await request.form()
+    notice = clear_village_records(str(form.get("village_id") or ""), str(form.get("kind") or ""))
+    return _dev_response(request, None, notice)
 
 
 @router.get("/guide/use", response_class=HTMLResponse)

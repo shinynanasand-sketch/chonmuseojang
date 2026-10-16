@@ -64,3 +64,5 @@ select, input[type="search"], input[type="text"] { padding: 0.4rem; }
 .guide-line { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; }
 .guide-line p { flex: 1; }
 .guide-line button { width: auto; min-width: 4.5rem; }
+.dev-actions { display: grid; gap: 0.5rem; max-width: 24rem; }
+#dev-reset[hidden] { display: none; }

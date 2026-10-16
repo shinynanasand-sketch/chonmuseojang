@@ -343,6 +343,47 @@ def delete_bookings_for_village(village_id: str) -> None:
     _bookings = [row for row in _bookings if row.get("village_id") != village_id]
 
 
+def delete_operators_for_village(village_id: str) -> None:
+    global _operators
+    client = get_supabase_client()
+    if client:
+        client.table("operators").delete().eq("village_id", village_id).execute()
+        return
+    _operators = [row for row in _operators if row.get("village_id") != village_id]
+
+
+def delete_reviews_for_village(village_id: str) -> None:
+    global _reviews
+    client = get_supabase_client()
+    if client:
+        client.table("reviews").delete().eq("village_id", village_id).execute()
+        return
+    _reviews = [row for row in _reviews if row.get("village_id") != village_id]
+
+
+def delete_contents_for_village(village_id: str) -> None:
+    global _contents
+    client = get_supabase_client()
+    if client:
+        client.table("contents").delete().eq("village_id", village_id).execute()
+        return
+    _contents = [row for row in _contents if row.get("village_id") != village_id]
+
+
+def delete_program_notes_for_village(village_id: str) -> None:
+    global _program_notes
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("program_notes").delete().eq("village_id", village_id).execute()
+        except Exception as exc:
+            if _missing_share_table(exc):
+                return
+            raise
+        return
+    _program_notes = [row for row in _program_notes if row.get("village_id") != village_id]
+
+
 def insert_booking(row: dict) -> dict:
     global _booking_id_counter
     client = get_supabase_client()

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}개발 초기화{% endblock %}
+{% block content %}
+<section class="guide">
+  <h1>개발 초기화</h1>
+  <p>이 화면은 테스트용입니다. 마을을 고른 뒤 아래 기록을 지우면 같은 등록 문장과 예약·달력·글을 다시 시험할 수 있습니다.</p>
+  <p>마을 목록의 마을과 등록 코드는 지우지 않습니다. 운영자 자리를 비운 뒤에는 같은 등록 문장으로 다시 등록할 수 있습니다.</p>
+  {% if notice %}<p class="guide-notice">{{ notice }}</p>{% endif %}
+  {% if not unlocked %}
+  <form method="post" action="/guide/dev">
+    <label>개발 비밀번호
+      <input type="password" name="password" autocomplete="current-password">
+    </label>
+    <button type="submit">개발 화면 열기</button>
+  </form>
+  {% else %}
+  <p>마을 이름을 두 글자 이상 입력하면 후보가 나옵니다. 하나를 누르면 그 마을의 기록만 지울 수 있습니다.</p>
+  <label>마을 이름
+    <input id="village-search" type="search" autocomplete="off" data-min-length="2">
+  </label>
+  <p id="guide-search-empty" hidden>맞는 마을이 없습니다.</p>
+  <div id="village-picks" class="guide-picks" hidden></div>
+  <form id="dev-reset" method="post" action="/guide/dev/reset" hidden>
+    <p id="dev-chosen"></p>
+    <input type="hidden" name="village_id" id="dev-village-id">
+    <div class="dev-actions">
+      <button type="submit" name="kind" value="operators">마을 운영자와 체험 담당 지우기</button>
+      <button type="submit" name="kind" value="bookings">예약 지우기</button>
+      <button type="submit" name="kind" value="reviews">후기 지우기</button>
+      <button type="submit" name="kind" value="calendar">체험 달력 지우기</button>
+      <button type="submit" name="kind" value="notes">체험 글 지우기</button>
+      <button type="submit" name="kind" value="contents">소개글·SNS 지우기</button>
+    </div>
+  </form>
+  <div id="village-data" hidden>
+    {% for row in rows %}
+    <div class="village-source" data-village-id="{{ row.village_id }}" data-village="{{ row.village_name }}" data-sigungu="{{ row.sigungu }}"></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/guide-dev.js?v=20261017h"></script>
+{% endblock %}
