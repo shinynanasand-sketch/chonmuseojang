@@ -95,12 +95,14 @@ def _inquiry_response(utterance: str, user_id: str):
             else:
                 text = f"{result['village_id']} 운영자로 등록되었습니다."
             return kakao_client.build_skill_response("등록 완료", text)
-        return kakao_client.build_error_skill_response(_REGISTER_HINT)
+        return kakao_client.attach_guide_card(kakao_client.build_error_skill_response(_REGISTER_HINT))
 
     if utterance == "예약 현황":
         role = auth.resolve_kakao_role(user_id)
         if role["mode"] != "operator":
-            return kakao_client.build_error_skill_response(_REGISTER_HINT)
+            return kakao_client.attach_guide_card(
+                kakao_client.build_error_skill_response(_REGISTER_HINT)
+            )
         if role.get("role") == "program":
             return kakao_client.build_error_skill_response("예약 현황은 마을 운영자만 볼 수 있습니다.")
         lines = booking.format_booking_lines(booking.list_bookings_for_operator(user_id))

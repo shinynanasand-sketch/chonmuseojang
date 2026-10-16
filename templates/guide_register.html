@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}등록 안내{% endblock %}
+{% block content %}
+<section class="guide">
+  <h1>등록 안내</h1>
+  <p>카카오톡 채널 체험마을AI사무장에서 한 줄을 칩니다. 버튼이 아닙니다.</p>
+  <p>마을 운영자는 <strong>마을 이름</strong>과 <strong>등록 코드</strong>입니다. 예: 예시 갯벌마을 GB-001</p>
+  <p>체험 담당은 그 줄 끝에 <strong>체험 이름</strong>을 붙입니다. 예: 예시 갯벌마을 GB-001 조개잡이</p>
+  <p>마을 운영자가 먼저 있어야 합니다. 같은 체험을 다시 말하면 거절됩니다.</p>
+  {% if notice %}<p class="guide-notice">{{ notice }}</p>{% endif %}
+  <form method="post" action="/guide/register">
+    <label>비밀번호
+      <input type="password" name="password" autocomplete="current-password">
+    </label>
+    <button type="submit">등록 코드 보기</button>
+  </form>
+  <table class="guide-table">
+    <thead>
+      <tr><th>시군구</th><th>마을 이름</th><th>체험 이름</th><th>등록 코드</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.sigungu }}</td>
+        <td>{{ row.village_name }}</td>
+        <td>{{ row.programs }}</td>
+        <td>{{ row.code }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

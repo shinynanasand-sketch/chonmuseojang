@@ -10,6 +10,7 @@ from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
 from services.supabase_client import list_program_status_map, list_public_villages
 from services.tourapi import get_nearby_for_village
+from services.guide_access import codes_open, guide_rows, issue_unlock_cookie
 from services.calendar_board import (
     calendar_snapshot,
     delete_calendar_from_token,
@@ -86,6 +87,47 @@ def _calendar_result(result: dict):
     if reason == "forbidden":
         raise HTTPException(status_code=403, detail="체험 달력은 마을 운영자만 등록할 수 있습니다.")
     raise HTTPException(status_code=400, detail="체험 이름, 날짜, 단체, 인원을 확인해 주세요.")
+
+
+def _guide_register_response(request: Request, posted: str | None):
+    unlocked, notice = codes_open(request.cookies.get("guide_unlock", ""), posted)
+    response = request.app.state.templates.TemplateResponse(
+        request,
+        "guide_register.html",
+        {
+            "title": "등록 안내",
+            "rows": guide_rows(unlocked),
+            "unlocked": unlocked,
+            "notice": notice,
+        },
+    )
+    if posted and unlocked:
+        response.set_cookie(
+            "guide_unlock",
+            issue_unlock_cookie(),
+            max_age=12 * 60 * 60,
+            httponly=True,
+            samesite="lax",
+        )
+    return response
+
+
+@router.get("/guide/register", response_class=HTMLResponse)
+async def guide_register_page(request: Request):
+    return _guide_register_response(request, None)
+
+
+@router.post("/guide/register", response_class=HTMLResponse)
+async def guide_register_submit(request: Request):
+    form = await request.form()
+    return _guide_register_response(request, str(form.get("password") or ""))
+
+
+@router.get("/guide/use", response_class=HTMLResponse)
+async def guide_use_page(request: Request):
+    return request.app.state.templates.TemplateResponse(
+        request, "guide_use.html", {"title": "사용 안내"}
+    )
 
 
 @router.get("/calendar/{token}", response_class=HTMLResponse)

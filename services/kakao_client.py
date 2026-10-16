@@ -18,6 +18,7 @@ _reply_user_id: contextvars.ContextVar[str] = contextvars.ContextVar(
 )
 _VILLAGE_REPLIES = ("예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진")
 _PROGRAM_REPLIES = ("체험 달력 조회", "체험 글 조회", "체험 글 저장")
+_GUIDE_REPLIES = ("등록 안내", "사용 안내")
 
 
 def bind_reply_user(user_id: str):
@@ -47,7 +48,7 @@ def _quick_replies(user_id: str) -> list[dict]:
         return []
     return [
         {"label": label, "action": "message", "messageText": label}
-        for label in labels
+        for label in (*labels, *_GUIDE_REPLIES)
     ]
 
 
@@ -77,6 +78,42 @@ def build_skill_response(title: str, description: str) -> dict:
 
 def build_error_skill_response(message: str) -> dict:
     return build_skill_response("안내", message)
+
+
+def attach_guide_card(body: dict) -> dict:
+    """등록·사용 안내 웹을 여는 카드. 바로연결은 웹 주소를 열지 못한다."""
+    from services.guide_access import guide_page_url
+
+    outputs = body.setdefault("template", {}).setdefault("outputs", [])
+    outputs.append(
+        {
+            "basicCard": {
+                "title": "안내",
+                "description": "등록 문장과 사용 방법을 웹에서 봅니다.",
+                "buttons": [
+                    {
+                        "action": "webLink",
+                        "label": "등록 안내 열기",
+                        "webLinkUrl": guide_page_url("/guide/register"),
+                    },
+                    {
+                        "action": "webLink",
+                        "label": "사용 안내 열기",
+                        "webLinkUrl": guide_page_url("/guide/use"),
+                    },
+                ],
+            }
+        }
+    )
+    return body
+
+
+def guide_skill_response(utterance: str) -> dict:
+    if utterance == "사용 안내":
+        text = "버튼, 달력, 예약 방법은 사용 안내에서 확인합니다."
+    else:
+        text = "마을 이름, 등록 코드, 체험 이름은 등록 안내에서 확인합니다."
+    return attach_guide_card(build_skill_response("안내", text))
 
 
 def _clip_chars(text: str, limit: int) -> str:

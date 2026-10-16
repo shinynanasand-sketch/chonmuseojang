@@ -8,7 +8,12 @@ from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
 from services.auth import get_operator_by_kakao_id, register_operator, register_operator_with_ids, resolve_kakao_role
 from services.calendar_link import attach_calendar_card
-from services.kakao_client import build_error_skill_response, build_skill_response
+from services.kakao_client import (
+    attach_guide_card,
+    build_error_skill_response,
+    build_skill_response,
+    guide_skill_response,
+)
 from services.kakao_params import booking_id_from_params, kakao_photo_url, parse_sys_date, representative
 from services.operator_assistant import (
     PhotoRejected,
@@ -113,8 +118,12 @@ def finish_promo_photo(payload: KakaoSkillRequest) -> dict:
 def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     """블록 이름 앞에서 운영자를 조회한다. 모르는 블록이면 None."""
     user_id = str(payload.userRequest.user.get("id") or "")
+    utterance = (payload.userRequest.utterance or "").strip()
+    name = (payload.intent.name or "").strip()
+    if utterance in {"등록 안내", "사용 안내"} or name in {"등록 안내", "사용 안내"}:
+        return guide_skill_response(utterance if utterance in {"등록 안내", "사용 안내"} else name)
     role = resolve_kakao_role(user_id)
-    kind = _BLOCKS.get((payload.intent.name or "").strip())
+    kind = _BLOCKS.get(name)
     if kind is None:
         return None
     if kind == "recommend":
@@ -131,7 +140,10 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
         return _promo_photo(user_id, role, payload)
     if role["mode"] != "operator":
         hint = _STATUS_HINT if kind == "status" else _OPERATOR_ONLY
-        return build_error_skill_response(hint)
+        body = build_error_skill_response(hint)
+        if kind == "status":
+            return attach_guide_card(body)
+        return body
     if role.get("role") == "program":
         return build_error_skill_response(_VILLAGE_ONLY)
     if kind == "status":
@@ -216,7 +228,7 @@ def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
     elif utterance.strip():
         result = register_operator(user_id, utterance)
     else:
-        return build_error_skill_response(_REGISTER_NEED)
+        return attach_guide_card(build_error_skill_response(_REGISTER_NEED))
     if result.get("ok"):
         if result.get("role") == "program":
             text = f"{result['village_id']} 체험 담당으로 등록되었습니다."
@@ -224,7 +236,8 @@ def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
             text = f"{result['village_id']} 운영자로 등록되었습니다."
         return build_skill_response("등록 완료", text)
     reason = str(result.get("reason") or "")
-    return build_error_skill_response(_REGISTER_REASONS.get(reason, "등록 코드가 마을과 맞지 않습니다."))
+    message = _REGISTER_REASONS.get(reason, "등록 코드가 마을과 맞지 않습니다.")
+    return attach_guide_card(build_error_skill_response(message))
 
 
 def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
