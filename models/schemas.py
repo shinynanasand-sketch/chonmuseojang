@@ -10,6 +10,12 @@ class OperatorContentRequest(BaseModel):
     village_id: str | None = None
 
 
+class ProgramStatusRequest(BaseModel):
+    label: str = ""
+    is_operating: bool
+    village_id: str | None = None
+
+
 class RecommendResult(BaseModel):
     village_id: str
     village_name: str

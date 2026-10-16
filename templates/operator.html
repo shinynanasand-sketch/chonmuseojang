@@ -38,6 +38,9 @@
 <p><button type="button" id="publish-content">관광객에게 공개</button></p>
 <p id="content-status" class="muted">설명을 적으면 이 마을 소개글과 SNS 문구를 만듭니다.</p>
 <div id="content-list"></div>
+<h2>프로그램</h2>
+<p id="program-status" class="muted">로그인하면 이 마을 프로그램의 운영 여부를 바꿉니다.</p>
+<div id="program-list"></div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -50,6 +53,8 @@ function clearOps() {
   document.getElementById("stat-grid").replaceChildren();
   document.getElementById("booking-list").replaceChildren();
   document.getElementById("review-list").replaceChildren();
+  document.getElementById("program-list").replaceChildren();
+  document.getElementById("program-status").textContent = "로그인하면 이 마을 프로그램의 운영 여부를 바꿉니다.";
   const canvas = document.getElementById("booking-chart");
   if (bookingChart) {
     bookingChart.destroy();
@@ -206,6 +211,7 @@ async function loadOperator(event) {
   showCards(bookings, data.recent_bookings || [], "예약이 없습니다.", bookingCard);
   showCards(reviews, data.recent_reviews || [], "후기가 없습니다.", reviewCard);
   loadContents(token);
+  loadPrograms(token);
 }
 
 function showContents(rows) {
@@ -325,6 +331,65 @@ async function publishContent() {
     ? "관광객 화면에 공개했습니다."
     : (data.message || "공개할 홍보문구가 없습니다.");
   if (data.published) loadContents(token);
+}
+
+function renderPrograms(rows) {
+  const list = document.getElementById("program-list");
+  const status = document.getElementById("program-status");
+  list.replaceChildren();
+  if (!rows.length) {
+    status.textContent = "이 마을에 나눌 프로그램 글이 없습니다.";
+    return;
+  }
+  status.textContent = "운영 중이면 중지를 누르고, 쉬고 있으면 운영을 누릅니다.";
+  rows.forEach((row) => {
+    const card = document.createElement("article");
+    card.className = "village-card";
+    const text = document.createElement("p");
+    const state = row.is_operating ? "" : " · 지금은 운영하지 않음";
+    text.textContent = `${row.label || ""}${state}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = row.is_operating ? "중지" : "운영";
+    button.addEventListener("click", () => toggleProgram(row.label, Boolean(row.is_operating)));
+    card.append(text, button);
+    list.append(card);
+  });
+}
+
+async function loadPrograms(token) {
+  const response = await fetch("/api/operator/programs", {
+    headers: { Authorization: "Bearer " + token },
+  });
+  if (!response.ok) {
+    document.getElementById("program-list").replaceChildren();
+    return;
+  }
+  const data = await response.json();
+  renderPrograms(data.programs || []);
+}
+
+async function toggleProgram(label, isOperating) {
+  const token = document.getElementById("login-id").value.trim();
+  const status = document.getElementById("program-status");
+  if (!token) {
+    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    return;
+  }
+  const response = await fetch("/api/operator/programs/status", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ label, is_operating: !isOperating }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    status.textContent = data.detail || "운영 여부를 바꾸지 못했습니다.";
+    return;
+  }
+  renderPrograms(data.programs || []);
 }
 
 document.getElementById("operator-login").addEventListener("submit", loadOperator);

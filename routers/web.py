@@ -8,9 +8,10 @@ from models.schemas import RecommendRequest
 from services.booking import get_public_dashboard_summary
 from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
-from services.supabase_client import list_public_villages
+from services.supabase_client import list_program_status_map, list_public_villages
 from services.tourapi import get_nearby_for_village
 from services.village_promo import list_published_villages, public_village_promo
+from services.village_programs import programs_for
 from services.trust_score import calculate_trust_score
 
 router = APIRouter()
@@ -117,7 +118,14 @@ async def api_village_promo(village_id: str):
 
 @router.get("/api/villages")
 async def api_villages(sigungu: str | None = None, program_type: str | None = None):
-    villages = list_public_villages(sigungu=sigungu, program_type=program_type)
+    source = list_public_villages(sigungu=sigungu, program_type=program_type)
+    saved = list_program_status_map([str(village.get("village_id") or "") for village in source])
+    villages = []
+    for village in source:
+        item = dict(village)
+        village_id = str(village.get("village_id") or "")
+        item["programs"] = programs_for(village, saved.get(village_id, []))
+        villages.append(item)
     return {"status": "success", "count": len(villages), "villages": villages}
 
 

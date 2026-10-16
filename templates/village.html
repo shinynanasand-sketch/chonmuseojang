@@ -3,6 +3,14 @@
 {% block content %}
 <h1>{{ promo.village_name or "마을" }}</h1>
 <p class="muted">{{ promo.sigungu }}{% if promo.program_type %} · {{ promo.program_type }}{% endif %}</p>
+{% if promo.programs %}
+<h2>프로그램</h2>
+<ul>
+  {% for item in promo.programs %}
+  <li>{{ item.label }}{% if not item.is_operating %} · 지금은 운영하지 않음{% endif %}</li>
+  {% endfor %}
+</ul>
+{% endif %}
 {% if promo.photo_url.startswith("http") %}
 <div class="photo-frame">
   <img src="{{ promo.photo_url }}" alt="홍보 사진">

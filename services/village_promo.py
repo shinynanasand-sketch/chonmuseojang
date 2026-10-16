@@ -7,6 +7,7 @@ from services.supabase_client import (
     list_villages,
     set_village_public_contents,
 )
+from services.village_programs import programs_for
 
 _INTRO = "소개글"
 _SNS = "SNS홍보문구"
@@ -41,6 +42,7 @@ def public_village_promo(village_id: str) -> dict | None:
         "village_name": village.get("village_name") or "",
         "sigungu": village.get("sigungu") or "",
         "program_type": village.get("program_type") or "",
+        "programs": programs_for(village),
         "intro": str(intro.get("body") or ""),
         "sns": str(sns.get("body") or ""),
         "photo_url": _http_photo(intro) or _http_photo(sns),

@@ -11,6 +11,7 @@ _booking_id_counter = 1
 _review_id_counter = 1
 _contents: list[dict] = []
 _content_id_counter = 1
+_program_status: list[dict] = []
 _operators: list[dict] = [
     {
         "operator_id": 1,
@@ -286,6 +287,12 @@ def reset_content_store() -> None:
     _content_id_counter = 1
 
 
+def reset_program_store() -> None:
+    """테스트용 프로그램 운영 여부 초기화. 마을 동기화는 이 저장소를 비우지 않는다."""
+    global _program_status
+    _program_status = []
+
+
 def reset_memory_store() -> None:
     """테스트용 인메모리 저장소 초기화."""
     global _villages_cache, _sync_logs
@@ -293,6 +300,7 @@ def reset_memory_store() -> None:
     _sync_logs = []
     reset_booking_store()
     reset_content_store()
+    reset_program_store()
 
 
 def insert_booking(row: dict) -> dict:
@@ -430,6 +438,79 @@ def list_public_contents() -> list[dict]:
     for row in sorted(rows, key=lambda item: item.get("content_id") or 0):
         slim.append({field: row.get(field) for field in fields})
     return slim
+
+
+def _missing_program_table(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    if code == "PGRST205":
+        return True
+    message = str(exc)
+    return "village_program_status" in message and "schema cache" in message
+
+
+def list_program_status(village_id: str) -> list[dict]:
+    if not village_id:
+        return []
+    grouped = list_program_status_map([village_id])
+    return grouped.get(village_id, [])
+
+
+def list_program_status_map(village_ids: list[str]) -> dict[str, list[dict]]:
+    ids = [village_id for village_id in village_ids if village_id]
+    if not ids:
+        return {}
+    client = get_supabase_client()
+    if client:
+        try:
+            result = (
+                client.table("village_program_status")
+                .select("*")
+                .in_("village_id", ids)
+                .execute()
+            )
+        except Exception as exc:
+            if _missing_program_table(exc):
+                return {}
+            raise
+        grouped: dict[str, list[dict]] = {}
+        for row in result.data or []:
+            grouped.setdefault(str(row.get("village_id") or ""), []).append(row)
+        return grouped
+    grouped = {}
+    for row in _program_status:
+        village_id = str(row.get("village_id") or "")
+        if village_id in ids:
+            grouped.setdefault(village_id, []).append(dict(row))
+    return grouped
+
+
+def save_program_status(
+    village_id: str, program_key: str, label: str, is_operating: bool
+) -> None:
+    """운영 여부만 저장한다. villages_cache 동기화 upsert와 별도다."""
+    from datetime import datetime, timezone
+
+    row = {
+        "village_id": village_id,
+        "program_key": program_key,
+        "label": label,
+        "is_operating": is_operating,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("village_program_status").upsert(row).execute()
+        except Exception as exc:
+            if _missing_program_table(exc):
+                raise RuntimeError("프로그램 운영 여부 저장소가 아직 없습니다.") from exc
+            raise
+        return
+    for existing in _program_status:
+        if existing.get("village_id") == village_id and existing.get("program_key") == program_key:
+            existing.update(row)
+            return
+    _program_status.append(row)
 
 
 def list_contents(*, village_id: str | None = None) -> list[dict]:

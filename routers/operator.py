@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from models.schemas import OperatorContentRequest
+from models.schemas import OperatorContentRequest, ProgramStatusRequest
 from services.auth import get_current_operator, require_village_access
 from services.booking import get_operator_dashboard_summary
 from services.operator_assistant import PhotoRejected, save_operator_contents
 from services.village_promo import publish_operator_contents
-from services.supabase_client import list_contents
+from services.supabase_client import get_village_by_id, list_contents
+from services.village_programs import UnknownProgram, programs_for, set_program_operating
 
 router = APIRouter(prefix="/api/operator", tags=["operator"])
 
@@ -81,3 +82,33 @@ async def create_operator_contents(
         return save_operator_contents(current_operator, description, photo)
     except PhotoRejected as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+
+
+@router.get("/programs")
+async def operator_programs(
+    village_id: str | None = None,
+    current_operator: dict = Depends(get_current_operator),
+):
+    _reject_other_village(village_id, current_operator)
+    village = get_village_by_id(current_operator["village_id"]) or {}
+    return {"programs": programs_for(village)}
+
+
+@router.post("/programs/status")
+async def update_program_status(
+    body: ProgramStatusRequest,
+    current_operator: dict = Depends(get_current_operator),
+):
+    _reject_other_village(body.village_id, current_operator)
+    label = body.label.strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="프로그램 이름을 입력해 주세요.")
+    try:
+        programs = set_program_operating(
+            current_operator["village_id"], label, body.is_operating
+        )
+    except UnknownProgram as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"programs": programs}

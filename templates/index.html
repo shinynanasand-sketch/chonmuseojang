@@ -32,6 +32,15 @@ function shortProgram(value) {
 }
 
 function programText(village) {
+  const programs = Array.isArray(village.programs) ? village.programs : [];
+  const operating = programs
+    .filter((item) => item && item.is_operating)
+    .map((item) => text(item.label, '').trim())
+    .filter(Boolean);
+  if (operating.length) {
+    const joined = operating.join(' · ');
+    return joined.length > 80 ? `${joined.slice(0, 80)}…` : joined;
+  }
   const name = text(village.program_name, '').trim();
   const type = shortProgram(village.program_type);
   if (name && type && !name.includes(type)) return `${name} · ${type}`;

@@ -81,6 +81,15 @@ CREATE TABLE IF NOT EXISTS contents (
 
 CREATE INDEX IF NOT EXISTS idx_contents_village ON contents(village_id);
 
+CREATE TABLE IF NOT EXISTS village_program_status (
+    village_id TEXT NOT NULL REFERENCES villages_cache(village_id),
+    program_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    is_operating BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (village_id, program_key)
+);
+
 CREATE TABLE IF NOT EXISTS sync_logs (
     log_id SERIAL PRIMARY KEY,
     source TEXT NOT NULL,
@@ -97,4 +106,5 @@ ALTER TABLE public.operators ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.village_program_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
