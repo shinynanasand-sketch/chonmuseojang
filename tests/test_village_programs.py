@@ -1,7 +1,8 @@
 """마을 프로그램 글은 항목으로 나누고, 운영 여부는 담당 마을만 바로 바꾼다."""
 
+from services.recommend import recommendation_lines
 from services.supabase_client import upsert_villages
-from services.village_programs import program_labels
+from services.village_programs import program_labels, set_program_operating
 
 _AUTH = {"Authorization": "Bearer owner_v001"}
 _NESTED = "자연생태체험+기타(영농체험+먹거리체험)"
@@ -123,3 +124,37 @@ def test_operator_page_can_toggle_programs(test_client):
     html = test_client.get("/operator").text
     assert 'id="program-list"' in html
     assert "중지" in html
+
+
+def test_kakao_reason_marks_stopped_program_only_for_that_village(test_client):
+    _seed()
+    set_program_operating("V001", "자연생태체험", False)
+    set_program_operating("V002", "모내기", False)
+    villages = [
+        {
+            "village_id": "V001",
+            "village_name": "갯벌마을",
+            "sigungu": "신안군",
+            "program_type": "갯벌체험",
+            "program_name": _NESTED,
+        },
+        {
+            "village_id": "V002",
+            "village_name": "무등마을",
+            "sigungu": "북구",
+            "program_type": "농사체험",
+            "program_name": "모내기",
+        },
+    ]
+    matches = [
+        {
+            "village_id": "V001",
+            "village_name": "갯벌마을",
+            "reason": "갯벌과 맞습니다. 자연생태체험, 기타(영농체험+먹거리체험).",
+        }
+    ]
+    text = recommendation_lines(matches, villages)[0]
+    assert "자연생태체험은 지금은 운영하지 않음" in text
+    assert "먹거리체험" in text
+    assert text.count("지금은 운영하지 않음") == 1
+    assert "모내기" not in text

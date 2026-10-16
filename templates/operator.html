@@ -341,7 +341,7 @@ function renderPrograms(rows) {
     status.textContent = "이 마을에 나눌 프로그램 글이 없습니다.";
     return;
   }
-  status.textContent = "운영 중이면 중지를 누르고, 쉬고 있으면 운영을 누릅니다.";
+  status.textContent = "처음에는 모두 운영 중입니다. 쉬게 하려면 중지를 누르세요. 그러면 운영 버튼이 나오고, 다시 운영을 누르면 운영으로 돌아갑니다.";
   rows.forEach((row) => {
     const card = document.createElement("article");
     card.className = "village-card";

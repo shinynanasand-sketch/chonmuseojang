@@ -6,7 +6,9 @@ import time
 import httpx
 
 from services.llm_provider import LLMUnavailable, get_llm_provider, provider_has_key
+from services.supabase_client import list_program_status_map
 from services.trust_score import calculate_trust_score
+from services.village_programs import programs_for
 
 WEB_LLM_TIMEOUT = 8.0
 KAKAO_LLM_TIMEOUT = 3.5
@@ -413,21 +415,50 @@ def recommend_villages(
     )
 
 
+def _mark_stopped_programs(reason: str, programs: list[dict]) -> str:
+    """이유에 들어 있는 꺼진 항목만 운영하지 않는다고 바꾼다."""
+    stopped = [
+        str(item.get("label") or "")
+        for item in programs
+        if item.get("label") and not item.get("is_operating") and str(item["label"]) in reason
+    ]
+    if not stopped:
+        return reason
+    stopped.sort(key=len, reverse=True)
+    pattern = "|".join(re.escape(label) for label in stopped)
+
+    def replace(match: re.Match) -> str:
+        label = match.group(0)
+        particle = "은" if _has_batchim(label) else "는"
+        return f"{label}{particle} 지금은 운영하지 않음"
+
+    return re.sub(pattern, replace, reason)
+
+
 def recommendation_lines(matches: list[dict], villages: list[dict], limit: int = _RESULT_LIMIT) -> list[str]:
     """카카오 simpleText용. 마을명 시군구. 한 줄 이유."""
     by_id = {row.get("village_id"): row for row in villages}
-    lines = []
+    chosen = []
     seen_names: set[str] = set()
     for item in matches:
         name = str(item.get("village_name") or "마을")
         if name in seen_names:
             continue
         seen_names.add(name)
-        village = by_id.get(item.get("village_id"), {})
-        place = _plain(village.get("sigungu"))
-        label = " ".join(part for part in (_plain(name), place) if part)
-        reason = _plain(item.get("reason"))
-        lines.append(f"{label}. {reason}" if reason else label)
-        if len(lines) >= limit:
+        chosen.append(item)
+        if len(chosen) >= limit:
             break
+    status_map = list_program_status_map(
+        [str(item.get("village_id") or "") for item in chosen]
+    )
+    lines = []
+    for item in chosen:
+        village = by_id.get(item.get("village_id"), {})
+        village_id = str(village.get("village_id") or item.get("village_id") or "")
+        place = _plain(village.get("sigungu"))
+        name = str(item.get("village_name") or "마을")
+        label = " ".join(part for part in (_plain(name), place) if part)
+        programs = programs_for(village, status_map.get(village_id, []))
+        reason = _plain(_mark_stopped_programs(str(item.get("reason") or ""), programs))
+        lines.append(f"{label}. {reason}" if reason else label)
     return lines
