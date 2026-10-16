@@ -100,7 +100,13 @@ def promo_photo_should_defer(payload: KakaoSkillRequest) -> bool:
 
 def finish_promo_photo(payload: KakaoSkillRequest) -> dict:
     user_id = str(payload.userRequest.user.get("id") or "")
-    return _promo_photo(user_id, resolve_kakao_role(user_id), payload)
+    from services.kakao_client import bind_reply_user, reset_reply_user
+
+    token = bind_reply_user(user_id)
+    try:
+        return _promo_photo(user_id, resolve_kakao_role(user_id), payload)
+    finally:
+        reset_reply_user(token)
 
 
 def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:

@@ -59,20 +59,28 @@ def save_promo_photo_after_ack(payload: KakaoSkillRequest) -> None:
     kakao_client.post_skill_callback(payload.userRequest.callbackUrl, finish_promo_photo(payload))
 
 
+def _user_id(payload: KakaoSkillRequest) -> str:
+    return str(payload.userRequest.user.get("id") or "")
+
+
 @router.post("/ask")
 async def kakao_ask(payload: KakaoSkillRequest, background: BackgroundTasks):
     """관광객은 비교 추천, 운영자는 자기 마을과 주변정보만 답한다."""
-    if promo_photo_should_defer(payload):
-        background.add_task(save_promo_photo_after_ack, payload)
-        return _skill_json({"version": "2.0", "useCallback": True})
-    handled = _phase_a(payload)
-    if handled is not None:
-        return handled
-    utterance = (payload.userRequest.utterance or "").strip() or _param_str(
-        payload.action.params, "query"
-    )
-    user_id = str(payload.userRequest.user.get("id") or "")
-    return _skill_json(answer_kakao_question(utterance, user_id))
+    token = kakao_client.bind_reply_user(_user_id(payload))
+    try:
+        if promo_photo_should_defer(payload):
+            background.add_task(save_promo_photo_after_ack, payload)
+            return _skill_json({"version": "2.0", "useCallback": True})
+        handled = _phase_a(payload)
+        if handled is not None:
+            return handled
+        utterance = (payload.userRequest.utterance or "").strip() or _param_str(
+            payload.action.params, "query"
+        )
+        user_id = _user_id(payload)
+        return _skill_json(answer_kakao_question(utterance, user_id))
+    finally:
+        kakao_client.reset_reply_user(token)
 
 
 _REGISTER_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있습니다."
@@ -107,12 +115,20 @@ def _inquiry_response(utterance: str, user_id: str):
 
 @router.post("/booking")
 async def kakao_booking(payload: KakaoSkillRequest):
+    token = kakao_client.bind_reply_user(_user_id(payload))
+    try:
+        return await _kakao_booking(payload)
+    finally:
+        kakao_client.reset_reply_user(token)
+
+
+async def _kakao_booking(payload: KakaoSkillRequest):
     handled = _phase_a(payload)
     if handled is not None:
         return handled
     params = payload.action.params
     utterance = (payload.userRequest.utterance or "").strip()
-    user_id = str(payload.userRequest.user.get("id") or "")
+    user_id = _user_id(payload)
 
     inquiry = _inquiry_response(utterance, user_id)
     if inquiry is not None:
@@ -149,13 +165,21 @@ async def kakao_booking(payload: KakaoSkillRequest):
 
 @router.post("/approve")
 async def kakao_approve(payload: KakaoSkillRequest):
+    token = kakao_client.bind_reply_user(_user_id(payload))
+    try:
+        return await _kakao_approve(payload)
+    finally:
+        kakao_client.reset_reply_user(token)
+
+
+async def _kakao_approve(payload: KakaoSkillRequest):
     handled = _phase_a(payload)
     if handled is not None:
         return handled
     params = payload.action.params
     booking_id = _param_str(params, "booking_id")
     decision = _param_str(params, "decision")
-    kakao_user_id = str(payload.userRequest.user.get("id") or "")
+    kakao_user_id = _user_id(payload)
 
     role = auth.resolve_kakao_role(kakao_user_id)
     if role["mode"] != "operator" or role.get("role") == "program":
@@ -197,13 +221,21 @@ async def kakao_approve(payload: KakaoSkillRequest):
 
 @router.post("/review")
 async def kakao_review(payload: KakaoSkillRequest):
+    token = kakao_client.bind_reply_user(_user_id(payload))
+    try:
+        return await _kakao_review(payload)
+    finally:
+        kakao_client.reset_reply_user(token)
+
+
+async def _kakao_review(payload: KakaoSkillRequest):
     handled = _phase_a(payload)
     if handled is not None:
         return handled
     params = payload.action.params
     booking_id_raw = _param_str(params, "booking_id")
     rating_raw = _param_str(params, "rating")
-    user_id = str(payload.userRequest.user.get("id") or "")
+    user_id = _user_id(payload)
     comment = payload.userRequest.utterance
 
     booking_id = _parse_int(booking_id_raw) if booking_id_raw else 0
