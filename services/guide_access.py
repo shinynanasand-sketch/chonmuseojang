@@ -71,7 +71,7 @@ def guide_rows(show_codes: bool) -> list[dict]:
             {
                 "village_name": name,
                 "sigungu": str(village.get("sigungu") or ""),
-                "programs": ", ".join(labels) if labels else "없음",
+                "programs": labels,
                 "code": str(village.get("registration_code") or "") if show_codes else "",
             }
         )

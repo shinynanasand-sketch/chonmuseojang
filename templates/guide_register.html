@@ -14,28 +14,25 @@
     </label>
     <button type="submit">등록 코드 보기</button>
   </form>
-  <p>마을 이름 일부를 입력하면 그 마을만 나옵니다.</p>
+  <p>마을 이름을 두 글자 이상 입력하면 후보가 나옵니다. 하나를 누르면 등록 문장이 아래에 나옵니다.</p>
   <label>마을 이름
-    <input id="village-search" type="search" autocomplete="off">
+    <input id="village-search" type="search" autocomplete="off" data-min-length="2">
   </label>
   <p id="guide-search-empty" hidden>맞는 마을이 없습니다.</p>
-  <table class="guide-table" hidden>
-    <thead>
-      <tr><th>시군구</th><th>마을 이름</th><th>체험 이름</th><th>등록 코드</th></tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr hidden data-village="{{ row.village_name }}">
-        <td>{{ row.sigungu }}</td>
-        <td>{{ row.village_name }}</td>
-        <td>{{ row.programs }}</td>
-        <td>{{ row.code }}</td>
-      </tr>
+  <div id="village-picks" class="guide-picks" hidden></div>
+  <div id="registration-lines" class="guide-lines" hidden></div>
+  <p id="registration-locked" hidden>등록 문장은 비밀번호를 맞춘 뒤에 나옵니다.</p>
+  <div id="village-data" hidden>
+    {% for row in rows %}
+    <div class="village-source" data-village="{{ row.village_name }}" data-sigungu="{{ row.sigungu }}" data-code="{{ row.code }}">
+      {% for program in row.programs %}
+      <span data-program="{{ program }}"></span>
       {% endfor %}
-    </tbody>
-  </table>
+    </div>
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/guide-register.js?v=20261017e"></script>
+<script src="/static/js/guide-register.js?v=20261017f"></script>
 {% endblock %}
