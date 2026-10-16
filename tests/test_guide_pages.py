@@ -55,6 +55,7 @@ def test_register_page_hides_rows_until_village_search(test_client, guide_passwo
     assert 'id="village-picks"' in page.text
     assert 'id="registration-lines"' in page.text
     assert "등록 문장은 비밀번호를 맞춘 뒤에 나옵니다." in page.text
+    assert "복사한 문장을 카카오톡 대화에 붙여 넣습니다." in page.text
     assert "맞는 마을이 없습니다." in page.text
     assert "guide-table" not in page.text
     assert _CODE not in page.text

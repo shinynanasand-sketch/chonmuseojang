@@ -2,6 +2,7 @@ const search = document.querySelector("#village-search");
 const empty = document.querySelector("#guide-search-empty");
 const picks = document.querySelector("#village-picks");
 const lines = document.querySelector("#registration-lines");
+const copyHint = document.querySelector("#registration-copy-hint");
 const locked = document.querySelector("#registration-locked");
 const minLength = Number(search.dataset.minLength || "2");
 
@@ -63,6 +64,7 @@ function hideResult() {
   picks.replaceChildren();
   lines.hidden = true;
   lines.replaceChildren();
+  copyHint.hidden = true;
   locked.hidden = true;
 }
 
@@ -70,6 +72,7 @@ function showLines(group) {
   lines.replaceChildren();
   if (!group.code) {
     lines.hidden = true;
+    copyHint.hidden = true;
     locked.hidden = false;
     return;
   }
@@ -77,14 +80,44 @@ function showLines(group) {
     ? `${group.sigungu} ${group.village}`.trim()
     : group.village;
   const add = (text) => {
+    const row = document.createElement("div");
+    row.className = "guide-line";
     const paragraph = document.createElement("p");
     paragraph.textContent = text;
-    lines.appendChild(paragraph);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "복사";
+    button.addEventListener("click", () => copyRegistrationLine(text, button));
+    row.append(paragraph, button);
+    lines.appendChild(row);
   };
   add(`${prefix} ${group.code}`);
   group.programs.forEach((program) => add(`${prefix} ${group.code} ${program}`));
   lines.hidden = false;
+  copyHint.hidden = false;
   locked.hidden = true;
+}
+
+function copyRegistrationLine(text, button) {
+  const done = () => {
+    button.textContent = "복사됨";
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => copyRegistrationLineFallback(text, done));
+    return;
+  }
+  copyRegistrationLineFallback(text, done);
+}
+
+function copyRegistrationLineFallback(text, done) {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand("copy");
+  area.remove();
+  done();
 }
 
 function renderPicks(groups) {

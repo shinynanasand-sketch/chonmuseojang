@@ -61,3 +61,6 @@ select, input[type="search"], input[type="text"] { padding: 0.4rem; }
 .guide-picks button { text-align: left; }
 .guide-lines { display: grid; gap: 0.35rem; margin-top: 0.75rem; }
 .guide-lines p { margin: 0; font-size: 1.05rem; }
+.guide-line { display: flex; gap: 0.5rem; align-items: center; justify-content: space-between; }
+.guide-line p { flex: 1; }
+.guide-line button { width: auto; min-width: 4.5rem; }
