@@ -146,6 +146,7 @@ def test_operator_page_has_description_field(test_client):
     assert 'name="photo"' in html
     assert 'type="file"' in html
     assert "홍보문구를 만들고 있습니다" in html
+    assert 'className = "promo-photo"' in html
 
 
 def test_prompt_asks_for_a_longer_intro(monkeypatch):

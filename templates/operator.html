@@ -230,7 +230,7 @@ function showContents(rows) {
     const url = String(row.photo_url || "");
     if (url.startsWith("https://") || url.startsWith("http://")) {
       const frame = document.createElement("div");
-      frame.className = "photo-frame";
+      frame.className = "promo-photo";
       const img = document.createElement("img");
       img.src = url;
       img.alt = String(row.content_type || "홍보 사진");

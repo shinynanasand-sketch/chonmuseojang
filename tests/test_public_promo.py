@@ -111,7 +111,7 @@ def test_publish_other_village_is_forbidden(test_client):
 
 def test_village_page_shows_published_copy(test_client):
     _seed_village()
-    _content("V001", "소개글", "페이지 소개", public=True)
+    _content("V001", "소개글", "페이지 소개", public=True, photo_url="https://example.test/content-photos/V001/a.png")
     _content("V001", "SNS홍보문구", "페이지 문구", public=True)
 
     page = test_client.get("/village/V001")
@@ -119,6 +119,10 @@ def test_village_page_shows_published_copy(test_client):
     assert "페이지 소개" in page.text
     assert "페이지 문구" in page.text
     assert "신안군" in page.text
+    assert 'class="promo-photo"' in page.text
+    css = test_client.get("/static/css/style.css").text
+    rule = css.split(".promo-photo img", 1)[1].split("}", 1)[0]
+    assert "height: auto" in rule
 
 
 def test_village_page_without_promo_shows_place(test_client):
