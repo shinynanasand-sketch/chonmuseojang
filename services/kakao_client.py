@@ -16,8 +16,8 @@ _SKILL_TEXT_LIMIT = 1000
 _reply_user_id: contextvars.ContextVar[str] = contextvars.ContextVar(
     "kakao_reply_user_id", default=""
 )
-_VILLAGE_REPLIES = ("예약 현황 조회", "체험 달력 조회", "체험 글 조회")
-_PROGRAM_REPLIES = ("체험 달력 조회", "체험 글 조회")
+_VILLAGE_REPLIES = ("예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진")
+_PROGRAM_REPLIES = ("체험 달력 조회", "체험 글 조회", "체험 글 저장")
 
 
 def bind_reply_user(user_id: str):
