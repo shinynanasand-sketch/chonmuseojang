@@ -69,7 +69,10 @@ function draw() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "day-cell";
-    if (entriesOn(key).length || bookingsOn(key).length) button.classList.add("has");
+    const dayBookings = bookingsOn(key);
+    if (dayBookings.some((row) => row.status === "pending")) button.classList.add("pending");
+    else if (dayBookings.some((row) => row.status === "confirmed")) button.classList.add("confirmed");
+    else if (entriesOn(key).length || dayBookings.length) button.classList.add("has");
     if (key === selected) button.classList.add("selected");
     button.textContent = String(day);
     button.addEventListener("click", () => showDay(key));
@@ -91,6 +94,8 @@ function showDay(key) {
   }
   bookings.forEach((row) => {
     const item = document.createElement("p");
+    if (row.status === "pending") item.className = "booking-pending";
+    if (row.status === "confirmed") item.className = "booking-confirmed";
     item.textContent = `${row.booking_id}번 ${row.status_label} ${row.label} ${row.num_people}명`;
     if (snapshot.can_write) {
       ["confirmed", "rejected"].forEach((status) => {
