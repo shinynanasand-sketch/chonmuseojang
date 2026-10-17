@@ -2,6 +2,25 @@
 {% block title %}홈 - 체험마을 AI사무장{% endblock %}
 {% block content %}
 <h1>체험마을 AI사무장</h1>
+<section class="kakao-guide">
+  <div>
+    <h2>카카오로 예약하기</h2>
+    <p>카카오톡 채널 체험마을AI사무장에서 예약합니다.</p>
+    <p>체험 이름, 날짜, 인원을 한 문장으로 말합니다. 예: 갯벌체험 2026-11-01 30명</p>
+    <p>확인은 내 예약입니다.</p>
+    <h3>카카오 예약 마을</h3>
+    {% if kakao_guide.villages %}
+    <ul>
+      {% for village in kakao_guide.villages %}
+      <li>{{ village.village_name }}{% if village.sigungu %} {{ village.sigungu }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>아직 카카오로 예약할 수 있는 마을이 없습니다.</p>
+    {% endif %}
+  </div>
+  <a class="kakao-qr-link" href="{{ kakao_guide.channel_url }}">{{ kakao_guide.qr_svg | safe }}</a>
+</section>
 <p>광주·전남 농촌체험마을을 시군과 이름으로 찾아 보세요.</p>
 <form id="village-filter" class="filter-row">
   <label>시군

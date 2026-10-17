@@ -206,6 +206,27 @@ def _is_village_role(operator: dict) -> bool:
     return (operator.get("role") or "village") == "village"
 
 
+def list_village_operator_ids() -> list[str]:
+    """마을 운영자가 있는 마을 번호만. 카카오 사용자 ID는 읽지 않는다."""
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("operators")
+            .select("village_id")
+            .eq("role", "village")
+            .eq("is_active", True)
+            .execute()
+        )
+        ids = [row.get("village_id") for row in (result.data or []) if row.get("village_id")]
+    else:
+        ids = [
+            operator.get("village_id")
+            for operator in _operators
+            if _is_village_role(operator) and operator.get("is_active", True) and operator.get("village_id")
+        ]
+    return sorted({str(village_id) for village_id in ids})
+
+
 def list_operators_for_village(village_id: str) -> list[dict]:
     client = get_supabase_client()
     if client:

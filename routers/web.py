@@ -18,6 +18,7 @@ from services.calendar_board import (
     save_calendar_from_token,
     set_booking_status_from_token,
 )
+from services.kakao_home import home_kakao_guide
 from services.village_promo import list_published_villages, public_village_promo
 from services.village_programs import programs_for
 from services.trust_score import calculate_trust_score
@@ -28,7 +29,9 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return request.app.state.templates.TemplateResponse(
-        request, "index.html", {"title": "체험마을 AI사무장"}
+        request,
+        "index.html",
+        {"title": "체험마을 AI사무장", "kakao_guide": home_kakao_guide()},
     )
 
 

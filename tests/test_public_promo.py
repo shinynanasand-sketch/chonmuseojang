@@ -1,6 +1,6 @@
 """관광객 마을 화면은 확인된 최신 홍보만 보여 준다."""
 
-from services.supabase_client import insert_content, insert_review, upsert_villages
+from services.supabase_client import insert_content, insert_operator, insert_review, upsert_villages
 
 _AUTH = {"Authorization": "Bearer owner_v001"}
 
@@ -146,6 +146,66 @@ def test_home_links_to_village_page(test_client):
     assert page.status_code == 200
     assert "/village/" in page.text
     assert "마을 소개" in page.text
+    assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in page.text
+
+
+def test_home_kakao_guide_lists_only_village_operators(test_client):
+    upsert_villages(
+        [
+            {
+                "village_id": "VK-HOME",
+                "village_name": "돌담마을",
+                "sigungu": "해남군",
+                "program_type": "농사체험",
+            },
+            {
+                "village_id": "VK-PROG",
+                "village_name": "프로그램만마을",
+                "sigungu": "강진군",
+                "program_type": "요리체험",
+            },
+        ]
+    )
+    insert_operator(
+        {
+            "village_id": "VK-HOME",
+            "kakao_user_id": "secret-kakao-home-id",
+            "login_id": "secret-login-home",
+            "operator_name": "숨은이름운영자",
+            "registration_code": "SECRET-CODE-99",
+            "role": "village",
+            "is_active": True,
+        }
+    )
+    insert_operator(
+        {
+            "village_id": "VK-PROG",
+            "kakao_user_id": "secret-kakao-program-id",
+            "login_id": "secret-login-program",
+            "operator_name": "숨은체험담당",
+            "registration_code": "SECRET-CODE-88",
+            "role": "program",
+            "program_key": "cook",
+            "is_active": True,
+        }
+    )
+
+    page = test_client.get("/")
+    assert page.status_code == 200
+    text = page.text
+    assert "돌담마을" in text
+    assert "해남군" in text
+    assert "프로그램만마을" not in text
+    assert "secret-kakao-home-id" not in text
+    assert "secret-kakao-program-id" not in text
+    assert "SECRET-CODE-99" not in text
+    assert "SECRET-CODE-88" not in text
+    assert "숨은이름운영자" not in text
+    assert "갯벌체험 2026-11-01 30명" in text
+    assert "내 예약" in text
+    assert 'href="https://pf.kakao.com/_RgZaX"' in text
+    assert "<title>https://pf.kakao.com/_RgZaX</title>" in text
+    assert "<svg" in text
 
 
 def test_operator_page_has_publish_button(test_client):

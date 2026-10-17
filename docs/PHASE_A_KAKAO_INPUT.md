@@ -162,10 +162,11 @@
 
 - 블록 이름: `운영자 등록`
 - 호출자: 아직 운영자가 아닌 사용자
-- 사용자 발화 예: `예시 갯벌마을 GB-001`. 마을 운영자가 있으면 `예시 갯벌마을 GB-001 조개잡이`
+- 사용자 발화 예: `예시 갯벌마을 GB-001`. 마을 운영자가 있으면 `예시 갯벌마을 GB-001 갯벌체험`
+- 저장된 패턴은 `{village_name} {registration_code}`와 `{village_name} {registration_code} {sys.text}`다. 세 번째 칸의 엔티티는 `@sys.text`이고 파라미터 이름은 `program_label`이다. 코드 뒤의 체험 이름은 이 패턴으로 받고, 체험마다 발화를 추가하지 않는다. 2026-10-17 전체 배포 v2.5
 - 파라미터 `village_id`: 커스텀 엔티티 `village_name`, 대표값 `village_id`. 화면에서 말하는 지점이름은 이 마을명입니다. `branch_name`은 없습니다.
 - 파라미터 `registration_code`: 스키마 컬럼 이름 그대로. `@sys.number`로 만들지 않습니다. `GB-001`처럼 글자와 하이픈이 있습니다.
-- 파라미터 `program_label`: 체험 이름. 필수 아님. 없으면 발화에서 코드 뒤를 읽는다. 마을 운영자가 없을 때 체험 이름을 붙이면 등록하지 않는다
+- 파라미터 `program_label`: 체험 이름. 엔티티는 `@sys.text`이고 필수 아님. 없으면 발화에서 코드 뒤를 읽는다. 마을 운영자가 없을 때 체험 이름을 붙이면 등록하지 않는다
 - 필수: 아니오. 둘 중 하나라도 없으면 안내만 하고 종료
 - 스킬 URL: `https://chonmuseojang.vercel.app/kakao/ask`. `/kakao/booking`에 연결하면 블록 이름이 다를 때 예약 접수로 감
 - 성공과 실패: `simpleText`. 목록 카드는 없음

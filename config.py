@@ -10,6 +10,7 @@ load_dotenv(_ROOT / ".env.local", override=False)
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
 CRON_SECRET = os.getenv("CRON_SECRET", "")
+KAKAO_CHANNEL_URL = "https://pf.kakao.com/_RgZaX"
 
 TARGET_SIDO_NAMES = [
     "광주광역시",
