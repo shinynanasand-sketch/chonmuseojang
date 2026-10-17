@@ -147,6 +147,40 @@ def test_public_list_hides_demo_villages_when_real_data_exists():
     assert "V001" in stored_ids
 
 
+def test_public_list_keeps_one_row_when_sido_name_changed():
+    from services.demo_data import public_village_rows
+
+    rows = public_village_rows(
+        [
+            {
+                "village_id": "PDaf579aadaa4d",
+                "village_name": "도선국사체험마을영농조합법인",
+                "sido": "전라남도",
+                "sigungu": "광양시",
+                "address": "전라남도 광양시 옥룡면 도솔로 373(추산리)",
+                "synced_at": "2026-10-05T18:25:50",
+            },
+            {
+                "village_id": "PDeac2fe424e02",
+                "village_name": "도선국사체험마을영농조합법인",
+                "sido": "전남광주통합특별시",
+                "sigungu": "광양시",
+                "address": "전남광주통합특별시 광양시 옥룡면 도솔로 373(추산리)",
+                "synced_at": "2026-10-16T18:25:53",
+            },
+            {
+                "village_id": "PD-OTHER",
+                "village_name": "도선국사체험마을영농조합법인",
+                "sido": "전라남도",
+                "sigungu": "구례군",
+                "address": "전라남도 구례군",
+            },
+        ]
+    )
+    by_sigungu = {row["sigungu"]: row["village_id"] for row in rows}
+    assert by_sigungu == {"광양시": "PDeac2fe424e02", "구례군": "PD-OTHER"}
+
+
 @patch("services.public_data_sync.fetch_from_public_data_api")
 def test_sync_handles_api_failure_without_crashing(mock_fetch):
     mock_fetch.side_effect = Exception("공공데이터 API 호출 실패")

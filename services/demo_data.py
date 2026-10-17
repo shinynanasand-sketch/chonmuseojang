@@ -1,6 +1,7 @@
 """시연용 샘플 데이터 (공공 API 미설정 시 폴백)."""
 
 DEMO_VILLAGE_IDS = frozenset({"V001", "V002", "V004"})
+_PREFERRED_SIDO = ("전남광주통합특별시", "광주특별시")
 
 
 def is_demo_village(row: dict) -> bool:
@@ -10,11 +11,48 @@ def is_demo_village(row: dict) -> bool:
     return village_id in DEMO_VILLAGE_IDS or name.startswith("예시 ")
 
 
+def _sido_rank(row: dict) -> int:
+    text = f"{row.get('sido') or ''} {row.get('address') or ''}"
+    for index, name in enumerate(_PREFERRED_SIDO):
+        if name in text:
+            return index
+    return len(_PREFERRED_SIDO)
+
+
+def _prefer_same_village(current: dict, candidate: dict) -> dict:
+    current_rank = _sido_rank(current)
+    candidate_rank = _sido_rank(candidate)
+    if candidate_rank != current_rank:
+        return candidate if candidate_rank < current_rank else current
+    if str(candidate.get("synced_at") or "") > str(current.get("synced_at") or ""):
+        return candidate
+    return current
+
+
+def _one_row_per_name(rows: list[dict]) -> list[dict]:
+    """이름과 시군구가 같으면 새 행정명 한 건만 남긴다."""
+    chosen: dict[tuple[str, str], dict] = {}
+    order: list[tuple[str, str]] = []
+    for row in rows:
+        key = (
+            str(row.get("village_name") or "").strip(),
+            str(row.get("sigungu") or "").strip(),
+        )
+        if key not in chosen:
+            chosen[key] = row
+            order.append(key)
+            continue
+        chosen[key] = _prefer_same_village(chosen[key], row)
+    return [chosen[key] for key in order]
+
+
 def public_village_rows(rows: list[dict]) -> list[dict]:
     """실마을이 있으면 예시 마을을 공개 목록에서 뺀다. 예시만 있으면 그대로 둔다."""
     if any(not is_demo_village(row) for row in rows):
-        return [row for row in rows if not is_demo_village(row)]
-    return list(rows)
+        visible = [row for row in rows if not is_demo_village(row)]
+    else:
+        visible = list(rows)
+    return _one_row_per_name(visible)
 
 
 DEMO_VILLAGES = [
