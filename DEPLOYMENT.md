@@ -10,8 +10,9 @@
 4. Environment Variables: `.env.example` 키 전체 등록
 5. Supabase SQL Editor에서 `supabase/schema.sql` 실행
 6. 배포 후 `/` 홈, `/api/villages` JSON 응답 확인
-7. `curl -H "Authorization: Bearer {CRON_SECRET}" https://{배포URL}/api/cron/sync` 수동 동기화
-8. Vercel 대시보드 Cron Jobs 등록 확인 (`vercel.json`)
+7. 네이버 서치어드바이저에 `https://chonmuseojang.vercel.app`이 등록되어 있다. 홈 `<head>`에 확인 태그가 있고, 제출한 사이트맵은 `https://chonmuseojang.vercel.app/sitemap.xml`이다. 담는 주소는 `/`, `/recommend`, `/map`, `/nearby`, `/villages`, `/dashboard`다. `/robots.txt`는 운영자 화면, 달력 토큰, 개발 화면을 수집하지 않는다
+8. `curl -H "Authorization: Bearer {CRON_SECRET}" https://{배포URL}/api/cron/sync` 수동 동기화
+9. Vercel 대시보드 Cron Jobs 등록 확인 (`vercel.json`)
 
 ## 기능 추가 시
 
