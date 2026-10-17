@@ -9,7 +9,14 @@ from services.supabase_client import reset_memory_store
 @pytest.fixture(autouse=True)
 def block_live_llm(monkeypatch):
     """단위 테스트는 실제 LLM을 호출하지 않는다."""
-    for name in ("GEMINI_API_KEY", "OPENAI_API_KEY", "CLAUDE_API_KEY", "ANTHROPIC_API_KEY"):
+    for name in (
+        "GEMINI_API_KEY",
+        "OPENAI_API_KEY",
+        "CLAUDE_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "KAKAO_REST_API_KEY",
+        "KAKAO_BOT_ID",
+    ):
         monkeypatch.setenv(name, "")
 
 

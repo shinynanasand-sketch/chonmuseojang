@@ -1,4 +1,4 @@
-"""카카오 스킬 응답 포맷. 이벤트 API 함수는 다음 단계용이며 이번 단계 경로에서 호출하지 않는다."""
+"""카카오 스킬 응답 포맷. 이벤트 API는 예약 접수·승인·거절 뒤에만 호출한다."""
 
 import contextvars
 import json
@@ -191,62 +191,76 @@ def skill_http_response(body: dict) -> Response:
     )
 
 
-def _send_kakao_event_message(receiver_id: str, text: str) -> bool:
-    """다음 단계의 이벤트 API 발송. 이번 단계 라우터에서는 호출하지 않는다."""
-    admin_key = os.getenv("KAKAO_ADMIN_KEY", "")
-    event_url = os.getenv(
-        "KAKAO_EVENT_API_URL",
-        "https://kapi.kakao.com/v1/api/talk/friends/message/default/send",
-    )
-    if not admin_key:
-        logger.info("KAKAO_ADMIN_KEY 미설정 — 이벤트 메시지 스킵: %s", text[:50])
-        return False
+_EVENT_TIMEOUT = 2.0
 
-    headers = {
-        "Authorization": f"KakaoAK {admin_key}",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-    payload = {
-        "receiver_uuids": f'["{receiver_id}"]',
-        "template_object": (
-            '{"object_type":"text","text":"'
-            + text.replace('"', '\\"')
-            + '","link":{"web_url":"https://developers.kakao.com"}}'
-        ),
+
+def event_talk_url(bot_id: str) -> str:
+    return f"https://bot-api.kakao.com/v2/bots/{bot_id}/talk"
+
+
+def send_kakao_event(event_name: str, user_id: str, data: dict) -> bool:
+    """챗봇 이벤트 API. 키가 없거나 카카오가 거절하면 False. 예외는 올리지 않는다."""
+    rest_key = os.getenv("KAKAO_REST_API_KEY", "").strip()
+    bot_id = os.getenv("KAKAO_BOT_ID", "").strip()
+    if not rest_key or not bot_id or not user_id:
+        logger.info("카카오 이벤트 API 생략: %s", event_name)
+        return False
+    body = {
+        "event": {
+            "name": event_name,
+            "data": {key: "" if value is None else str(value) for key, value in data.items()},
+        },
+        "user": [{"type": "botUserKey", "id": user_id}],
     }
     try:
-        with httpx.Client(timeout=5.0) as client:
-            response = client.post(event_url, headers=headers, data=payload)
-            response.raise_for_status()
-        return True
+        with httpx.Client(timeout=_EVENT_TIMEOUT) as client:
+            response = client.post(
+                event_talk_url(bot_id),
+                headers={
+                    "Authorization": f"KakaoAK {rest_key}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+            )
+        try:
+            payload = response.json()
+        except Exception:
+            payload = {}
+        status = str(payload.get("status") or "")
+        if response.status_code >= 400 or status in {"FAIL", "ERROR"}:
+            logger.info("카카오 이벤트 API 거절: %s %s", event_name, payload.get("message") or status or response.status_code)
+            return False
+        return status == "SUCCESS"
     except Exception as exc:
         logger.warning("카카오 이벤트 API 발송 실패: %s", exc)
         return False
 
 
-def send_kakao_notification_to_owner(village_id: str, message: str) -> None:
-    """다음 단계용 운영자 선톡. 이번 단계에서는 호출하지 않는다."""
-    from services.supabase_client import get_supabase_client
+def notify_booking_received(booking: dict) -> None:
+    """예약 접수 선톡. 그 마을의 마을 운영자에게만 보낸다."""
+    from services.supabase_client import get_village_operator
 
-    client = get_supabase_client()
-    if client:
-        result = (
-            client.table("operators")
-            .select("kakao_user_id")
-            .eq("village_id", village_id)
-            .eq("is_active", True)
-            .limit(1)
-            .execute()
-        )
-        if result.data and result.data[0].get("kakao_user_id"):
-            _send_kakao_event_message(result.data[0]["kakao_user_id"], message)
-            return
-    logger.info("운영자 알림(로컬): village=%s msg=%s", village_id, message)
+    operator = get_village_operator(str(booking.get("village_id") or ""))
+    if not operator or not operator.get("is_active", True):
+        return
+    send_kakao_event(
+        "booking_received",
+        str(operator.get("kakao_user_id") or ""),
+        {
+            "booking_id": booking.get("booking_id"),
+            "visit_date": booking.get("visit_date") or "",
+        },
+    )
 
 
-def send_kakao_notification_to_customer(customer_kakao_id: str, message: str) -> None:
-    """다음 단계용 관광객 선톡. 이번 단계에서는 호출하지 않는다."""
-    if customer_kakao_id:
-        _send_kakao_event_message(customer_kakao_id, message)
-    else:
-        logger.info("고객 알림(로컬): %s", message)
+def notify_booking_decided(booking: dict, decision: str) -> None:
+    """승인·거절 선톡. 그 예약을 한 관광객에게만 보낸다."""
+    label = "승인" if decision == "approve" else "거절"
+    send_kakao_event(
+        "booking_decided",
+        str(booking.get("customer_kakao_id") or ""),
+        {
+            "booking_id": booking.get("booking_id"),
+            "decision": label,
+        },
+    )

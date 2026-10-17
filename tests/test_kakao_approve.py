@@ -44,15 +44,91 @@ def test_reject_updates_booking_status(test_client, booking_for_approve):
     assert get_booking_by_id(booking_for_approve["booking_id"])["status"] == "rejected"
 
 
-@patch("services.kakao_client.send_kakao_notification_to_customer")
-def test_approve_does_not_push_customer(mock_notify, test_client, booking_for_approve):
+class _EventResponse:
+    def __init__(self, payload):
+        self.status_code = 200
+        self.content = b"{}"
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _EventClient:
+    def __init__(self, payload, calls):
+        self._payload = payload
+        self._calls = calls
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def post(self, url, headers=None, json=None):
+        self._calls.append({"url": url, "headers": headers, "json": json})
+        return _EventResponse(self._payload)
+
+
+def _enable_event(monkeypatch, payload):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "test-rest-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "bot-test")
+    monkeypatch.setattr("services.kakao_client.httpx.Client", _EventClient(payload, calls))
+    return calls
+
+
+def test_approve_keeps_skill_text_when_wallet_has_no_funds(monkeypatch, test_client, booking_for_approve):
+    calls = _enable_event(
+        monkeypatch,
+        {"status": "FAIL", "message": "Non-sufficient funds. Check your wallet balance."},
+    )
     payload = {
         "intent": {"name": "예약승인"},
         "userRequest": {"utterance": "7번 승인", "user": {"id": "owner_test"}},
         "action": {"params": {"booking_id": str(booking_for_approve["booking_id"])}},
     }
-    test_client.post("/kakao/approve", json=payload)
-    assert mock_notify.called is False
+    response = test_client.post("/kakao/approve", json=payload)
+    assert response.status_code == 200
+    assert "예약이 승인되었습니다" in response.text
+    assert get_booking_by_id(booking_for_approve["booking_id"])["status"] == "confirmed"
+    sent = [item for item in calls if isinstance(item, dict)]
+    assert sent[0]["json"]["user"] == [{"type": "botUserKey", "id": "customer_test"}]
+
+
+def test_approve_event_uses_chatbot_talk_url(monkeypatch, test_client, booking_for_approve):
+    calls = _enable_event(monkeypatch, {"status": "SUCCESS"})
+    payload = {
+        "intent": {"name": "예약승인"},
+        "userRequest": {"utterance": "7번 승인", "user": {"id": "owner_test"}},
+        "action": {"params": {"booking_id": str(booking_for_approve["booking_id"])}},
+    }
+    response = test_client.post("/kakao/approve", json=payload)
+    assert "예약이 승인되었습니다" in response.text
+    sent = [item for item in calls if isinstance(item, dict)][0]
+    assert sent["url"] == "https://bot-api.kakao.com/v2/bots/bot-test/talk"
+    assert sent["json"]["event"]["name"] == "booking_decided"
+    assert sent["json"]["event"]["data"]["decision"] == "승인"
+    assert sent["json"]["user"] == [{"type": "botUserKey", "id": "customer_test"}]
+    assert "owner_test" not in str(sent["json"]["user"])
+
+
+def test_reject_event_sends_decline_to_customer(monkeypatch, test_client, booking_for_approve):
+    calls = _enable_event(monkeypatch, {"status": "SUCCESS"})
+    payload = {
+        "intent": {"name": "예약거절"},
+        "userRequest": {"utterance": "7번 거절", "user": {"id": "owner_test"}},
+        "action": {"params": {"booking_id": str(booking_for_approve["booking_id"])}},
+    }
+    response = test_client.post("/kakao/approve", json=payload)
+    assert "예약이 거절되었습니다" in response.text
+    sent = [item for item in calls if isinstance(item, dict)][0]
+    assert sent["json"]["event"]["name"] == "booking_decided"
+    assert sent["json"]["event"]["data"]["decision"] == "거절"
+    assert sent["json"]["user"][0]["id"] == "customer_test"
 
 
 def test_approve_with_nonexistent_booking_id_does_not_crash(test_client, booking_for_approve):

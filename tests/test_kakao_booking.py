@@ -1,9 +1,7 @@
-from unittest.mock import patch
-
 import pytest
 
 from services.booking import create_booking
-from services.supabase_client import list_bookings
+from services.supabase_client import insert_operator, list_bookings, upsert_villages
 
 
 @pytest.fixture
@@ -75,13 +73,156 @@ def test_booking_missing_required_fields_does_not_crash(test_client):
     assert response.status_code == 200
 
 
-@patch("services.kakao_client.send_kakao_notification_to_owner")
-def test_booking_does_not_push_owner_notification(mock_notify, test_client, sample_kakao_booking_payload):
-    response = test_client.post("/kakao/booking", json=sample_kakao_booking_payload)
-    assert mock_notify.called is False
+class _EventResponse:
+    def __init__(self, payload):
+        self.status_code = 200
+        self.content = b"{}"
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _EventClient:
+    def __init__(self, payload, calls):
+        self._payload = payload
+        self._calls = calls
+
+    def __call__(self, *args, **kwargs):
+        self._calls.append(kwargs.get("timeout"))
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def post(self, url, headers=None, json=None):
+        self._calls.append({"url": url, "headers": headers, "json": json})
+        return _EventResponse(self._payload)
+
+
+def _enable_event(monkeypatch, payload):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "test-rest-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "bot-test")
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        _EventClient(payload, calls),
+    )
+    return calls
+
+
+def _event_village():
+    upsert_villages(
+        [
+            {
+                "village_id": "VEVENT",
+                "village_name": "선톡마을",
+                "sigungu": "신안군",
+                "program_name": "선톡체험",
+            }
+        ]
+    )
+    insert_operator(
+        {
+            "village_id": "VEVENT",
+            "kakao_user_id": "village-operator-event",
+            "login_id": "village-operator-event",
+            "operator_name": "선톡운영자",
+            "is_active": True,
+            "role": "village",
+        }
+    )
+    insert_operator(
+        {
+            "village_id": "VEVENT",
+            "kakao_user_id": "program-operator-event",
+            "login_id": "program-operator-event",
+            "operator_name": "선톡담당",
+            "is_active": True,
+            "role": "program",
+            "program_key": "seontok",
+        }
+    )
+
+
+def test_booking_keeps_skill_text_when_wallet_has_no_funds(monkeypatch, test_client):
+    _event_village()
+    calls = _enable_event(
+        monkeypatch,
+        {"status": "FAIL", "message": "Non-sufficient funds. Check your wallet balance."},
+    )
+    response = test_client.post(
+        "/kakao/booking",
+        json={
+            "userRequest": {
+                "utterance": "선톡체험 2026-11-01 2명",
+                "user": {"id": "guest-event"},
+            },
+            "action": {"params": {}},
+        },
+    )
+    assert response.status_code == 200
     text = response.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "대기로 접수" in text
     assert "알려드릴게요" not in text
+    sent = [item for item in calls if isinstance(item, dict)]
+    assert sent[0]["json"]["event"]["name"] == "booking_received"
+    assert sent[0]["json"]["user"] == [{"type": "botUserKey", "id": "village-operator-event"}]
+
+
+def test_booking_event_uses_chatbot_talk_url(monkeypatch, test_client):
+    _event_village()
+    calls = _enable_event(monkeypatch, {"status": "SUCCESS"})
+    response = test_client.post(
+        "/kakao/booking",
+        json={
+            "userRequest": {
+                "utterance": "선톡체험 2026-11-01 2명",
+                "user": {"id": "guest-event"},
+            },
+            "action": {"params": {}},
+        },
+    )
+    assert "대기로 접수" in response.text
+    sent = [item for item in calls if isinstance(item, dict)][0]
+    assert sent["url"] == "https://bot-api.kakao.com/v2/bots/bot-test/talk"
+    assert sent["headers"]["Authorization"] == "KakaoAK test-rest-key"
+    assert sent["json"]["event"]["name"] == "booking_received"
+    assert sent["json"]["event"]["data"]["visit_date"] == "2026-11-01"
+    assert sent["json"]["user"][0]["id"] == "village-operator-event"
+    assert "program-operator-event" not in response.text
+
+
+def test_booking_skips_event_without_keys(monkeypatch, test_client):
+    _event_village()
+    calls = []
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        _EventClient({"status": "SUCCESS"}, calls),
+    )
+    response = test_client.post(
+        "/kakao/booking",
+        json={
+            "userRequest": {
+                "utterance": "선톡체험 2026-11-01 2명",
+                "user": {"id": "guest-event"},
+            },
+            "action": {"params": {}},
+        },
+    )
+    assert "대기로 접수" in response.text
+    assert not [item for item in calls if isinstance(item, dict)]
+
+
+def test_incomplete_booking_does_not_call_event(monkeypatch, test_client, sample_kakao_booking_payload):
+    calls = _enable_event(monkeypatch, {"status": "SUCCESS"})
+    response = test_client.post("/kakao/booking", json=sample_kakao_booking_payload)
+    text = response.json()["template"]["outputs"][0]["simpleText"]["text"]
     assert "체험 이름" in text
+    assert not [item for item in calls if isinstance(item, dict)]
 
 
 def test_booking_accepts_full_kakao_payload(test_client):

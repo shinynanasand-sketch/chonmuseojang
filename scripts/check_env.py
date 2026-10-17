@@ -21,6 +21,7 @@ OPTIONAL = {
     "GEMINI_API_KEY": "AI 추천 (LLM_PROVIDER=gemini)",
     "TOUR_API_SERVICE_KEY": "주변 관광정보",
     "KAKAO_REST_API_KEY": "카카오 이벤트 API",
+    "KAKAO_BOT_ID": "카카오 이벤트 API 봇 ID",
     "CRON_SECRET": "동기화 API 보호",
 }
 

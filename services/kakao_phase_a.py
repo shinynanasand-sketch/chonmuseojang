@@ -13,6 +13,7 @@ from services.kakao_client import (
     build_error_skill_response,
     build_skill_response,
     guide_skill_response,
+    notify_booking_decided,
 )
 from services.kakao_params import booking_id_from_params, kakao_photo_url, parse_sys_date, representative
 from services.operator_assistant import (
@@ -252,8 +253,10 @@ def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
         return build_error_skill_response(_OTHER_VILLAGE)
     if kind == "approve":
         booking.update_booking_status(booking_id, "confirmed")
+        notify_booking_decided(existing, "approve")
         return build_skill_response("승인 완료", "예약이 승인되었습니다.")
     booking.update_booking_status(booking_id, "rejected")
+    notify_booking_decided(existing, "reject")
     return build_skill_response("거절 완료", "예약이 거절되었습니다.")
 
 

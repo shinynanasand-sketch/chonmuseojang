@@ -147,6 +147,7 @@ async def _kakao_booking(payload: KakaoSkillRequest):
     if not result.get("ok"):
         return _skill_json(kakao_client.build_error_skill_response(result["text"]))
     new_booking = result["booking"]
+    kakao_client.notify_booking_received(new_booking)
     return _skill_json(
         kakao_client.build_skill_response(
             "예약이 접수되었습니다",
@@ -197,11 +198,13 @@ async def _kakao_approve(payload: KakaoSkillRequest):
 
     if decision == "approve":
         booking.update_booking_status(booking_id, "confirmed")
+        kakao_client.notify_booking_decided(existing, "approve")
         return _skill_json(
             kakao_client.build_skill_response("승인 완료", "예약이 승인되었습니다.")
         )
     if decision == "reject":
         booking.update_booking_status(booking_id, "rejected")
+        kakao_client.notify_booking_decided(existing, "reject")
         return _skill_json(
             kakao_client.build_skill_response("거절 완료", "예약이 거절되었습니다.")
         )
