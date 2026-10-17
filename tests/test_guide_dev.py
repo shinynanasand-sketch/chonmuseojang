@@ -4,6 +4,7 @@ from services.supabase_client import (
     get_village_by_id,
     get_village_operator,
     insert_content,
+    list_calendar_for_village,
     insert_review,
     list_bookings,
     list_contents,
@@ -134,6 +135,60 @@ def test_dev_page_hides_records_until_password(test_client, monkeypatch):
     assert list_reviews(village_id="VDEV") == []
     assert list_program_notes_for_village("VDEV") == []
     assert list_contents(village_id="VDEV") == []
-    from services.supabase_client import list_calendar_for_village
-
     assert list_calendar_for_village("VDEV") == []
+
+
+def test_clearing_operators_keeps_linked_records(test_client, monkeypatch):
+    monkeypatch.setenv("DEV_ADMIN_PASSWORD", _PASSWORD)
+    _put_village()
+    owner = get_village_operator("VDEV")
+    operator_id = owner["operator_id"]
+    insert_content(
+        {
+            "village_id": "VDEV",
+            "operator_id": operator_id,
+            "content_type": "소개글",
+            "body": "연결된소개",
+            "is_public": False,
+        }
+    )
+    upsert_program_note(
+        {
+            "village_id": "VDEV",
+            "program_key": "dev-note",
+            "label": "개발체험",
+            "body": "연결된글",
+            "updated_by": operator_id,
+        }
+    )
+    upsert_calendar_entry(
+        {
+            "village_id": "VDEV",
+            "program_key": "dev-note",
+            "label": "개발체험",
+            "visit_date": "2026-11-02",
+            "group_name": "개발단체",
+            "num_people": 2,
+            "created_by": operator_id,
+        }
+    )
+
+    test_client.post("/guide/dev", data={"password": _PASSWORD})
+    cleared = test_client.post(
+        "/guide/dev/reset",
+        data={"village_id": "VDEV", "kind": "operators"},
+    )
+
+    assert cleared.status_code == 200
+    assert "마을 운영자와 체험 담당을 지웠습니다." in cleared.text
+    assert get_village_operator("VDEV") is None
+    assert get_village_by_id("VDEV")["registration_code"] == _CODE
+    contents = list_contents(village_id="VDEV")
+    assert any(row.get("body") == "연결된소개" for row in contents)
+    assert all(row.get("operator_id") is None for row in contents)
+    notes = list_program_notes_for_village("VDEV")
+    assert notes[0]["body"] == "연결된글"
+    assert notes[0]["updated_by"] is None
+    calendar = list_calendar_for_village("VDEV")
+    assert calendar[0]["group_name"] == "개발단체"
+    assert calendar[0]["created_by"] is None
