@@ -147,6 +147,7 @@ def test_calendar_lookup_has_open_button_for_operators_only(test_client, calenda
     assert button["label"] == "달력 열기"
     assert button["action"] == "webLink"
     assert "/calendar/" in button["webLinkUrl"]
+    assert card["thumbnail"]["imageUrl"] == "https://chonmuseojang.vercel.app/static/kakao-card.png"
     assert "cal_owner_a" not in button["webLinkUrl"]
     path = button["webLinkUrl"].split(".app", 1)[-1]
     page = test_client.get(path)

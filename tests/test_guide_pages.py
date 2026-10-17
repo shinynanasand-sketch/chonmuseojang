@@ -101,6 +101,9 @@ def test_operator_guide_buttons_open_cards(test_client, guide_password):
     assert [item["label"] for item in buttons] == ["등록 안내 열기", "사용 안내 열기"]
     assert "/guide/register" in buttons[0]["webLinkUrl"]
     assert "/guide/use" in buttons[1]["webLinkUrl"]
+    assert body["template"]["outputs"][1]["basicCard"]["thumbnail"]["imageUrl"] == (
+        "https://chonmuseojang.vercel.app/static/kakao-card.png"
+    )
     assert "guide_owner" not in response.text
 
 

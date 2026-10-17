@@ -47,12 +47,15 @@ def calendar_page_url(operator: dict) -> str:
 
 def attach_calendar_card(body: dict, operator: dict) -> dict:
     """조회 답장 아래에 달력 열기 버튼을 붙인다."""
+    from config import KAKAO_CARD_IMAGE_URL
+
     outputs = body.setdefault("template", {}).setdefault("outputs", [])
     outputs.append(
         {
             "basicCard": {
                 "title": "체험 달력",
                 "description": "날짜를 눌러 일정을 확인합니다.",
+                "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
                 "buttons": [
                     {
                         "action": "webLink",

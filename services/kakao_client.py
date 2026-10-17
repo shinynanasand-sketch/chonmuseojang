@@ -82,6 +82,7 @@ def build_error_skill_response(message: str) -> dict:
 
 def attach_guide_card(body: dict) -> dict:
     """등록·사용 안내 웹을 여는 카드. 바로연결은 웹 주소를 열지 못한다."""
+    from config import KAKAO_CARD_IMAGE_URL
     from services.guide_access import guide_page_url
 
     outputs = body.setdefault("template", {}).setdefault("outputs", [])
@@ -90,6 +91,7 @@ def attach_guide_card(body: dict) -> dict:
             "basicCard": {
                 "title": "안내",
                 "description": "등록 문장과 사용 방법을 웹에서 봅니다.",
+                "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
                 "buttons": [
                     {
                         "action": "webLink",
