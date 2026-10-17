@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from config import CRON_SECRET
 from models.schemas import RecommendRequest
@@ -19,11 +19,22 @@ from services.calendar_board import (
     set_booking_status_from_token,
 )
 from services.kakao_home import home_kakao_guide
+from services.site_index import robots_txt, sitemap_xml
 from services.village_promo import list_published_villages, public_village_promo
 from services.village_programs import programs_for
 from services.trust_score import calculate_trust_score
 
 router = APIRouter()
+
+
+@router.get("/sitemap.xml")
+def sitemap():
+    return Response(content=sitemap_xml(), media_type="application/xml")
+
+
+@router.get("/robots.txt")
+def robots():
+    return PlainTextResponse(robots_txt())
 
 
 @router.get("/", response_class=HTMLResponse)

@@ -141,6 +141,26 @@ def test_recommend_and_map_link_to_village_page(test_client):
     assert "/village/" in village_map
 
 
+def test_home_exposes_naver_verification_and_public_sitemap(test_client):
+    page = test_client.get("/")
+    assert page.status_code == 200
+    assert 'name="naver-site-verification"' in page.text
+    assert "bf6009ea39af06737f3b4647a7e8a848b21a4bf0" in page.text
+
+    sitemap = test_client.get("/sitemap.xml")
+    assert sitemap.status_code == 200
+    assert "https://chonmuseojang.vercel.app/villages" in sitemap.text
+    assert "/operator" not in sitemap.text
+    assert "/calendar/" not in sitemap.text
+
+    robots = test_client.get("/robots.txt")
+    assert robots.status_code == 200
+    assert "Sitemap: https://chonmuseojang.vercel.app/sitemap.xml" in robots.text
+    assert "Disallow: /operator" in robots.text
+    assert "Disallow: /calendar/" in robots.text
+    assert "Disallow: /guide/dev" in robots.text
+
+
 def test_home_links_to_village_page(test_client):
     page = test_client.get("/")
     assert page.status_code == 200
