@@ -183,6 +183,9 @@ def test_review_button_asks_then_shows_that_village(test_client):
     upsert_villages(
         [{"village_id": "VK-REAL", "village_name": "도선국사체험마을영농조합법인", "sigungu": "광양시"}]
     )
+    insert_operator(
+        {"village_id": "VK-REAL", "kakao_user_id": "review-op", "role": "village", "is_active": True}
+    )
     insert_review(
         {
             "village_id": "VK-REAL",
@@ -192,7 +195,7 @@ def test_review_button_asks_then_shows_that_village(test_client):
         }
     )
     ask = test_client.post("/kakao/ask", json=_ask("후기 보기", "guest", "후기 보기"))
-    assert "어떤 마을 후기" in _text(ask)
+    assert "예: 후기 보기 도선국사체험마을영농조합법인" in _text(ask)
     shown = test_client.post(
         "/kakao/ask",
         json=_ask("후기 보기", "guest", "후기 보기 도선국사체험마을영농조합법인"),
@@ -200,3 +203,85 @@ def test_review_button_asks_then_shows_that_village(test_client):
     text = _text(shown)
     assert "별점 5" in text
     assert "아이들이 좋아했어요" in text
+    assert "1건 중 1-1건" in text
+
+
+def _messages(response) -> list[dict]:
+    return response.json()["template"].get("quickReplies") or []
+
+
+def test_review_button_lists_each_operating_village(test_client):
+    upsert_villages(
+        [
+            {"village_id": "V001", "village_name": "예시 무등마을", "sigungu": "북구"},
+            {"village_id": "VK-GO", "village_name": "팔영마을", "sigungu": "고흥군"},
+            {"village_id": "VK-GY", "village_name": "도선국사체험마을영농조합법인", "sigungu": "광양시"},
+        ]
+    )
+    insert_operator(
+        {"village_id": "V001", "kakao_user_id": "demo-op", "role": "village", "is_active": True}
+    )
+    insert_operator(
+        {"village_id": "VK-GO", "kakao_user_id": "go-op", "role": "village", "is_active": True}
+    )
+    insert_operator(
+        {"village_id": "VK-GY", "kakao_user_id": "gy-op", "role": "village", "is_active": True}
+    )
+    response = test_client.post("/kakao/ask", json=_ask("후기 보기", "guest", "후기 보기"))
+    text = _text(response)
+    assert "후기를 보려면 후기 보기 뒤에 마을 이름을 말해 주세요" in text
+    assert "팔영마을 고흥군" in text
+    assert "도선국사체험마을영농조합법인 광양시" in text
+    assert "예시" not in text
+    assert "예: 후기 보기 팔영마을" in text
+    replies = _messages(response)
+    assert [item["label"] for item in replies] == [
+        "팔영마을",
+        "도선국사체험마을영농조합법인",
+        "마을 추천",
+        "예약하기",
+        "내 예약",
+        "후기 보기",
+    ]
+    assert replies[0]["messageText"] == "후기 보기 팔영마을"
+    assert replies[1]["messageText"] == "후기 보기 도선국사체험마을영농조합법인"
+
+
+def test_review_pages_continue_after_the_text_limit(test_client):
+    upsert_villages(
+        [{"village_id": "VK-REAL", "village_name": "도선국사체험마을영농조합법인", "sigungu": "광양시"}]
+    )
+    for number in range(1, 7):
+        insert_review(
+            {
+                "village_id": "VK-REAL",
+                "customer_kakao_id": "guest",
+                "comment": f"후기번호{number} " + ("가" * 280),
+                "rating": 5,
+            }
+        )
+    first = test_client.post(
+        "/kakao/ask",
+        json=_ask("후기 보기", "guest", "후기 보기 도선국사체험마을영농조합법인"),
+    )
+    first_text = _text(first)
+    assert "6건 중 1-3건" in first_text
+    assert "후기번호1" in first_text
+    assert "후기번호3" in first_text
+    assert "후기번호4" not in first_text
+    assert len(first_text) <= 1000
+    replies = _messages(first)
+    assert replies[0]["label"] == "다음 후기"
+    assert replies[0]["messageText"] == "후기 보기 도선국사체험마을영농조합법인 #4"
+    assert [item["label"] for item in replies[1:]] == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+
+    second = test_client.post(
+        "/kakao/ask",
+        json=_ask("후기 보기", "guest", replies[0]["messageText"]),
+    )
+    second_text = _text(second)
+    assert "6건 중 4-6건" in second_text
+    assert "후기번호4" in second_text
+    assert "후기번호6" in second_text
+    assert "다음 후기" not in _labels(second)
+    assert len(second_text) <= 1000

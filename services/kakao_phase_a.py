@@ -68,7 +68,10 @@ _CALENDAR_NEED = (
 )
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 _ASK_PROMPT = "체험 종류나 시군 이름을 넣어 질문해 주세요."
-_REVIEW_ASK = "어떤 마을 후기를 볼까요? 마을 이름을 말해 주세요."
+_REVIEW_LEAD = "후기를 보려면 후기 보기 뒤에 마을 이름을 말해 주세요."
+_REVIEW_EMPTY = "아직 후기를 볼 마을이 없습니다. 후기 보기 뒤에 마을 이름을 말해 주세요."
+_REVIEW_BUTTONS = 6
+_REVIEW_TEXT_LIMIT = 1000
 _BOOK_EXAMPLE = "체험 이름 2026-11-01 30명"
 _MENU_RECOMMEND = {"마을 추천", "마을추천"}
 _REGISTER_REASONS = {
@@ -216,12 +219,61 @@ def _my_bookings(user_id: str) -> dict:
     return build_skill_response("내 예약", lines)
 
 
+def _prepend_replies(body: dict, extras: list[dict]) -> dict:
+    if not extras:
+        return body
+    template = body.setdefault("template", {})
+    current = list(template.get("quickReplies") or [])
+    template["quickReplies"] = (extras + current)[:10]
+    return body
+
+
+def _review_cursor(spoken: str) -> tuple[str, int]:
+    matched = re.fullmatch(r"(?P<name>.*?) #(?P<start>\d+)$", spoken)
+    if not matched:
+        return spoken, 1
+    start = int(matched.group("start"))
+    return matched.group("name").strip(), start if start > 0 else 1
+
+
+def _review_ask() -> dict:
+    """예약할 수 있는 마을과, 그 이름을 붙인 발화 버튼을 안내한다."""
+    if not allow_external():
+        return time_budget_response()
+    from services.kakao_home import list_kakao_booking_villages
+
+    rows = list_kakao_booking_villages()
+    if not rows:
+        return build_error_skill_response(_REVIEW_EMPTY)
+    names = [
+        " ".join(part for part in (row.get("village_name"), row.get("sigungu")) if part)
+        for row in rows
+    ]
+    example = str(rows[0].get("village_name") or "").strip()
+    text = f"{_REVIEW_LEAD} {' / '.join(names)}. 예: 후기 보기 {example}"
+    body = build_error_skill_response(text)
+    buttons = []
+    for row in rows[:_REVIEW_BUTTONS]:
+        name = str(row.get("village_name") or "").strip()
+        if not name:
+            continue
+        buttons.append(
+            {
+                "label": name[:14],
+                "action": "message",
+                "messageText": f"후기 보기 {name}",
+            }
+        )
+    return _prepend_replies(body, buttons)
+
+
 def _review_by_speech(utterance: str) -> dict:
     spoken = (utterance or "").strip()
     if spoken.startswith("후기 보기"):
         spoken = spoken[len("후기 보기") :].strip()
+    spoken, start = _review_cursor(spoken)
     if not spoken:
-        return build_error_skill_response(_REVIEW_ASK)
+        return _review_ask()
     if not allow_external():
         return time_budget_response()
     from services.supabase_client import list_villages_by_name
@@ -232,8 +284,9 @@ def _review_by_speech(utterance: str) -> dict:
         rows = list_villages_by_name(name.strip(), sigungu=sigungu.strip())
     sigungus = {str(row.get("sigungu") or "").strip() for row in rows}
     if not rows or len(sigungus) > 1:
-        return build_error_skill_response(_REVIEW_ASK)
-    return _review_lines(str(rows[0].get("village_id") or ""))
+        return _review_ask()
+    village_name = str(rows[0].get("village_name") or "").strip()
+    return _review_lines(str(rows[0].get("village_id") or ""), village_name, start)
 
 
 def _recommend(utterance: str) -> dict:
@@ -255,11 +308,18 @@ def _recommend(utterance: str) -> dict:
 def _reviews(payload: KakaoSkillRequest) -> dict:
     village_id = str(representative(payload.action.params, "village_id") or "").strip()
     if not village_id:
-        return build_error_skill_response(_REVIEW_ASK)
-    return _review_lines(village_id)
+        return _review_ask()
+    village = get_village_by_id(village_id) or {}
+    village_name = str(village.get("village_name") or village_id).strip()
+    return _review_lines(village_id, village_name, 1)
 
 
-def _review_lines(village_id: str) -> dict:
+def _review_page_text(title: str, description: str) -> str:
+    text = f"{title}. {description}".strip() if description else title
+    return " ".join(text.split())
+
+
+def _review_lines(village_id: str, village_name: str, start: int) -> dict:
     rows = review.list_reviews_for_village(village_id)
     if not rows:
         return build_error_skill_response("등록된 후기가 없습니다.")
@@ -267,7 +327,32 @@ def _review_lines(village_id: str) -> dict:
         " ".join(part for part in (f"별점 {row.get('rating')}", str(row.get("comment") or "").strip()) if part)
         for row in rows
     ]
-    return _skill_lines("후기", lines, len(rows))
+    total = len(lines)
+    index = min(max(start, 1), total) - 1
+    chosen: list[str] = []
+    for line in lines[index:]:
+        trial = chosen + [line]
+        title = f"{total}건 중 {index + 1}-{index + len(trial)}건"
+        if len(_review_page_text(title, " / ".join(trial))) > _REVIEW_TEXT_LIMIT:
+            break
+        chosen = trial
+    if not chosen:
+        chosen = [lines[index]]
+    title = f"{total}건 중 {index + 1}-{index + len(chosen)}건"
+    body = build_skill_response(title, " / ".join(chosen))
+    next_index = index + len(chosen)
+    if next_index >= total:
+        return body
+    return _prepend_replies(
+        body,
+        [
+            {
+                "label": "다음 후기",
+                "action": "message",
+                "messageText": f"후기 보기 {village_name} #{next_index + 1}",
+            }
+        ],
+    )
 
 
 def _status(village_id: str) -> dict:
