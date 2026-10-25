@@ -8,7 +8,6 @@ import uuid
 from urllib.parse import urljoin, urlparse
 
 import httpx
-from PIL import Image, UnidentifiedImageError
 
 from services.llm_provider import get_llm_provider
 from services.supabase_client import get_supabase_client, get_village_by_id, insert_content
@@ -94,6 +93,8 @@ def _checked_photo(data: bytes) -> str:
 
 def _fit_photo(data: bytes) -> bytes:
     """2MB를 넘는 jpeg, png, webp를 2MB 이하 jpeg로 줄인다."""
+    from PIL import Image, UnidentifiedImageError
+
     try:
         image = Image.open(io.BytesIO(data))
         image.load()

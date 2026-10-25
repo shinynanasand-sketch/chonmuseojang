@@ -63,10 +63,20 @@ def _user_id(payload: KakaoSkillRequest) -> str:
     return str(payload.userRequest.user.get("id") or "")
 
 
+def _open_skill(user_id: str):
+    return kakao_client.bind_reply_user(user_id), kakao_client.bind_skill_deadline()
+
+
+def _close_skill(tokens) -> None:
+    user_token, deadline_token = tokens
+    kakao_client.reset_skill_deadline(deadline_token)
+    kakao_client.reset_reply_user(user_token)
+
+
 @router.post("/ask")
 async def kakao_ask(payload: KakaoSkillRequest, background: BackgroundTasks):
     """관광객은 비교 추천, 운영자는 자기 마을과 주변정보만 답한다."""
-    token = kakao_client.bind_reply_user(_user_id(payload))
+    tokens = _open_skill(_user_id(payload))
     try:
         if promo_photo_should_defer(payload):
             background.add_task(save_promo_photo_after_ack, payload)
@@ -80,7 +90,7 @@ async def kakao_ask(payload: KakaoSkillRequest, background: BackgroundTasks):
         user_id = _user_id(payload)
         return _skill_json(answer_kakao_question(utterance, user_id))
     finally:
-        kakao_client.reset_reply_user(token)
+        _close_skill(tokens)
 
 
 _REGISTER_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있습니다."
@@ -88,6 +98,8 @@ _REGISTER_HINT = "운영자는 등록 [마을명] [코드]로 등록할 수 있�
 
 def _inquiry_response(utterance: str, user_id: str):
     if utterance.startswith("등록 "):
+        if not kakao_client.allow_external():
+            return kakao_client.time_budget_response()
         result = auth.register_operator(user_id, utterance)
         if result.get("ok"):
             if result.get("role") == "program":
@@ -98,6 +110,8 @@ def _inquiry_response(utterance: str, user_id: str):
         return kakao_client.attach_guide_card(kakao_client.build_error_skill_response(_REGISTER_HINT))
 
     if utterance == "예약 현황":
+        if not kakao_client.allow_external():
+            return kakao_client.time_budget_response()
         role = auth.resolve_kakao_role(user_id)
         if role["mode"] != "operator":
             return kakao_client.attach_guide_card(
@@ -117,11 +131,11 @@ def _inquiry_response(utterance: str, user_id: str):
 
 @router.post("/booking")
 async def kakao_booking(payload: KakaoSkillRequest):
-    token = kakao_client.bind_reply_user(_user_id(payload))
+    tokens = _open_skill(_user_id(payload))
     try:
         return await _kakao_booking(payload)
     finally:
-        kakao_client.reset_reply_user(token)
+        _close_skill(tokens)
 
 
 async def _kakao_booking(payload: KakaoSkillRequest):
@@ -158,11 +172,11 @@ async def _kakao_booking(payload: KakaoSkillRequest):
 
 @router.post("/approve")
 async def kakao_approve(payload: KakaoSkillRequest):
-    token = kakao_client.bind_reply_user(_user_id(payload))
+    tokens = _open_skill(_user_id(payload))
     try:
         return await _kakao_approve(payload)
     finally:
-        kakao_client.reset_reply_user(token)
+        _close_skill(tokens)
 
 
 async def _kakao_approve(payload: KakaoSkillRequest):
@@ -216,11 +230,11 @@ async def _kakao_approve(payload: KakaoSkillRequest):
 
 @router.post("/review")
 async def kakao_review(payload: KakaoSkillRequest):
-    token = kakao_client.bind_reply_user(_user_id(payload))
+    tokens = _open_skill(_user_id(payload))
     try:
         return await _kakao_review(payload)
     finally:
-        kakao_client.reset_reply_user(token)
+        _close_skill(tokens)
 
 
 async def _kakao_review(payload: KakaoSkillRequest):

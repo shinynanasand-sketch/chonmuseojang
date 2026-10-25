@@ -77,7 +77,9 @@ def _summarize(item: dict) -> dict:
     }
 
 
-def fetch_nearby_attractions(latitude: float, longitude: float, radius: int = 5000) -> dict:
+def fetch_nearby_attractions(
+    latitude: float, longitude: float, radius: int = 5000, timeout: float = 10.0
+) -> dict:
     """TourAPI로 주변 관광정보를 조회한다 (FR-03)."""
     service_key = _service_key()
     endpoint = _endpoint()
@@ -96,7 +98,7 @@ def fetch_nearby_attractions(latitude: float, longitude: float, radius: int = 50
             "MobileApp": "chonmuseojang",
             "_type": "json",
         }
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=timeout) as client:
             response = client.get(endpoint, params=params)
             response.raise_for_status()
             data = response.json()
@@ -124,7 +126,9 @@ def fetch_nearby_attractions(latitude: float, longitude: float, radius: int = 50
         return _empty("unavailable")
 
 
-def get_nearby_for_village(village_id: str, radius: int = 5000) -> dict:
+def get_nearby_for_village(
+    village_id: str, radius: int = 5000, *, timeout: float | None = None
+) -> dict:
     village = get_village_by_id(village_id)
     if not village or village.get("latitude") is None or village.get("longitude") is None:
         return {
@@ -133,5 +137,8 @@ def get_nearby_for_village(village_id: str, radius: int = 5000) -> dict:
             "attractions": [],
             "restaurants": [],
         }
-    nearby = fetch_nearby_attractions(village["latitude"], village["longitude"], radius)
+    call_timeout = 10.0 if timeout is None else timeout
+    nearby = fetch_nearby_attractions(
+        village["latitude"], village["longitude"], radius, timeout=call_timeout
+    )
     return {"village_id": village_id, **nearby}

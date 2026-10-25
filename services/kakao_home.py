@@ -3,15 +3,16 @@
 import segno
 
 from config import KAKAO_CHANNEL_URL
+from services.demo_data import is_demo_village
 from services.supabase_client import get_village_by_id, list_village_operator_ids
 
 
 def list_kakao_booking_villages() -> list[dict]:
-    """마을 운영자가 있는 마을의 이름과 시군구만."""
+    """마을 운영자가 있는 마을의 이름과 시군구만. 시연 마을은 빼 둔다."""
     rows = []
     for village_id in list_village_operator_ids():
         village = get_village_by_id(village_id)
-        if not village:
+        if not village or is_demo_village(village):
             continue
         rows.append(
             {

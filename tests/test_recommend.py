@@ -492,3 +492,25 @@ def test_specific_reason_does_not_invent_a_match(mock_get_provider):
 
     assert result[0]["reason"] == "대나무 공예, 체험장."
     assert "맞습니다" not in result[0]["reason"]
+
+
+@patch("services.recommend.get_llm_provider")
+def test_kakao_recommend_skips_llm_when_under_one_second(mock_get):
+    from services.recommend import recommend_for_kakao
+
+    result = recommend_for_kakao("갯벌체험", [_ROW], 0.5)
+
+    mock_get.assert_not_called()
+    assert result[0]["village_id"] == "V001"
+
+
+@patch("services.recommend.get_llm_provider")
+def test_kakao_recommend_caps_timeout_at_two_seconds(mock_get):
+    from services.recommend import recommend_for_kakao
+
+    mock_get.return_value.generate.return_value = _LLM_JSON
+    recommend_for_kakao("갯벌체험", [_ROW], 3.0)
+    assert mock_get.return_value.generate.call_args.kwargs["timeout"] == 2.0
+
+    recommend_for_kakao("갯벌체험", [_ROW], 1.4)
+    assert mock_get.return_value.generate.call_args.kwargs["timeout"] == 1.4

@@ -1,6 +1,7 @@
 """Supabase 클라이언트 및 인메모리 폴백 (로컬/테스트용)."""
 
 import os
+import time
 from typing import Any
 
 _villages_cache: list[dict] = []
@@ -15,6 +16,14 @@ _program_status: list[dict] = []
 _program_notes: list[dict] = []
 _calendar: list[dict] = []
 _calendar_id_counter = 1
+_client = None
+_recommend_cache: tuple[float, list[dict]] | None = None
+_RECOMMEND_TTL = 60.0
+_POSTGREST_TIMEOUT = 2
+_RECOMMEND_COLUMNS = (
+    "village_id,village_name,sido,sigungu,program_type,program_name,"
+    "facilities,address,grade,trust_score,synced_at,average_rating"
+)
 _operators: list[dict] = [
     {
         "operator_id": 1,
@@ -53,12 +62,28 @@ def _use_supabase() -> bool:
     return bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
 
+def _create_supabase_client():
+    from supabase import ClientOptions, create_client
+
+    options = ClientOptions(
+        postgrest_client_timeout=_POSTGREST_TIMEOUT,
+        storage_client_timeout=_POSTGREST_TIMEOUT,
+    )
+    return create_client(
+        os.getenv("SUPABASE_URL", ""),
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""),
+        options=options,
+    )
+
+
 def get_supabase_client():
+    """프로세스당 클라이언트 하나. PostgREST 대기는 2초에서 끊는다."""
+    global _client
     if not _use_supabase():
         return None
-    from supabase import create_client
-
-    return create_client(os.getenv("SUPABASE_URL", ""), os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))
+    if _client is None:
+        _client = _create_supabase_client()
+    return _client
 
 
 def _without_registration_code(row: dict) -> dict:
@@ -74,6 +99,7 @@ def upsert_villages(rows: list[dict]) -> None:
     payload = [_without_registration_code(row) for row in rows]
     if client:
         client.table("villages_cache").upsert(payload).execute()
+        _clear_recommend_cache()
         return
     by_id = {v["village_id"]: v for v in _villages_cache}
     for row in payload:
@@ -132,6 +158,57 @@ def list_public_villages(sigungu: str | None = None, program_type: str | None = 
     return public_village_rows(list_villages(sigungu=sigungu, program_type=program_type))
 
 
+def _clear_recommend_cache() -> None:
+    global _recommend_cache
+    _recommend_cache = None
+
+
+def list_recommend_villages() -> list[dict]:
+    """카카오 추천용 마을. 필요한 열만 읽고 같은 프로세스에서 60초 재사용한다."""
+    global _recommend_cache
+    now = time.monotonic()
+    if (
+        _use_supabase()
+        and _recommend_cache is not None
+        and now - _recommend_cache[0] < _RECOMMEND_TTL
+    ):
+        return _recommend_cache[1]
+    from services.demo_data import public_village_rows
+
+    rows = public_village_rows(_recommend_rows())
+    if _use_supabase():
+        _recommend_cache = (now, rows)
+    return rows
+
+
+def _recommend_rows() -> list[dict]:
+    client = get_supabase_client()
+    if client:
+        result = client.table("villages_cache").select(_RECOMMEND_COLUMNS).execute()
+        return result.data or []
+    return list(_villages_cache)
+
+
+def list_villages_by_name(village_name: str, sigungu: str | None = None) -> list[dict]:
+    """마을명과 같거나, 시군과 마을명이 함께 맞는 행만 읽는다."""
+    name = village_name.strip()
+    client = get_supabase_client()
+    if client:
+        query = client.table("villages_cache").select("*").eq("village_name", name)
+        if sigungu is not None:
+            query = query.eq("sigungu", sigungu.strip())
+        return query.execute().data or []
+    rows = [
+        row
+        for row in _villages_cache
+        if str(row.get("village_name") or "").strip() == name
+    ]
+    if sigungu is not None:
+        wanted = sigungu.strip()
+        rows = [row for row in rows if str(row.get("sigungu") or "").strip() == wanted]
+    return rows
+
+
 def list_villages(sigungu: str | None = None, program_type: str | None = None) -> list[dict]:
     client = get_supabase_client()
     if client:
@@ -150,8 +227,18 @@ def list_villages(sigungu: str | None = None, program_type: str | None = None) -
 
 
 def get_village_by_id(village_id: str) -> dict | None:
-    villages = list_villages()
-    for village in villages:
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("villages_cache")
+            .select("*")
+            .eq("village_id", village_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+    for village in _villages_cache:
         if village.get("village_id") == village_id:
             return village
     return None
@@ -346,7 +433,9 @@ def reset_share_store() -> None:
 
 def reset_memory_store() -> None:
     """테스트용 인메모리 저장소 초기화."""
-    global _villages_cache, _sync_logs
+    global _client, _villages_cache, _sync_logs
+    _client = None
+    _clear_recommend_cache()
     _villages_cache = []
     _sync_logs = []
     reset_booking_store()

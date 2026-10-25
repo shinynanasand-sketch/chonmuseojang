@@ -1,9 +1,29 @@
 """FR-11: 홍보문구는 담당 마을만 프롬프트에 넣고 contents에 저장한다."""
 
+import ast
+from pathlib import Path
+
 from services.operator_assistant import save_operator_contents
 from services.supabase_client import insert_content, upsert_villages
 
 _AUTH = {"Authorization": "Bearer owner_v001"}
+
+
+def test_pillow_import_stays_inside_photo_processing():
+    source = (
+        Path(__file__).resolve().parents[1] / "services" / "operator_assistant.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == "PIL":
+            raise AssertionError("Pillow는 사진 처리 함수 안에서만 불러온다.")
+    fit = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "_fit_photo")
+    imported = [
+        child
+        for child in ast.walk(fit)
+        if isinstance(child, ast.ImportFrom) and child.module == "PIL"
+    ]
+    assert imported
 
 
 def _seed_two_villages():

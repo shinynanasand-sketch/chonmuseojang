@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import time
 from urllib.parse import urlparse
 
 import httpx
@@ -16,9 +17,15 @@ _SKILL_TEXT_LIMIT = 1000
 _reply_user_id: contextvars.ContextVar[str] = contextvars.ContextVar(
     "kakao_reply_user_id", default=""
 )
+_SKILL_BUDGET_SECONDS = 4.0
+_MIN_EXTERNAL_SECONDS = 0.4
+_skill_deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "kakao_skill_deadline", default=None
+)
 _VILLAGE_REPLIES = ("예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진")
 _PROGRAM_REPLIES = ("체험 달력 조회", "체험 글 조회", "체험 글 저장")
 _GUIDE_REPLIES = ("등록 안내", "사용 안내")
+_TOURIST_REPLIES = ("마을 추천", "예약하기", "내 예약", "후기 보기")
 
 
 def bind_reply_user(user_id: str):
@@ -30,25 +37,57 @@ def reset_reply_user(token) -> None:
     _reply_user_id.reset(token)
 
 
+def bind_skill_deadline():
+    """카카오 5초 제한 안에 200을 돌려주기 위한 요청 예산."""
+    return _skill_deadline.set(time.monotonic() + _SKILL_BUDGET_SECONDS)
+
+
+def reset_skill_deadline(token) -> None:
+    _skill_deadline.reset(token)
+
+
+def seconds_remaining() -> float | None:
+    """스킬 예산이 없으면 None. 있으면 남은 초."""
+    deadline = _skill_deadline.get()
+    if deadline is None:
+        return None
+    return deadline - time.monotonic()
+
+
+def allow_external(minimum: float = _MIN_EXTERNAL_SECONDS) -> bool:
+    """예산이 없거나 최소 시간 이상 남았을 때만 외부 호출을 시작한다."""
+    remaining = seconds_remaining()
+    if remaining is None:
+        return True
+    return remaining >= minimum
+
+
+def time_budget_response() -> dict:
+    return build_error_skill_response("잠시 후 다시 시도해 주세요.")
+
+
+def _reply_labels(operator: dict | None) -> tuple[str, ...]:
+    """운영자는 자기 역할 버튼, 관광객은 마을 추천·예약·내 예약·후기 보기."""
+    if not operator:
+        return _TOURIST_REPLIES
+    role = str(operator.get("role") or "village")
+    if role == "village":
+        return (*_VILLAGE_REPLIES, *_GUIDE_REPLIES)
+    if role == "program":
+        return (*_PROGRAM_REPLIES, *_GUIDE_REPLIES)
+    return ()
+
+
 def _quick_replies(user_id: str) -> list[dict]:
     """등록된 발화를 버튼으로 보낸다. 관광객에게는 운영자 버튼을 넣지 않는다."""
-    if not user_id:
+    if not user_id or not allow_external():
         return []
     from services.supabase_client import get_operator_by_kakao_id
 
-    operator = get_operator_by_kakao_id(user_id)
-    if not operator:
-        return []
-    role = str(operator.get("role") or "village")
-    if role == "village":
-        labels = _VILLAGE_REPLIES
-    elif role == "program":
-        labels = _PROGRAM_REPLIES
-    else:
-        return []
+    labels = _reply_labels(get_operator_by_kakao_id(user_id))
     return [
         {"label": label, "action": "message", "messageText": label}
-        for label in (*labels, *_GUIDE_REPLIES)
+        for label in labels
     ]
 
 

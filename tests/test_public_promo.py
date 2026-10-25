@@ -228,6 +228,32 @@ def test_home_kakao_guide_lists_only_village_operators(test_client):
     assert "<svg" in text
 
 
+def test_home_kakao_guide_omits_demo_villages(test_client):
+    upsert_villages(
+        [
+            {"village_id": "V001", "village_name": "예시 무등마을", "sigungu": "북구"},
+            {
+                "village_id": "VK-REAL",
+                "village_name": "도선국사체험마을영농조합법인",
+                "sigungu": "광양시",
+            },
+        ]
+    )
+    insert_operator(
+        {
+            "village_id": "VK-REAL",
+            "kakao_user_id": "real-home-op",
+            "role": "village",
+            "is_active": True,
+        }
+    )
+    page = test_client.get("/")
+    assert page.status_code == 200
+    assert "도선국사체험마을영농조합법인" in page.text
+    assert "광양시" in page.text
+    assert "예시 무등마을" not in page.text
+
+
 def test_operator_page_has_publish_button(test_client):
     html = test_client.get("/operator").text
     assert "관광객에게 공개" in html

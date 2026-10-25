@@ -147,21 +147,23 @@ def _parse_registration(utterance: str) -> dict:
     return {"ok": False, "reason": "village_not_found"}
 
 
+def _one_sigungu(rows: list[dict]) -> list[dict] | None:
+    """같은 마을명이 여러 시군이면 None이다."""
+    sigungus = {str(row.get("sigungu") or "").strip() for row in rows}
+    if len(sigungus) > 1:
+        return None
+    return rows
+
+
 def _named_villages(spoken: str) -> list[dict] | None:
-    """마을명이 여러 시군이면 None, 없으면 빈 목록, 하나면 그 행들이다."""
-    rows = supabase_client.list_villages()
-    exact = [row for row in rows if str(row.get("village_name") or "").strip() == spoken]
-    if exact:
-        sigungus = {str(row.get("sigungu") or "").strip() for row in exact}
-        if len(sigungus) > 1:
-            return None
+    """마을명 일치 한 번, 없으면 시군과 마을명 일치 한 번. 전체 목록은 읽지 않는다."""
+    exact = _one_sigungu(supabase_client.list_villages_by_name(spoken))
+    if exact is None or exact:
         return exact
-    return [
-        row
-        for row in rows
-        if f"{str(row.get('sigungu') or '').strip()} {str(row.get('village_name') or '').strip()}".strip()
-        == spoken
-    ]
+    if " " not in spoken:
+        return []
+    sigungu, name = spoken.split(" ", 1)
+    return supabase_client.list_villages_by_name(name, sigungu=sigungu)
 
 
 def _preferred_village(rows: list[dict]) -> dict:

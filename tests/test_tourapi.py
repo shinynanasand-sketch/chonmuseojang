@@ -126,6 +126,37 @@ def test_blank_photo_stays_empty(monkeypatch):
     assert result["attractions"][0]["distance_m"] is None
 
 
+def test_nearby_timeout_follows_the_caller(monkeypatch):
+    captured = {}
+
+    class _Timed:
+        def __init__(self, timeout=10.0):
+            captured["timeout"] = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, params=None):
+            raise TimeoutError("timeout")
+
+    monkeypatch.setenv("TOUR_API_SERVICE_KEY", "shared-key")
+    monkeypatch.setenv("TOUR_API_ENDPOINT", "https://example.test/tour")
+    monkeypatch.setattr("services.tourapi.httpx.Client", _Timed)
+    monkeypatch.setattr(
+        "services.tourapi.get_village_by_id",
+        lambda _village_id: {"latitude": 34.9, "longitude": 126.1},
+    )
+    from services.tourapi import get_nearby_for_village
+
+    result = get_nearby_for_village("V001", timeout=1.5)
+
+    assert captured["timeout"] == 1.5
+    assert result["status"] == "unavailable"
+
+
 def test_returns_unavailable_when_call_fails(monkeypatch):
     monkeypatch.setenv("TOUR_API_SERVICE_KEY", "shared-key")
     monkeypatch.setenv("TOUR_API_ENDPOINT", "https://example.test/tour")

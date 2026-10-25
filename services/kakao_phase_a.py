@@ -9,11 +9,14 @@ from services import booking, review
 from services.auth import get_operator_by_kakao_id, register_operator, register_operator_with_ids, resolve_kakao_role
 from services.calendar_link import attach_calendar_card
 from services.kakao_client import (
+    allow_external,
     attach_guide_card,
     build_error_skill_response,
     build_skill_response,
     guide_skill_response,
     notify_booking_decided,
+    seconds_remaining,
+    time_budget_response,
 )
 from services.kakao_params import booking_id_from_params, kakao_photo_url, parse_sys_date, representative
 from services.operator_assistant import (
@@ -23,12 +26,13 @@ from services.operator_assistant import (
     save_operator_photo_draft,
 )
 from services.program_share import list_calendar, list_program_notes, save_calendar_entry, save_program_note
-from services.recommend import KAKAO_LLM_TIMEOUT, recommendation_lines, recommend_villages
-from services.supabase_client import get_village_by_id, list_public_villages
+from services.recommend import recommendation_lines, recommend_for_kakao
+from services.supabase_client import get_village_by_id, list_recommend_villages
 from services.village_programs import program_labels
 
 _BLOCKS = {
     "마을 추천": "recommend",
+    "마을추천": "recommend",
     "후기 조회": "reviews",
     "예약 현황 조회": "status",
     "예약승인": "approve",
@@ -40,6 +44,9 @@ _BLOCKS = {
     "체험 글 조회": "note_list",
     "체험 달력 등록": "calendar_save",
     "체험 달력 조회": "calendar_list",
+    "예약하기": "book_menu",
+    "내 예약": "my_bookings",
+    "후기 보기": "review_menu",
 }
 
 _APPROVE_GUIDE = "몇 번 예약을 승인하시겠어요? 예시: 7번 승인"
@@ -60,6 +67,10 @@ _CALENDAR_NEED = (
     "체험 이름, 날짜, 단체, 인원을 한 문장에 넣어 주세요. 예: 조개잡이 2026-11-01 광주소등학교 30명"
 )
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
+_ASK_PROMPT = "체험 종류나 시군 이름을 넣어 질문해 주세요."
+_REVIEW_ASK = "어떤 마을 후기를 볼까요? 마을 이름을 말해 주세요."
+_BOOK_EXAMPLE = "체험 이름 2026-11-01 30명"
+_MENU_RECOMMEND = {"마을 추천", "마을추천"}
 _REGISTER_REASONS = {
     "bad_format": _REGISTER_NEED,
     "village_not_found": "등록 코드가 마을과 맞지 않습니다.",
@@ -117,24 +128,39 @@ def finish_promo_photo(payload: KakaoSkillRequest) -> dict:
 
 
 def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
-    """블록 이름 앞에서 운영자를 조회한다. 모르는 블록이면 None."""
+    """아는 블록만 처리한다. 추천과 등록은 운영자 조회 없이 간다."""
     user_id = str(payload.userRequest.user.get("id") or "")
     utterance = (payload.userRequest.utterance or "").strip()
     name = (payload.intent.name or "").strip()
     if utterance in {"등록 안내", "사용 안내"} or name in {"등록 안내", "사용 안내"}:
         return guide_skill_response(utterance if utterance in {"등록 안내", "사용 안내"} else name)
-    role = resolve_kakao_role(user_id)
+    menu = _tourist_menu(user_id, utterance)
+    if menu is not None:
+        return menu
     kind = _BLOCKS.get(name)
     if kind is None:
         return None
     if kind == "recommend":
         return _recommend(payload.userRequest.utterance)
+    if kind == "book_menu":
+        return _booking_guide() if not utterance else None
+    if kind == "my_bookings":
+        return _my_bookings(user_id)
+    if kind == "review_menu":
+        return _review_by_speech(utterance)
     if kind == "reviews":
+        if not allow_external():
+            return time_budget_response()
         return _reviews(payload)
     if kind == "register":
         return _register(user_id, payload)
     if kind in {"note_save", "note_list", "calendar_save", "calendar_list"}:
+        if not allow_external():
+            return time_budget_response()
         return _share(kind, user_id, payload)
+    if not allow_external():
+        return time_budget_response()
+    role = resolve_kakao_role(user_id)
     if kind == "promo_photo":
         if role.get("role") == "program":
             return build_error_skill_response(_VILLAGE_ONLY)
@@ -152,12 +178,72 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     return _decide(kind, str(role["village_id"]), payload)
 
 
+def _tourist_menu(user_id: str, utterance: str) -> dict | None:
+    """버튼 발화는 블록 이름과 상관없이 같은 안내를 낸다."""
+    text = (utterance or "").strip()
+    if text in _MENU_RECOMMEND:
+        return build_error_skill_response(_ASK_PROMPT)
+    if text == "예약하기":
+        return _booking_guide()
+    if text == "내 예약":
+        return _my_bookings(user_id)
+    if text == "후기 보기" or text.startswith("후기 보기 "):
+        return _review_by_speech(text)
+    return None
+
+
+def _booking_guide() -> dict:
+    """예약은 만들지 않고, 시연 마을을 뺀 운영 마을과 문장 예시만 안내한다."""
+    if not allow_external():
+        return time_budget_response()
+    from services.kakao_home import list_kakao_booking_villages
+
+    names = [
+        " ".join(part for part in (row.get("village_name"), row.get("sigungu")) if part)
+        for row in list_kakao_booking_villages()
+    ]
+    if names:
+        text = f"{' / '.join(names)}. {_BOOK_EXAMPLE}처럼 말해 주세요."
+    else:
+        text = f"아직 예약할 수 있는 마을이 없습니다. {_BOOK_EXAMPLE}처럼 말해 주세요."
+    return build_skill_response("예약하기", text)
+
+
+def _my_bookings(user_id: str) -> dict:
+    if not allow_external():
+        return time_budget_response()
+    lines = booking.format_booking_lines(booking.list_my_bookings(user_id))
+    return build_skill_response("내 예약", lines)
+
+
+def _review_by_speech(utterance: str) -> dict:
+    spoken = (utterance or "").strip()
+    if spoken.startswith("후기 보기"):
+        spoken = spoken[len("후기 보기") :].strip()
+    if not spoken:
+        return build_error_skill_response(_REVIEW_ASK)
+    if not allow_external():
+        return time_budget_response()
+    from services.supabase_client import list_villages_by_name
+
+    rows = list_villages_by_name(spoken)
+    if not rows and " " in spoken:
+        sigungu, name = spoken.split(" ", 1)
+        rows = list_villages_by_name(name.strip(), sigungu=sigungu.strip())
+    sigungus = {str(row.get("sigungu") or "").strip() for row in rows}
+    if not rows or len(sigungus) > 1:
+        return build_error_skill_response(_REVIEW_ASK)
+    return _review_lines(str(rows[0].get("village_id") or ""))
+
+
 def _recommend(utterance: str) -> dict:
     query = (utterance or "").strip()
-    if not query:
-        return build_error_skill_response("체험 종류나 시군 이름을 넣어 질문해 주세요.")
-    villages = list_public_villages()
-    matches = recommend_villages(query, villages, timeout=KAKAO_LLM_TIMEOUT)
+    if not query or query in _MENU_RECOMMEND:
+        return build_error_skill_response(_ASK_PROMPT)
+    if not allow_external():
+        return time_budget_response()
+    villages = list_recommend_villages()
+    matches = recommend_for_kakao(query, villages, seconds_remaining())
     if not matches:
         return build_error_skill_response(
             "조건에 맞는 마을을 찾지 못했습니다. 조건을 조금 넓혀 주세요."
@@ -169,7 +255,11 @@ def _recommend(utterance: str) -> dict:
 def _reviews(payload: KakaoSkillRequest) -> dict:
     village_id = str(representative(payload.action.params, "village_id") or "").strip()
     if not village_id:
-        return build_error_skill_response("어떤 마을 후기를 볼까요? 마을 이름을 말해 주세요.")
+        return build_error_skill_response(_REVIEW_ASK)
+    return _review_lines(village_id)
+
+
+def _review_lines(village_id: str) -> dict:
     rows = review.list_reviews_for_village(village_id)
     if not rows:
         return build_error_skill_response("등록된 후기가 없습니다.")
@@ -181,6 +271,8 @@ def _reviews(payload: KakaoSkillRequest) -> dict:
 
 
 def _status(village_id: str) -> dict:
+    if not allow_external():
+        return time_budget_response()
     rows = booking.list_bookings_for_village(village_id)
     if not rows:
         return build_error_skill_response("예약이 없습니다.")
@@ -225,8 +317,12 @@ def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
     if not program:
         program = _program_after_code(utterance, code)
     if village_id and code:
+        if not allow_external():
+            return time_budget_response()
         result = register_operator_with_ids(user_id, village_id, code, program)
     elif utterance.strip():
+        if not allow_external():
+            return time_budget_response()
         result = register_operator(user_id, utterance)
     else:
         return attach_guide_card(build_error_skill_response(_REGISTER_NEED))

@@ -28,7 +28,7 @@ def test_tourist_ask_recommends_and_adds_nearby(test_client):
     }
     with (
         patch("services.kakao_ask.get_operator_by_kakao_id", return_value=None),
-        patch("services.kakao_ask.list_public_villages", return_value=VILLAGES),
+        patch("services.kakao_ask.list_recommend_villages", return_value=VILLAGES),
         patch("services.kakao_ask.get_nearby_for_village", return_value=nearby) as mock_nearby,
     ):
         response = test_client.post(
@@ -45,7 +45,9 @@ def test_tourist_ask_recommends_and_adds_nearby(test_client):
     assert "갯벌마을" in text
     assert "장보고대교" in text
     assert "무등마을" not in text
-    mock_nearby.assert_called_once_with("PD_TIDAL")
+    mock_nearby.assert_called_once()
+    assert mock_nearby.call_args.args == ("PD_TIDAL",)
+    assert mock_nearby.call_args.kwargs["timeout"] < 10
 
 
 def test_operator_ask_stays_on_own_village(test_client):
@@ -64,7 +66,7 @@ def test_operator_ask_stays_on_own_village(test_client):
             return_value={"village_id": "V001", "village_name": "예시 갯벌마을", "sigungu": "신안군"},
         ),
         patch("services.kakao_ask.get_nearby_for_village", return_value=nearby) as mock_nearby,
-        patch("services.kakao_ask.recommend_villages") as mock_recommend,
+        patch("services.kakao_ask.recommend_for_kakao") as mock_recommend,
     ):
         response = test_client.post(
             "/kakao/ask",
@@ -82,7 +84,9 @@ def test_operator_ask_stays_on_own_village(test_client):
     assert "예시 갯벌마을" in text
     assert "자은선착장" in text
     assert "무등마을" not in text
-    mock_nearby.assert_called_once_with("V001")
+    mock_nearby.assert_called_once()
+    assert mock_nearby.call_args.args == ("V001",)
+    assert mock_nearby.call_args.kwargs["timeout"] < 10
     mock_recommend.assert_not_called()
 
 
@@ -96,7 +100,7 @@ def test_empty_tourist_question_and_nearby_failure_stay_skill_json(test_client):
 
     with (
         patch("services.kakao_ask.get_operator_by_kakao_id", return_value=None),
-        patch("services.kakao_ask.list_public_villages", return_value=VILLAGES),
+        patch("services.kakao_ask.list_recommend_villages", return_value=VILLAGES),
         patch(
             "services.kakao_ask.get_nearby_for_village",
             return_value={"status": "unavailable", "attractions": [], "restaurants": []},
@@ -133,7 +137,7 @@ def test_long_recommendation_simpletext_stays_within_1000(test_client):
     ]
     with (
         patch("services.kakao_ask.get_operator_by_kakao_id", return_value=None),
-        patch("services.kakao_ask.list_public_villages", return_value=villages),
+        patch("services.kakao_ask.list_recommend_villages", return_value=villages),
         patch("services.kakao_ask.get_nearby_for_village", return_value=nearby),
     ):
         response = test_client.post(
@@ -151,12 +155,13 @@ def test_long_recommendation_simpletext_stays_within_1000(test_client):
     assert 1 <= len(text) <= 1000
 
 
-def test_tourist_ask_skips_nearby_when_recommend_uses_the_budget(test_client):
+def test_tourist_ask_skips_nearby_and_llm_when_under_one_second(test_client):
     with (
         patch("services.kakao_ask.get_operator_by_kakao_id", return_value=None),
-        patch("services.kakao_ask.list_public_villages", return_value=VILLAGES),
+        patch("services.kakao_ask.list_recommend_villages", return_value=VILLAGES),
         patch("services.kakao_ask.get_nearby_for_village") as mock_nearby,
-        patch("services.kakao_ask._seconds_since", return_value=2.5),
+        patch("services.kakao_ask.seconds_remaining", return_value=0.5),
+        patch("services.recommend.get_llm_provider") as mock_llm,
     ):
         response = test_client.post(
             "/kakao/ask",
@@ -170,3 +175,51 @@ def test_tourist_ask_skips_nearby_when_recommend_uses_the_budget(test_client):
     assert "갯벌마을" in _skill_text(response)
     assert "장보고대교" not in _skill_text(response)
     mock_nearby.assert_not_called()
+    mock_llm.assert_not_called()
+
+
+def test_unspaced_village_block_recommends_without_tourapi(test_client):
+    from services.supabase_client import upsert_villages
+
+    upsert_villages(
+        [
+            {
+                "village_id": "V009",
+                "village_name": "갯벌체험마을",
+                "sigungu": "신안군",
+                "program_type": "갯벌체험",
+            }
+        ]
+    )
+    with patch("services.kakao_ask.get_nearby_for_village") as mock_nearby:
+        response = test_client.post(
+            "/kakao/ask",
+            json={
+                "intent": {"name": "마을추천"},
+                "userRequest": {"utterance": "아이와 갈 갯벌", "user": {"id": "guest"}},
+                "action": {"params": {}},
+            },
+        )
+
+    assert response.status_code == 200
+    assert "갯벌체험마을" in _skill_text(response)
+    mock_nearby.assert_not_called()
+
+
+def test_recommend_returns_notice_when_budget_is_gone(test_client):
+    with (
+        patch("services.kakao_client.seconds_remaining", return_value=0.2),
+        patch("services.kakao_phase_a.list_recommend_villages") as listed,
+    ):
+        response = test_client.post(
+            "/kakao/ask",
+            json={
+                "intent": {"name": "마을추천"},
+                "userRequest": {"utterance": "갯벌", "user": {"id": "guest"}},
+                "action": {"params": {}},
+            },
+        )
+
+    assert response.status_code == 200
+    assert "잠시 후 다시 시도해 주세요" in _skill_text(response)
+    listed.assert_not_called()

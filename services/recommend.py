@@ -11,7 +11,8 @@ from services.trust_score import calculate_trust_score
 from services.village_programs import programs_for
 
 WEB_LLM_TIMEOUT = 8.0
-KAKAO_LLM_TIMEOUT = 3.5
+KAKAO_LLM_TIMEOUT = 2.0
+_KAKAO_LLM_FLOOR = 1.0
 _MIN_SPARE_SECONDS = 2.0
 _CANDIDATE_LIMIT = 20
 _RESULT_LIMIT = 5
@@ -373,6 +374,21 @@ def keyword_recommendations(user_query: str, village_rows: list[dict]) -> list[d
     return matches
 
 
+def recommend_for_kakao(
+    user_query: str, village_rows: list[dict], remaining: float | None
+) -> list[dict]:
+    """남은 시간이 1초 미만이면 LLM을 호출하지 않고 키워드 추천을 반환한다."""
+    if not village_rows or not (user_query or "").strip():
+        return []
+    if remaining is not None and remaining < _KAKAO_LLM_FLOOR:
+        candidates = select_candidates(user_query, village_rows)
+        return _apply_specific_reasons(
+            user_query, keyword_recommendations(user_query, candidates), candidates
+        )
+    timeout = KAKAO_LLM_TIMEOUT if remaining is None else min(KAKAO_LLM_TIMEOUT, remaining)
+    return recommend_villages(user_query, village_rows, timeout=timeout)
+
+
 def recommend_villages(
     user_query: str,
     village_rows: list[dict],
@@ -435,6 +451,15 @@ def _mark_stopped_programs(reason: str, programs: list[dict]) -> str:
     return re.sub(pattern, replace, reason)
 
 
+def _program_status(village_ids: list[str]) -> dict[str, list[dict]]:
+    """예산이 거의 없으면 운영 여부 조회를 건너뛴다."""
+    from services.kakao_client import allow_external
+
+    if not allow_external():
+        return {}
+    return list_program_status_map(village_ids)
+
+
 def recommendation_lines(matches: list[dict], villages: list[dict], limit: int = _RESULT_LIMIT) -> list[str]:
     """카카오 simpleText용. 마을명 시군구. 한 줄 이유."""
     by_id = {row.get("village_id"): row for row in villages}
@@ -448,9 +473,7 @@ def recommendation_lines(matches: list[dict], villages: list[dict], limit: int =
         chosen.append(item)
         if len(chosen) >= limit:
             break
-    status_map = list_program_status_map(
-        [str(item.get("village_id") or "") for item in chosen]
-    )
+    status_map = _program_status([str(item.get("village_id") or "") for item in chosen])
     lines = []
     for item in chosen:
         village = by_id.get(item.get("village_id"), {})

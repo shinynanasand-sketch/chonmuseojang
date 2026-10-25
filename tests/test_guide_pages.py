@@ -116,7 +116,9 @@ def test_tourist_reply_has_no_guide_buttons(test_client):
             "action": {"params": {}},
         },
     )
-    assert "quickReplies" not in response.json()["template"]
+    labels = [item["label"] for item in response.json()["template"]["quickReplies"]]
+    assert labels == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert "등록 안내" not in labels
     assert "등록 안내 열기" not in response.text
 
 
@@ -129,7 +131,8 @@ def test_failed_registration_includes_register_card(test_client):
             "action": {"params": {}},
         },
     )
-    assert "quickReplies" not in response.json()["template"]
+    labels = [item["label"] for item in response.json()["template"]["quickReplies"]]
+    assert labels == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
     text = response.text
     assert "등록 안내 열기" in text
     assert "/guide/register" in text
