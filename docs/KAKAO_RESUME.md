@@ -4,7 +4,7 @@ Phase A 블록을 카카오 비즈니스 화면에 넣을 때는 [`PHASE_A_KAKAO
 
 스킬 서버 시연, 기존 오픈빌더 봇테스트, 카카오톡 실기기 시연은 끝났습니다. 개발채널은 연결되어 있습니다. Phase A 시나리오 3개·블록 6개 오픈빌더 입력은 끝났고, 배포 스킬은 안내와 저장된 글만 simpleText로 돌려줍니다. 시나리오 `운영자_예약관리`의 `홍보 사진`, `체험 글 저장`, `체험 글 조회`, `체험 달력 등록`, `체험 달력 조회`와 시나리오 `운영자_등록`의 발화·`program_label` 입력은 끝났습니다. 스킬 URL은 모두 `https://chonmuseojang.vercel.app/kakao/ask`입니다. 2026-10-17 봇테스트에서 `체험 글 조회`는 블록 `체험 글 조회`, 스킬 `마을추천`의 simpleText `안내. 등록된 체험 글이 없습니다.`로 확인했습니다. 같은 날 오픈빌더 전체 배포 v1.5가 개발채널에 반영되었고, 등록 패턴을 넣은 현재 전체 배포는 v2.5입니다. 2026-10-17 핸드폰에서는 마을 운영자 흐름을 확인했습니다. 체험 담당 구분은 메모리 저장소 테스트 31건으로 확인했습니다. 두 번째 실기기는 아직입니다. 이벤트 API는 예약 접수와 승인·거절 뒤에 호출합니다. 잔액이 없거나 이벤트 블록이 없으면 거절되고 스킬 답은 그대로입니다.
 
-카카오 사용자 ID의 수집·사용 범위는 [`PRIVACY_KAKAO_ID.md`](PRIVACY_KAKAO_ID.md)를 봅니다. 시연 로그인·예약 번호·카카오 ID는 [`OPERATOR_DEMO.md`](OPERATOR_DEMO.md)를 봅니다. 상세 설정은 [`../KAKAO_SETUP.md`](../KAKAO_SETUP.md), 시나리오 블록은 [`OPENBUILDER_SCENARIO.md`](OPENBUILDER_SCENARIO.md), 웹훅 URL은 [`OPENBUILDER_WEBHOOKS.md`](OPENBUILDER_WEBHOOKS.md)를 봅니다.
+카카오 사용자 ID의 수집·사용 범위는 [`PRIVACY_KAKAO_ID.md`](PRIVACY_KAKAO_ID.md)를 봅니다. 시연 로그인·예약 번호·카카오 ID는 [`OPERATOR_DEMO.md`](OPERATOR_DEMO.md)를 봅니다. 실제 마을 등록, 홍보, 웹 `login_id`는 [`개발자_메뉴얼.md`](개발자_메뉴얼.md)를 봅니다. 상세 설정은 [`../KAKAO_SETUP.md`](../KAKAO_SETUP.md), 시나리오 블록은 [`OPENBUILDER_SCENARIO.md`](OPENBUILDER_SCENARIO.md), 웹훅 URL은 [`OPENBUILDER_WEBHOOKS.md`](OPENBUILDER_WEBHOOKS.md)를 봅니다.
 
 ## 이미 된 것
 
