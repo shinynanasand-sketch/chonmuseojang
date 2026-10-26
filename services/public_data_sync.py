@@ -1,5 +1,6 @@
 import hashlib
 import os
+from pathlib import Path
 
 import httpx
 
@@ -321,6 +322,20 @@ def merge_with_grade_info(rows: list[dict]) -> tuple[list[dict], str]:
     return apply_grade_matches(rows, fetched), ""
 
 
+def _backup_folder() -> Path:
+    preferred = Path(os.environ.get("VILLAGE_BACKUP_DIR", "exports"))
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        probe = preferred / ".write-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return preferred
+    except OSError:
+        fallback = Path("/tmp/village-backups")
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+
+
 def upsert_to_supabase(rows: list[dict]) -> None:
     """Supabase villages_cache에 upsert한다."""
     from services.supabase_client import upsert_villages
@@ -390,9 +405,12 @@ def sync_village_data(use_demo_fallback: bool = False) -> dict:
             village_id = row.get("village_id")
             if village_id:
                 by_id[str(village_id)] = row
-        enriched_rows = list(by_id.values())
+        from services.village_retirement import drop_old_address_rows, retire_split_villages
+
+        enriched_rows = drop_old_address_rows(list(by_id.values()))
         if enriched_rows:
             upsert_to_supabase(enriched_rows)
+        retired = retire_split_villages(_backup_folder())
         log_sync_result(
             source=source,
             total_fetched=len(raw_rows),
@@ -405,6 +423,7 @@ def sync_village_data(use_demo_fallback: bool = False) -> dict:
             "source": source,
             "total_fetched": len(raw_rows),
             "total_filtered": len(filtered_rows),
+            "retired_old_rows": len(retired),
         }
     except Exception as exc:
         log_sync_result(
