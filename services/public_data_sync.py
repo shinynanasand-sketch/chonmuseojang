@@ -405,9 +405,13 @@ def sync_village_data(use_demo_fallback: bool = False) -> dict:
             village_id = row.get("village_id")
             if village_id:
                 by_id[str(village_id)] = row
-        from services.village_retirement import drop_old_address_rows, retire_split_villages
+        from services.village_retirement import (
+            apply_old_admin_names,
+            drop_old_address_rows,
+            retire_split_villages,
+        )
 
-        enriched_rows = drop_old_address_rows(list(by_id.values()))
+        enriched_rows = apply_old_admin_names(drop_old_address_rows(list(by_id.values())))
         if enriched_rows:
             upsert_to_supabase(enriched_rows)
         retired = retire_split_villages(_backup_folder())

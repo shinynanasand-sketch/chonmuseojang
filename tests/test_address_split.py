@@ -1,4 +1,7 @@
-"""통합특별시 줄이 있으면 예전 행정명 줄은 저장하지 않고 캐시에서도 뺀다."""
+"""통합특별시 줄이 있으면 예전 행정명 줄은 저장하지 않고 캐시에서도 뺀다.
+
+짝이 없는 예전 행정명은 줄을 남기고 통합특별시로 고친다. 시연 마을은 그대로 둔다.
+"""
 
 import json
 from pathlib import Path
@@ -18,7 +21,12 @@ from services.supabase_client import (
     set_registration_code,
     upsert_villages,
 )
-from services.village_retirement import retire_split_villages, split_village_pairs
+from services.village_retirement import (
+    INTEGRATED_SIDO,
+    retire_split_villages,
+    rewrite_old_admin_place,
+    split_village_pairs,
+)
 
 NEW_ID = "PDintegrated01"
 OLD_ID = "PDjeonnam0001"
@@ -52,6 +60,31 @@ def test_split_ignores_demo_rows_and_villages_without_integrated_row():
     assert pairs == {(OLD_ID, NEW_ID), (GWANGJU_ID, NEW_ID)}
 
 
+def test_rewrite_old_admin_place_skips_demo_and_blank():
+    demo = _row("V001", "예시 갯벌마을", "신안군", "전라남도", "전라남도 신안군", "갯벌")
+    assert rewrite_old_admin_place(demo) is None
+    blank = _row("PDblank0001", "빈마을", "신안군", "", "", "갯벌")
+    assert rewrite_old_admin_place(blank) is None
+    city = rewrite_old_admin_place(
+        _row("PDcity000001", "빛고을마을", "북구", "광주특별시", "광주특별시 북구", "농사체험")
+    )
+    assert city["sido"] == INTEGRATED_SIDO
+    assert city["address"].startswith(INTEGRATED_SIDO)
+    metro = rewrite_old_admin_place(
+        _row("PDmetro00001", "무등마을", "북구", "광주광역시", "광주광역시 북구", "농사체험")
+    )
+    assert metro["address"].startswith(INTEGRATED_SIDO)
+    kept = rewrite_old_admin_place(
+        _row(NEW_ID, "나눔마을", "순천시", INTEGRATED_SIDO, f"{INTEGRATED_SIDO} 순천시", "감자수확")
+    )
+    assert kept is None
+    addr_only = rewrite_old_admin_place(
+        _row("PDaddr000001", "외딴마을", "구례군", "", "전라남도 구례군", "고구마수확")
+    )
+    assert addr_only["sido"] == INTEGRATED_SIDO
+    assert addr_only["address"].startswith(INTEGRATED_SIDO)
+
+
 @patch("services.public_data_sync.fetch_from_public_data_api")
 def test_sync_keeps_integrated_row_and_lone_old_village(mock_fetch, tmp_path, monkeypatch):
     monkeypatch.setenv("VILLAGE_BACKUP_DIR", str(tmp_path))
@@ -71,7 +104,30 @@ def test_sync_keeps_integrated_row_and_lone_old_village(mock_fetch, tmp_path, mo
     assert OLD_ID not in ids
     assert NEW_ID in ids
     assert ALONE_ID in ids
-    assert get_village_by_id(ALONE_ID)["address"].startswith("전라남도")
+    alone = get_village_by_id(ALONE_ID)
+    assert alone["sido"] == INTEGRATED_SIDO
+    assert alone["address"].startswith(INTEGRATED_SIDO)
+
+
+@patch("services.public_data_sync.fetch_from_public_data_api")
+def test_empty_sync_rewrites_cached_lone_old_village_and_keeps_demo(mock_fetch, tmp_path, monkeypatch):
+    monkeypatch.setenv("VILLAGE_BACKUP_DIR", str(tmp_path))
+    upsert_villages(
+        [
+            _row("V001", "예시 갯벌마을", "신안군", "전라남도", "전라남도 신안군", "갯벌"),
+            _row(ALONE_ID, "외딴마을", "구례군", "전라남도", "전라남도 구례군", "고구마수확"),
+        ]
+    )
+    set_registration_code(ALONE_ID, "ALONE-1")
+    mock_fetch.return_value = []
+
+    sync_village_data()
+
+    assert get_village_by_id("V001")["sido"] == "전라남도"
+    alone = get_village_by_id(ALONE_ID)
+    assert alone["sido"] == INTEGRATED_SIDO
+    assert alone["address"].startswith(INTEGRATED_SIDO)
+    assert alone["registration_code"] == "ALONE-1"
 
 
 def test_retire_moves_operator_booking_and_named_reservation(test_client, tmp_path):
@@ -136,4 +192,7 @@ def test_retire_moves_operator_booking_and_named_reservation(test_client, tmp_pa
     assert "접수" in booked.text
     labels = [row["program_label"] for row in list_bookings(village_id=NEW_ID)]
     assert labels.count("감자수확") == 2
-    assert get_village_by_id(FLOWER_ID) is not None
+    flower = get_village_by_id(FLOWER_ID)
+    assert flower is not None
+    assert flower["sido"] == INTEGRATED_SIDO
+    assert flower["address"].startswith(INTEGRATED_SIDO)

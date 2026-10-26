@@ -1,4 +1,8 @@
-"""예전 마을 줄을 지금 줄로 모은 뒤, 예전 줄만 지운다."""
+"""예전 마을 줄을 지금 줄로 모은 뒤, 예전 줄만 지운다.
+
+통합특별시 줄이 없는 예전 행정명은 지우지 않고 그 이름으로 고친다.
+시연 마을은 그대로 둔다.
+"""
 
 from __future__ import annotations
 
@@ -172,6 +176,58 @@ def drop_old_address_rows(rows: list[dict]) -> list[dict]:
     return [row for row in rows if str(row.get("village_id") or "") not in old_ids]
 
 
+def _replace_old_admin_names(text: str) -> str:
+    for name in OLD_ADMIN_NAMES:
+        text = text.replace(name, INTEGRATED_SIDO)
+    return text
+
+
+def rewrite_old_admin_place(row: dict) -> dict | None:
+    """단독 예전 행정명을 통합특별시로 바꾼 줄을 돌려준다. 시연 마을은 None."""
+    from services.demo_data import is_demo_village
+
+    if is_demo_village(row):
+        return None
+    sido = str(row.get("sido") or "")
+    address = str(row.get("address") or "")
+    new_sido = _replace_old_admin_names(sido)
+    new_address = _replace_old_admin_names(address)
+    if not new_sido and new_address != address:
+        new_sido = INTEGRATED_SIDO
+    if new_sido == sido and new_address == address:
+        return None
+    updated = dict(row)
+    updated["sido"] = new_sido
+    updated["address"] = new_address
+    return updated
+
+
+def apply_old_admin_names(rows: list[dict]) -> list[dict]:
+    """짝으로 빠지지 않은 예전 행정명만 통합특별시로 고친다."""
+    applied: list[dict] = []
+    for row in rows:
+        rewritten = rewrite_old_admin_place(row)
+        applied.append(row if rewritten is None else rewritten)
+    return applied
+
+
+def rewrite_cached_old_admin_names() -> int:
+    """캐시에 남은 단독 예전 행정명을 통합특별시로 고친다."""
+    from services.supabase_client import list_villages, update_village_place
+
+    count = 0
+    for row in list_villages():
+        rewritten = rewrite_old_admin_place(row)
+        if rewritten is None:
+            continue
+        village_id = str(rewritten.get("village_id") or "")
+        if not village_id:
+            continue
+        update_village_place(village_id, str(rewritten.get("sido") or ""), str(rewritten.get("address") or ""))
+        count += 1
+    return count
+
+
 def read_operator_link(old_id: str = OLD_VILLAGE_ID, new_id: str = NEW_VILLAGE_ID) -> dict:
     """마을 번호, 역할, 활성 여부와 예약·후기 건수만 돌려준다."""
     operators = []
@@ -287,11 +343,16 @@ def retire_old_village(
 
 
 def retire_split_villages(folder: Path) -> list[dict]:
-    """캐시에 남은 예전 행정명 줄을 통합특별시 줄로 모은 뒤 지운다."""
+    """캐시에 남은 예전 행정명 줄을 통합특별시 줄로 모은 뒤 지운다.
+
+    짝이 없는 예전 행정명은 줄을 지우지 않고 이름만 고친다.
+    """
     from services.supabase_client import list_villages
 
     pairs = split_village_pairs(list_villages())
-    return [
+    retired = [
         retire_old_village(folder, str(old.get("village_id") or ""), str(keep.get("village_id") or ""))
         for old, keep in pairs
     ]
+    rewrite_cached_old_admin_names()
+    return retired

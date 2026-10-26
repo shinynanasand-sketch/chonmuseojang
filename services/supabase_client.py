@@ -111,6 +111,23 @@ def upsert_villages(rows: list[dict]) -> None:
     _villages_cache = list(by_id.values())
 
 
+def update_village_place(village_id: str, sido: str, address: str) -> None:
+    """시도명과 주소만 고친다. 등록 코드와 다른 열은 그대로 둔다."""
+    client = get_supabase_client()
+    if client:
+        client.table("villages_cache").update({"sido": sido, "address": address}).eq(
+            "village_id", village_id
+        ).execute()
+        _clear_recommend_cache()
+        return
+    for row in _villages_cache:
+        if row.get("village_id") == village_id:
+            row["sido"] = sido
+            row["address"] = address
+            _clear_recommend_cache()
+            return
+
+
 def set_registration_code(village_id: str, code: str, village: dict | None = None) -> None:
     """자가 등록 코드를 저장한다. 동기화 upsert에서는 호출하지 않는다."""
     client = get_supabase_client()
