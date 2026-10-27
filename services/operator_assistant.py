@@ -5,12 +5,20 @@ import logging
 import os
 import re
 import uuid
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 
 import httpx
 
 from services.llm_provider import get_llm_provider
-from services.supabase_client import get_supabase_client, get_village_by_id, insert_content
+from services.supabase_client import (
+    clear_village_photo_url,
+    delete_content_row,
+    get_content_by_id,
+    get_supabase_client,
+    get_village_by_id,
+    insert_content,
+    update_content_body,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +42,12 @@ _PHOTO_TYPES = {
     "png": "image/png",
     "webp": "image/webp",
 }
+
+
+class ContentEditError(Exception):
+    def __init__(self, status: int, message: str):
+        self.status = status
+        self.message = message
 
 
 class PhotoRejected(Exception):
@@ -312,3 +326,85 @@ def save_operator_contents(operator: dict, description: str, photo: bytes | None
             row["photo_url"] = photo_url
         saved.append(insert_content(row))
     return {"saved": True, "contents": saved}
+
+
+def content_photo_object_name(village_id: str, photo_url: str) -> str | None:
+    """이 마을 content-photos 경로만. 다른 주소는 파일을 지우지 않는다."""
+    parsed = urlparse(str(photo_url or "").strip())
+    marker = f"/object/public/{_PHOTO_BUCKET}/"
+    path = unquote(parsed.path or "")
+    index = path.find(marker)
+    if index < 0:
+        return None
+    name = path[index + len(marker) :].lstrip("/")
+    if not name or ".." in name.split("/"):
+        return None
+    prefix = f"{village_id}/"
+    if not name.startswith(prefix):
+        return None
+    rest = name[len(prefix) :]
+    if not rest or "/" in rest:
+        return None
+    return name
+
+
+def remove_stored_content_photo(village_id: str, photo_url: str) -> None:
+    """저장소 파일이 이 마을 경로일 때만 지운다. 이미 없으면 성공으로 본다."""
+    name = content_photo_object_name(village_id, photo_url)
+    if not name:
+        return
+    client = get_supabase_client()
+    if client is None:
+        return
+    try:
+        client.storage.from_(_PHOTO_BUCKET).remove([name])
+    except Exception as exc:
+        logger.warning("홍보 사진 파일 삭제 실패: %s", type(exc).__name__)
+
+
+def _owned_content(operator: dict, content_id: int) -> dict:
+    row = get_content_by_id(content_id)
+    if row is None:
+        raise ContentEditError(404, "홍보문구를 찾지 못했습니다.")
+    if str(row.get("village_id") or "") != str(operator.get("village_id") or ""):
+        raise ContentEditError(403, "해당 마을에 대한 접근 권한이 없습니다.")
+    return row
+
+
+def update_operator_content(operator: dict, content_id: int, body: str) -> dict:
+    """저장된 글만 고친다. AI를 부르지 않고 공개 여부도 유지한다."""
+    row = _owned_content(operator, content_id)
+    text = body.strip()
+    if not text:
+        raise ContentEditError(400, "글을 입력해 주세요.")
+    content_type = str(row.get("content_type") or "")
+    limit = {_INTRO: _INTRO_LIMIT, _SNS: _SNS_LIMIT}.get(content_type)
+    if limit is None:
+        raise ContentEditError(400, "수정할 수 있는 홍보문구가 아닙니다.")
+    if len(text) > limit:
+        label = "소개글" if content_type == _INTRO else "SNS 문구"
+        raise ContentEditError(400, f"{label}은 {limit}자까지 적을 수 있습니다.")
+    saved = update_content_body(int(content_id), operator["village_id"], text)
+    if saved is None:
+        raise ContentEditError(404, "홍보문구를 찾지 못했습니다.")
+    return {"saved": True, "content": saved}
+
+
+def delete_operator_content(operator: dict, content_id: int) -> dict:
+    """글 행만 지운다. 같은 사진을 쓰는 다른 행의 파일은 남긴다."""
+    _owned_content(operator, content_id)
+    removed = delete_content_row(int(content_id), operator["village_id"])
+    if removed is None:
+        raise ContentEditError(404, "홍보문구를 찾지 못했습니다.")
+    return {"deleted": True}
+
+
+def delete_operator_content_photo(operator: dict, content_id: int) -> dict:
+    """그 마을에서 같은 사진 주소를 비우고, 이 마을 저장소 파일이면 지운다."""
+    row = _owned_content(operator, content_id)
+    photo_url = str(row.get("photo_url") or "").strip()
+    if not photo_url:
+        raise ContentEditError(400, "지울 사진이 없습니다.")
+    clear_village_photo_url(operator["village_id"], photo_url)
+    remove_stored_content_photo(operator["village_id"], photo_url)
+    return {"deleted": True}

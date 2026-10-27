@@ -652,6 +652,97 @@ def insert_content(row: dict) -> dict:
     return dict(saved)
 
 
+def get_content_by_id(content_id: int) -> dict | None:
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("contents")
+            .select("*")
+            .eq("content_id", content_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+    for row in _contents:
+        if int(row.get("content_id") or 0) == int(content_id):
+            return dict(row)
+    return None
+
+
+def update_content_body(content_id: int, village_id: str, body: str) -> dict | None:
+    """그 마을 행의 글만 바꾼다. 공개 여부와 사진은 그대로 둔다."""
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("contents")
+            .update({"body": body})
+            .eq("content_id", content_id)
+            .eq("village_id", village_id)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return None
+    for row in _contents:
+        if int(row.get("content_id") or 0) == int(content_id) and row.get("village_id") == village_id:
+            row["body"] = body
+            return dict(row)
+    return None
+
+
+def delete_content_row(content_id: int, village_id: str) -> dict | None:
+    """그 마을 행 하나만 지운다. 사진 파일은 건드리지 않는다."""
+    global _contents
+    client = get_supabase_client()
+    if client:
+        current = (
+            client.table("contents")
+            .select("*")
+            .eq("content_id", content_id)
+            .eq("village_id", village_id)
+            .limit(1)
+            .execute()
+        )
+        rows = current.data or []
+        if not rows:
+            return None
+        client.table("contents").delete().eq("content_id", content_id).eq(
+            "village_id", village_id
+        ).execute()
+        return rows[0]
+    kept = []
+    removed = None
+    for row in _contents:
+        if int(row.get("content_id") or 0) == int(content_id) and row.get("village_id") == village_id:
+            removed = dict(row)
+            continue
+        kept.append(row)
+    _contents = kept
+    return removed
+
+
+def clear_village_photo_url(village_id: str, photo_url: str) -> list[dict]:
+    """그 마을에서 같은 사진 주소를 비운다. 글은 남긴다."""
+    url = str(photo_url or "").strip()
+    if not url:
+        return list_contents(village_id=village_id)
+    client = get_supabase_client()
+    if client:
+        (
+            client.table("contents")
+            .update({"photo_url": ""})
+            .eq("village_id", village_id)
+            .eq("photo_url", url)
+            .execute()
+        )
+        return list_contents(village_id=village_id)
+    for row in _contents:
+        if row.get("village_id") == village_id and str(row.get("photo_url") or "") == url:
+            row["photo_url"] = ""
+    return list_contents(village_id=village_id)
+
+
 def set_village_public_contents(village_id: str, content_ids: list[int]) -> list[dict]:
     """그 마을의 공개를 content_ids만 남긴다."""
     chosen = {int(content_id) for content_id in content_ids}

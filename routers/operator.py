@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from models.schemas import OperatorContentRequest, ProgramStatusRequest
+from models.schemas import OperatorContentEditRequest, OperatorContentRequest, ProgramStatusRequest
 from services.auth import require_village_access, require_village_operator
 from services.booking import get_operator_dashboard_summary
-from services.operator_assistant import PhotoRejected, save_operator_contents
+from services.operator_assistant import (
+    ContentEditError,
+    PhotoRejected,
+    delete_operator_content,
+    delete_operator_content_photo,
+    save_operator_contents,
+    update_operator_content,
+)
 from services.village_promo import publish_operator_contents
 from services.supabase_client import get_village_by_id, list_contents
 from services.village_programs import UnknownProgram, programs_for, set_program_operating
@@ -82,6 +89,44 @@ async def create_operator_contents(
         return save_operator_contents(current_operator, description, photo)
     except PhotoRejected as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+
+
+def _edit_error(exc: ContentEditError) -> HTTPException:
+    return HTTPException(status_code=exc.status, detail=exc.message)
+
+
+@router.patch("/contents/{content_id}")
+async def edit_operator_content(
+    content_id: int,
+    body: OperatorContentEditRequest,
+    current_operator: dict = Depends(require_village_operator),
+):
+    try:
+        return update_operator_content(current_operator, content_id, body.body)
+    except ContentEditError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.delete("/contents/{content_id}/photo")
+async def remove_operator_content_photo(
+    content_id: int,
+    current_operator: dict = Depends(require_village_operator),
+):
+    try:
+        return delete_operator_content_photo(current_operator, content_id)
+    except ContentEditError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.delete("/contents/{content_id}")
+async def remove_operator_content(
+    content_id: int,
+    current_operator: dict = Depends(require_village_operator),
+):
+    try:
+        return delete_operator_content(current_operator, content_id)
+    except ContentEditError as exc:
+        raise _edit_error(exc) from exc
 
 
 @router.get("/programs")

@@ -10,6 +10,10 @@ class OperatorContentRequest(BaseModel):
     village_id: str | None = None
 
 
+class OperatorContentEditRequest(BaseModel):
+    body: str = ""
+
+
 class ProgramStatusRequest(BaseModel):
     label: str = ""
     is_operating: bool

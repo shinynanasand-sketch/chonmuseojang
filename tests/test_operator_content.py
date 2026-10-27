@@ -335,3 +335,198 @@ def test_long_draft_is_clipped(monkeypatch):
     assert len(bodies["소개글"]) <= 400
     assert len(bodies["SNS홍보문구"]) <= 120
     assert "조개" in bodies["소개글"]
+
+
+def test_operator_can_edit_and_delete_own_copy(test_client):
+    saved = insert_content(
+        {"village_id": "V001", "content_type": "소개글", "body": "옛 소개", "is_public": True}
+    )
+    edited = test_client.patch(
+        f"/api/operator/contents/{saved['content_id']}",
+        headers=_AUTH,
+        json={"body": "고친 소개"},
+    )
+    assert edited.status_code == 200
+    assert edited.json()["content"]["body"] == "고친 소개"
+    assert edited.json()["content"]["is_public"] is True
+
+    removed = test_client.delete(
+        f"/api/operator/contents/{saved['content_id']}",
+        headers=_AUTH,
+    )
+    assert removed.status_code == 200
+    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    assert listed.json()["contents"] == []
+
+
+def test_edit_other_village_content_is_forbidden(test_client):
+    saved = insert_content(
+        {"village_id": "V002", "content_type": "소개글", "body": "무등 소개"}
+    )
+    response = test_client.patch(
+        f"/api/operator/contents/{saved['content_id']}",
+        headers=_AUTH,
+        json={"body": "침입"},
+    )
+    assert response.status_code == 403
+    kept = test_client.get(
+        "/api/operator/contents",
+        headers={"Authorization": "Bearer owner_v002"},
+    )
+    assert kept.json()["contents"][0]["body"] == "무등 소개"
+
+
+def test_empty_and_long_edits_are_rejected(test_client):
+    saved = insert_content(
+        {"village_id": "V001", "content_type": "소개글", "body": "옛 소개"}
+    )
+    empty = test_client.patch(
+        f"/api/operator/contents/{saved['content_id']}",
+        headers=_AUTH,
+        json={"body": "   "},
+    )
+    assert empty.status_code == 400
+    too_long = test_client.patch(
+        f"/api/operator/contents/{saved['content_id']}",
+        headers=_AUTH,
+        json={"body": "가" * 401},
+    )
+    assert too_long.status_code == 400
+    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    assert listed.json()["contents"][0]["body"] == "옛 소개"
+
+
+def test_content_edit_requires_login(test_client):
+    saved = insert_content(
+        {"village_id": "V001", "content_type": "소개글", "body": "옛 소개"}
+    )
+    response = test_client.patch(
+        f"/api/operator/contents/{saved['content_id']}",
+        json={"body": "고친 소개"},
+    )
+    assert response.status_code == 401
+
+
+def test_delete_text_keeps_shared_photo_on_the_other_row(test_client):
+    photo = "https://example.test/storage/v1/object/public/content-photos/V001/a.png"
+    intro = insert_content(
+        {
+            "village_id": "V001",
+            "content_type": "소개글",
+            "body": "소개",
+            "photo_url": photo,
+        }
+    )
+    insert_content(
+        {
+            "village_id": "V001",
+            "content_type": "SNS홍보문구",
+            "body": "문구",
+            "photo_url": photo,
+        }
+    )
+    response = test_client.delete(
+        f"/api/operator/contents/{intro['content_id']}",
+        headers=_AUTH,
+    )
+    assert response.status_code == 200
+    rows = test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"]
+    assert len(rows) == 1
+    assert rows[0]["body"] == "문구"
+    assert rows[0]["photo_url"] == photo
+
+
+def test_delete_photo_clears_the_same_url_in_this_village_only(test_client):
+    photo = "https://example.test/storage/v1/object/public/content-photos/V001/a.png"
+    intro = insert_content(
+        {
+            "village_id": "V001",
+            "content_type": "소개글",
+            "body": "소개",
+            "photo_url": photo,
+        }
+    )
+    insert_content(
+        {
+            "village_id": "V001",
+            "content_type": "SNS홍보문구",
+            "body": "문구",
+            "photo_url": photo,
+        }
+    )
+    insert_content(
+        {
+            "village_id": "V002",
+            "content_type": "소개글",
+            "body": "다른 마을",
+            "photo_url": photo,
+        }
+    )
+    response = test_client.delete(
+        f"/api/operator/contents/{intro['content_id']}/photo",
+        headers=_AUTH,
+    )
+    assert response.status_code == 200
+    own = test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"]
+    assert [row["photo_url"] for row in own] == ["", ""]
+    assert [row["body"] for row in own] == ["소개", "문구"]
+    other = test_client.get(
+        "/api/operator/contents",
+        headers={"Authorization": "Bearer owner_v002"},
+    ).json()["contents"]
+    assert other[0]["photo_url"] == photo
+
+
+def test_photo_delete_removes_only_this_village_object(monkeypatch):
+    from services.operator_assistant import remove_stored_content_photo
+
+    removed = []
+
+    class Bucket:
+        def remove(self, paths):
+            removed.extend(paths)
+
+    class Storage:
+        def from_(self, name):
+            assert name == "content-photos"
+            return Bucket()
+
+    class Client:
+        storage = Storage()
+
+    monkeypatch.setattr("services.operator_assistant.get_supabase_client", lambda: Client())
+    remove_stored_content_photo(
+        "V001",
+        "https://example.test/storage/v1/object/public/content-photos/V001/a.png",
+    )
+    remove_stored_content_photo(
+        "V001",
+        "https://example.test/storage/v1/object/public/content-photos/V002/a.png",
+    )
+    remove_stored_content_photo("V001", "https://example.test/other/a.png")
+    remove_stored_content_photo(
+        "V001",
+        "https://example.test/storage/v1/object/public/content-photos/V001/../V002/a.png",
+    )
+    assert removed == ["V001/a.png"]
+
+
+def test_missing_photo_file_does_not_fail_delete(monkeypatch):
+    from services.operator_assistant import remove_stored_content_photo
+
+    class Bucket:
+        def remove(self, paths):
+            raise RuntimeError("Object not found")
+
+    class Storage:
+        def from_(self, name):
+            return Bucket()
+
+    class Client:
+        storage = Storage()
+
+    monkeypatch.setattr("services.operator_assistant.get_supabase_client", lambda: Client())
+    remove_stored_content_photo(
+        "V001",
+        "https://example.test/storage/v1/object/public/content-photos/V001/a.png",
+    )

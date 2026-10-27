@@ -310,3 +310,56 @@ def test_published_menu_is_empty_without_public_copy(test_client):
     assert "공개된 마을 소개가 없습니다." in page.text
     assert "갯벌마을" not in page.text
     assert "아직 초안" not in page.text
+
+
+def test_edited_public_copy_shows_on_village_page(test_client):
+    _seed_village()
+    intro = _content("V001", "소개글", "옛 소개", public=True)
+    _content("V001", "SNS홍보문구", "페이지 문구", public=True)
+    edited = test_client.patch(
+        f"/api/operator/contents/{intro['content_id']}",
+        headers=_AUTH,
+        json={"body": "고친 소개"},
+    )
+    assert edited.status_code == 200
+    page = test_client.get("/village/V001")
+    assert page.status_code == 200
+    assert "고친 소개" in page.text
+    assert "옛 소개" not in page.text
+    assert "페이지 문구" in page.text
+
+
+def test_deleting_public_intro_falls_back_to_the_older_copy(test_client):
+    _seed_village()
+    _content("V001", "소개글", "옛 소개", public=True)
+    newer = _content("V001", "소개글", "새 소개", public=True)
+    _content("V001", "SNS홍보문구", "페이지 문구", public=True)
+    removed = test_client.delete(
+        f"/api/operator/contents/{newer['content_id']}",
+        headers=_AUTH,
+    )
+    assert removed.status_code == 200
+    page = test_client.get("/village/V001")
+    assert "새 소개" not in page.text
+    assert "옛 소개" in page.text
+    assert "페이지 문구" in page.text
+
+
+def test_deleting_shared_photo_hides_it_on_the_village_page(test_client):
+    _seed_village()
+    photo = "https://example.test/storage/v1/object/public/content-photos/V001/a.png"
+    intro = _content("V001", "소개글", "페이지 소개", public=True, photo_url=photo)
+    _content("V001", "SNS홍보문구", "페이지 문구", public=True, photo_url=photo)
+    removed = test_client.delete(
+        f"/api/operator/contents/{intro['content_id']}/photo",
+        headers=_AUTH,
+    )
+    assert removed.status_code == 200
+    page = test_client.get("/village/V001")
+    assert page.status_code == 200
+    assert "페이지 소개" in page.text
+    assert "페이지 문구" in page.text
+    assert 'class="promo-photo"' not in page.text
+    promo = test_client.get("/api/villages/V001/promo").json()
+    assert promo["photo_url"] == ""
+    assert promo["intro"] == "페이지 소개"

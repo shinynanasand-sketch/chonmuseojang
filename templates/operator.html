@@ -214,6 +214,28 @@ async function loadOperator(event) {
   loadPrograms(token);
 }
 
+function contentButton(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function actionRow(buttons) {
+  const actions = document.createElement("p");
+  buttons.forEach((button, index) => {
+    if (index) actions.append(document.createTextNode(" "));
+    actions.append(button);
+  });
+  return actions;
+}
+
+function hasPhoto(row) {
+  const url = String(row.photo_url || "");
+  return url.startsWith("https://") || url.startsWith("http://");
+}
+
 function showContents(rows) {
   const list = document.getElementById("content-list");
   list.replaceChildren();
@@ -227,22 +249,97 @@ function showContents(rows) {
   rows.forEach((row) => {
     const card = document.createElement("article");
     card.className = "village-card";
-    const url = String(row.photo_url || "");
-    if (url.startsWith("https://") || url.startsWith("http://")) {
+    if (hasPhoto(row)) {
       const frame = document.createElement("div");
       frame.className = "promo-photo";
       const img = document.createElement("img");
-      img.src = url;
+      img.src = String(row.photo_url);
       img.alt = String(row.content_type || "홍보 사진");
       frame.append(img);
       card.append(frame);
     }
     const text = document.createElement("p");
     const label = row.is_public ? "공개 " : "";
-    text.textContent = `${label}${row.content_type || ""} ${row.body || ""}`.trim();
-    card.append(text);
+    text.textContent = `${label}${row.content_type || ""}`.trim();
+    const body = document.createElement("p");
+    body.textContent = row.body || "";
+    const buttons = [
+      contentButton("수정", () => startContentEdit(card, row)),
+      contentButton("글 삭제", () => deleteContent(row.content_id)),
+    ];
+    if (hasPhoto(row)) {
+      buttons.push(contentButton("사진 삭제", () => deleteContentPhoto(row.content_id)));
+    }
+    card.append(text, body, actionRow(buttons));
     list.append(card);
   });
+}
+
+function startContentEdit(card, row) {
+  const editor = document.createElement("textarea");
+  editor.rows = 4;
+  editor.value = row.body || "";
+  editor.maxLength = row.content_type === "SNS홍보문구" ? 120 : 400;
+  const actions = actionRow([
+    contentButton("저장", () => saveContent(row.content_id, editor.value)),
+    contentButton("취소", () => loadContents(document.getElementById("login-id").value.trim())),
+  ]);
+  [...card.querySelectorAll("p")].slice(1).forEach((node) => node.remove());
+  card.append(editor, actions);
+}
+
+async function sendContent(path, method, payload) {
+  const token = document.getElementById("login-id").value.trim();
+  const status = document.getElementById("content-status");
+  if (!token) {
+    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    return null;
+  }
+  const options = {
+    method,
+    headers: { Authorization: "Bearer " + token },
+  };
+  if (payload !== undefined) {
+    options.headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(payload);
+  }
+  const response = await fetch(path, options);
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (_error) {
+    data = {};
+  }
+  if (response.status === 401) {
+    status.textContent = "운영자 인증이 필요합니다.";
+    return null;
+  }
+  if (!response.ok) {
+    status.textContent = data.detail || "홍보문구를 바꾸지 못했습니다.";
+    return null;
+  }
+  return { token, status, data };
+}
+
+async function saveContent(contentId, body) {
+  const result = await sendContent(`/api/operator/contents/${contentId}`, "PATCH", { body });
+  if (!result) return;
+  result.status.textContent = "글을 저장했습니다.";
+  loadContents(result.token);
+}
+
+async function deleteContent(contentId) {
+  const result = await sendContent(`/api/operator/contents/${contentId}`, "DELETE");
+  if (!result) return;
+  result.status.textContent = "글을 지웠습니다.";
+  loadContents(result.token);
+}
+
+async function deleteContentPhoto(contentId) {
+  const result = await sendContent(`/api/operator/contents/${contentId}/photo`, "DELETE");
+  if (!result) return;
+  result.status.textContent = "사진을 지웠습니다.";
+  loadContents(result.token);
 }
 
 async function loadContents(token) {
