@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from services.booking import create_booking, list_my_bookings
 from services.calendar_link import issue_calendar_token
 from services.guest_book import issue_guest_book_link
@@ -134,6 +136,24 @@ def test_guest_calendar_saves_pending_booking_on_operator_calendar(test_client):
     assert matched[0]["visit_time"] == "10:30"
     assert matched[0]["num_people"] == 12
     assert list_my_bookings("book-guest")[0]["booking_id"] == saved.json()["booking_id"]
+    create_booking(
+        "VBOOK",
+        "other-guest",
+        "2026-11-03",
+        4,
+        program_label="소금체험",
+        visit_time="09:00",
+    )
+    again = test_client.get(f"/api/book/{token}").json()
+    assert len(again["bookings"]) == 1
+    own = again["bookings"][0]
+    assert own["booking_id"] == saved.json()["booking_id"]
+    assert own["status"] == "pending"
+    assert own["status_label"] == "대기"
+    assert own["visit_time"] == "10:30"
+    assert own["label"] == "조개잡이"
+    assert "customer_kakao_id" not in own
+    assert "other-guest" not in test_client.get(f"/api/book/{token}").text
 
 
 def test_guest_token_cannot_approve_or_edit_calendar(test_client):
@@ -184,3 +204,76 @@ def test_expired_guest_link_is_not_found(test_client):
     )
     assert test_client.get("/book/expired-token").status_code == 404
     assert test_client.get("/api/book/expired-token").status_code == 404
+
+
+def _ask_sentence(utterance: str, user_id: str) -> dict:
+    return {
+        "userRequest": {"utterance": utterance, "user": {"id": user_id}},
+        "action": {"params": {}},
+    }
+
+
+def test_ask_sentence_creates_pending_booking(test_client):
+    _village("VASK", "문장마을", "조개잡이")
+    response = test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-01 10:00 30명", "ask-guest"),
+    )
+    assert response.status_code == 200
+    assert "예약이 접수되었습니다" in response.text
+    assert "대기로 접수" in response.text
+    rows = list_my_bookings("ask-guest")
+    assert rows[0]["status"] == "pending"
+    assert rows[0]["visit_time"] == "10:00"
+    assert rows[0]["num_people"] == 30
+    assert rows[0]["program_label"] == "조개잡이"
+
+
+def test_ask_question_stays_a_recommendation(test_client):
+    _village("VREC", "갯벌마을", "소금체험")
+    with (
+        patch(
+            "services.kakao_ask.recommend_for_kakao",
+            return_value=[{"village_id": "VREC", "village_name": "갯벌마을", "reason": "갯벌"}],
+        ),
+        patch(
+            "services.kakao_ask.get_nearby_for_village",
+            return_value={"status": "unavailable", "attractions": [], "restaurants": []},
+        ),
+    ):
+        response = test_client.post(
+            "/kakao/ask",
+            json=_ask_sentence("아이와 갈 갯벌", "ask-question"),
+        )
+    assert response.status_code == 200
+    assert "추천" in response.text
+    assert "갯벌마을" in response.text
+    assert "예약이 접수" not in response.text
+    assert list_my_bookings("ask-question") == []
+
+
+def test_ask_same_program_in_two_villages_asks_for_a_name(test_client):
+    _village("VA", "가마을", "조개잡이")
+    _village("VB", "나마을", "조개잡이")
+    response = test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-01 10:00 30명", "amb-guest"),
+    )
+    assert "여러 마을" in response.text
+    assert list_my_bookings("amb-guest") == []
+
+
+def test_operator_ask_does_not_take_a_guest_booking(test_client):
+    _village("VOP", "운영마을", "조개잡이")
+    _owner("VOP", "op-kakao")
+    with patch(
+        "services.kakao_ask.get_nearby_for_village",
+        return_value={"status": "unavailable", "attractions": [], "restaurants": []},
+    ):
+        response = test_client.post(
+            "/kakao/ask",
+            json=_ask_sentence("조개잡이 2026-11-01 10:00 30명", "op-kakao"),
+        )
+    assert "운영마을" in response.text
+    assert "예약이 접수" not in response.text
+    assert list_my_bookings("op-kakao") == []

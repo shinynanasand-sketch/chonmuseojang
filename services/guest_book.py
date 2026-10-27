@@ -54,8 +54,17 @@ def operating_names(village: dict) -> list[str]:
     return [item["label"] for item in programs_for(village) if item.get("is_operating")]
 
 
+def _own_bookings(village_id: str, customer_kakao_id: str) -> list[dict]:
+    """그 링크의 예약만. 운영자 달력과 같은 모양이고 카카오 사용자 ID는 빼 둔다."""
+    from services.booking import list_bookings
+    from services.calendar_board import _booking_view
+
+    rows = list_bookings(village_id=village_id, customer_kakao_id=customer_kakao_id)
+    return [_booking_view(row) for row in rows]
+
+
 def guest_snapshot(token: str) -> dict | None:
-    """체험 목록만. 다른 사람의 예약과 카카오 사용자 ID는 넣지 않는다."""
+    """체험 목록과 그 링크 사용자의 예약. 다른 사람의 예약과 카카오 사용자 ID는 넣지 않는다."""
     link = guest_from_token(token)
     if not link:
         return None
@@ -72,7 +81,7 @@ def guest_snapshot(token: str) -> dict | None:
         "programs": names,
         "experience_names": names,
         "entries": [],
-        "bookings": [],
+        "bookings": _own_bookings(str(link["village_id"]), str(link["customer_kakao_id"])),
     }
 
 
