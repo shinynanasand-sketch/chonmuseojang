@@ -146,7 +146,7 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     if kind == "recommend":
         return _recommend(payload.userRequest.utterance)
     if kind == "book_menu":
-        return _booking_guide() if not utterance else None
+        return _booking_guide(user_id, utterance) if not utterance else None
     if kind == "my_bookings":
         return _my_bookings(user_id)
     if kind == "review_menu":
@@ -186,8 +186,8 @@ def _tourist_menu(user_id: str, utterance: str) -> dict | None:
     text = (utterance or "").strip()
     if text in _MENU_RECOMMEND:
         return build_error_skill_response(_ASK_PROMPT)
-    if text == "예약하기":
-        return _booking_guide()
+    if text == "예약하기" or text.startswith("예약하기 "):
+        return _booking_guide(user_id, text)
     if text == "내 예약":
         return _my_bookings(user_id)
     if text == "후기 보기" or text.startswith("후기 보기 "):
@@ -195,21 +195,84 @@ def _tourist_menu(user_id: str, utterance: str) -> dict | None:
     return None
 
 
-def _booking_guide() -> dict:
-    """예약은 만들지 않고, 시연 마을을 뺀 운영 마을과 문장 예시만 안내한다."""
+def _place_name(row: dict) -> str:
+    return " ".join(part for part in (row.get("village_name"), row.get("sigungu")) if part)
+
+
+def _booking_village(spoken: str, rows: list[dict]) -> dict | None:
+    exact = [row for row in rows if str(row.get("village_name") or "").strip() == spoken]
+    if len(exact) == 1:
+        return exact[0]
+    for row in rows:
+        if _place_name(row) == spoken:
+            return row
+    return None
+
+
+def _booking_choices(rows: list[dict]) -> dict:
+    names = [_place_name(row) for row in rows]
+    text = f"{' / '.join(names)}. 예약할 마을 이름을 말해 주세요."
+    body = build_skill_response("예약하기", text)
+    buttons = []
+    for row in rows[:6]:
+        name = str(row.get("village_name") or "").strip()
+        if not name:
+            continue
+        buttons.append({"label": name[:14], "action": "message", "messageText": f"예약하기 {name}"})
+    return _prepend_replies(body, buttons)
+
+
+def _booking_card(user_id: str, row: dict) -> dict:
+    from config import KAKAO_CARD_IMAGE_URL
+    from services.guest_book import issue_guest_book_link
+
+    place = _place_name(row)
+    body = build_skill_response("예약하기", f"{place}. 달력에서 체험, 날짜, 시간을 고릅니다.")
+    outputs = body.setdefault("template", {}).setdefault("outputs", [])
+    outputs.append(
+        {
+            "basicCard": {
+                "title": "체험 달력",
+                "description": "날짜와 시간을 눌러 예약합니다.",
+                "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
+                "buttons": [
+                    {
+                        "action": "webLink",
+                        "label": "달력으로 예약",
+                        "webLinkUrl": issue_guest_book_link(user_id, str(row.get("village_id") or "")),
+                    }
+                ],
+            }
+        }
+    )
+    return body
+
+
+def _booking_guide(user_id: str, utterance: str = "") -> dict:
+    """예약은 만들지 않고, 그 마을 달력 링크만 안내한다."""
     if not allow_external():
         return time_budget_response()
+    if not user_id:
+        return build_error_skill_response("다시 시도해 주세요.")
     from services.kakao_home import list_kakao_booking_villages
 
-    names = [
-        " ".join(part for part in (row.get("village_name"), row.get("sigungu")) if part)
-        for row in list_kakao_booking_villages()
-    ]
-    if names:
-        text = f"{' / '.join(names)}. {_BOOK_EXAMPLE}처럼 말해 주세요."
-    else:
-        text = f"아직 예약할 수 있는 마을이 없습니다. {_BOOK_EXAMPLE}처럼 말해 주세요."
-    return build_skill_response("예약하기", text)
+    rows = list_kakao_booking_villages()
+    if not rows:
+        return build_skill_response(
+            "예약하기",
+            f"아직 예약할 수 있는 마을이 없습니다. {_BOOK_EXAMPLE}처럼 말해 주세요.",
+        )
+    spoken = (utterance or "").strip()
+    if spoken.startswith("예약하기"):
+        spoken = spoken[len("예약하기") :].strip()
+    if not spoken:
+        if len(rows) == 1:
+            return _booking_card(user_id, rows[0])
+        return _booking_choices(rows)
+    chosen = _booking_village(spoken, rows)
+    if chosen is None:
+        return _booking_choices(rows)
+    return _booking_card(user_id, chosen)
 
 
 def _my_bookings(user_id: str) -> dict:
@@ -363,8 +426,7 @@ def _status(village_id: str) -> dict:
         return build_error_skill_response("예약이 없습니다.")
     lines = []
     for row in rows:
-        label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
-        lines.append(f"{row.get('booking_id')}번 {label} {row.get('visit_date')} {row.get('num_people')}명")
+        lines.append(booking.booking_summary(row))
     return _skill_lines("예약 현황", lines, len(rows))
 
 

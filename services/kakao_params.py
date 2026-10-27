@@ -5,6 +5,8 @@ import re
 from typing import Any
 
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_CLOCK = re.compile(r"(?<!\d)(\d{1,2}):(\d{2})(?::\d{2})?(?!\d)")
+_KO_TIME = re.compile(r"(오전|오후)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?")
 
 
 def parse_sys_number(value: Any) -> int | None:
@@ -51,6 +53,64 @@ def parse_sys_date(value: Any) -> str | None:
     if isinstance(parsed, dict):
         return _date_from_mapping(parsed)
     return None
+
+
+def normalize_clock(hour: int, minute: int, ampm: str = "") -> str:
+    """시·분을 HH:MM로 맞춘다. 범위 밖이면 빈 문자열."""
+    if minute < 0 or minute > 59 or hour < 0:
+        return ""
+    if ampm == "오전":
+        if hour == 12:
+            hour = 0
+        elif hour > 12:
+            return ""
+    elif ampm == "오후":
+        if hour == 12:
+            pass
+        elif 1 <= hour <= 11:
+            hour += 12
+        else:
+            return ""
+    elif hour > 23:
+        return ""
+    return f"{hour:02d}:{minute:02d}"
+
+
+def parse_spoken_time(text: str) -> str:
+    """문장에서 처음 나오는 시각. 10:00, 10시, 10시 30분, 오전 10시를 받는다."""
+    found: list[tuple[int, str]] = []
+    for match in _CLOCK.finditer(text or ""):
+        clock = normalize_clock(int(match.group(1)), int(match.group(2)))
+        if clock:
+            found.append((match.start(), clock))
+    for match in _KO_TIME.finditer(text or ""):
+        clock = normalize_clock(int(match.group(2)), int(match.group(3) or 0), match.group(1) or "")
+        if clock:
+            found.append((match.start(), clock))
+    if not found:
+        return ""
+    found.sort()
+    return found[0][1]
+
+
+def parse_sys_time(value: Any) -> str:
+    """HH:MM, HH:MM:SS, 한국어 시각, JSON의 time/value를 HH:MM로 돌린다."""
+    if value is None or isinstance(value, bool):
+        return ""
+    if isinstance(value, dict):
+        return _time_from_mapping(value)
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text[:1] in "{[":
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return ""
+        if isinstance(parsed, dict):
+            return _time_from_mapping(parsed)
+        return ""
+    return parse_spoken_time(text)
 
 
 def representative(params: dict[str, Any] | None, key: str) -> Any:
@@ -159,6 +219,16 @@ def _number_from_mapping(data: dict) -> int | None:
         if parsed is not None:
             return parsed
     return None
+
+
+def _time_from_mapping(data: dict) -> str:
+    for key in ("time", "value"):
+        if key not in data:
+            continue
+        parsed = parse_sys_time(data[key])
+        if parsed:
+            return parsed
+    return ""
 
 
 def _date_from_mapping(data: dict) -> str | None:

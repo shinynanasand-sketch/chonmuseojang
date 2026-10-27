@@ -158,6 +158,7 @@ def test_home_exposes_naver_verification_and_public_sitemap(test_client):
     assert "Sitemap: https://chonmuseojang.vercel.app/sitemap.xml" in robots.text
     assert "Disallow: /operator" in robots.text
     assert "Disallow: /calendar/" in robots.text
+    assert "Disallow: /book/" in robots.text
     assert "Disallow: /guide/dev" in robots.text
 
 
@@ -221,7 +222,7 @@ def test_home_kakao_guide_lists_only_village_operators(test_client):
     assert "SECRET-CODE-99" not in text
     assert "SECRET-CODE-88" not in text
     assert "숨은이름운영자" not in text
-    assert "갯벌체험 2026-11-01 30명" in text
+    assert "달력이 열립니다" in text
     assert "내 예약" in text
     assert 'href="https://pf.kakao.com/_RgZaX"' in text
     assert "<title>https://pf.kakao.com/_RgZaX</title>" in text

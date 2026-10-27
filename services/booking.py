@@ -19,6 +19,7 @@ def create_booking(
     num_people: int,
     customer_name: str | None = None,
     program_label: str | None = None,
+    visit_time: str | None = None,
 ) -> dict:
     row = {
         "village_id": village_id,
@@ -28,6 +29,9 @@ def create_booking(
         "num_people": num_people,
         "status": "pending",
     }
+    clock = (visit_time or "").strip()
+    if clock:
+        row["visit_time"] = clock
     label = (program_label or "").strip()
     if label:
         from services.village_programs import program_key
@@ -109,12 +113,16 @@ def accept_named_booking(user_id: str, utterance: str, params: dict) -> dict:
             "text": "같은 체험 이름이 여러 마을에 있습니다. 마을 이름을 같이 말해 주세요.",
         }
     village, label = matches[0]
+    from services.kakao_params import parse_spoken_time, parse_sys_time
+
+    visit_time = parse_sys_time(params.get("visit_time")) or parse_spoken_time(text)
     saved = create_booking(
         village_id=str(village["village_id"]),
         customer_kakao_id=user_id,
         visit_date=visit_date,
         num_people=num_people,
         program_label=label,
+        visit_time=visit_time,
     )
     return {"ok": True, "booking": saved}
 
@@ -157,16 +165,20 @@ def list_my_bookings(user_id: str) -> list[dict]:
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 
 
+def booking_summary(row: dict) -> str:
+    """예약 한 줄. 시간이 있으면 날짜 뒤에 붙인다."""
+    label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
+    when = str(row.get("visit_date") or "")
+    clock = str(row.get("visit_time") or "").strip()
+    if clock:
+        when = f"{when} {clock}".strip()
+    return f"{row.get('booking_id')}번 {label} {when} {row.get('num_people')}명"
+
+
 def format_booking_lines(rows: list[dict]) -> str:
     if not rows:
         return "예약이 없습니다."
-    parts = []
-    for row in rows:
-        label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
-        parts.append(
-            f"{row['booking_id']}번 {label} {row.get('visit_date')} {row.get('num_people')}명"
-        )
-    return " ".join(parts)
+    return " ".join(booking_summary(row) for row in rows)
 
 
 def _display_trust_score(village: dict) -> float:

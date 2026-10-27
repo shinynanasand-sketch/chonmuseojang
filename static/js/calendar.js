@@ -1,12 +1,16 @@
 const app = document.getElementById("calendar-app");
 const token = app.dataset.token;
+const mode = app.dataset.mode === "guest" ? "guest" : "operator";
 const statusNode = document.getElementById("calendar-status");
 const monthLabel = document.getElementById("month-label");
 const grid = document.getElementById("month-grid");
 const dayTitle = document.getElementById("day-title");
 const dayEntries = document.getElementById("day-entries");
 const form = document.getElementById("entry-form");
+const guestForm = document.getElementById("guest-form");
 const programSelect = document.getElementById("program-label");
+const guestProgram = document.getElementById("guest-program");
+const programList = document.getElementById("program-list");
 
 let snapshot = null;
 let shown = new Date();
@@ -28,27 +32,56 @@ function bookingsOn(day) {
   return (snapshot.bookings || []).filter((row) => row.visit_date === day);
 }
 
+function fillSelect(select, labels) {
+  select.innerHTML = "";
+  labels.forEach((label) => {
+    const option = document.createElement("option");
+    option.value = label;
+    option.textContent = label;
+    select.appendChild(option);
+  });
+}
+
+function showPrograms() {
+  programList.innerHTML = "";
+  const names = snapshot.experience_names || [];
+  if (!names.length) {
+    const item = document.createElement("li");
+    item.textContent = "운영 중인 체험이 없습니다.";
+    programList.appendChild(item);
+    return;
+  }
+  names.forEach((label) => {
+    const item = document.createElement("li");
+    item.textContent = label;
+    programList.appendChild(item);
+  });
+}
+
 async function load(keepStatus) {
-  const response = await fetch(`/api/calendar/${token}`);
+  const response = await fetch(mode === "guest" ? `/api/book/${token}` : `/api/calendar/${token}`);
   if (!response.ok) {
     statusNode.textContent = "달력을 열 수 없습니다.";
     return;
   }
   snapshot = await response.json();
   document.getElementById("calendar-title").textContent = `${snapshot.village_name} 체험 달력`;
+  showPrograms();
   if (!keepStatus) {
-    statusNode.textContent = snapshot.can_write
-      ? "날짜를 누르고 단체와 인원을 저장합니다."
-      : "자기 체험 일정만 봅니다.";
+    if (mode === "guest") {
+      statusNode.textContent = (snapshot.experience_names || []).length
+        ? "날짜를 누르고 체험, 시간, 인원을 고릅니다."
+        : "운영 중인 체험이 없습니다.";
+    } else {
+      statusNode.textContent = snapshot.can_write
+        ? "날짜를 누르고 단체와 인원을 저장합니다."
+        : "자기 체험 일정만 봅니다.";
+    }
   }
-  programSelect.innerHTML = "";
-  (snapshot.programs || []).forEach((label) => {
-    const option = document.createElement("option");
-    option.value = label;
-    option.textContent = label;
-    programSelect.appendChild(option);
-  });
-  form.hidden = !snapshot.can_write;
+  fillSelect(programSelect, snapshot.programs || []);
+  fillSelect(guestProgram, snapshot.experience_names || []);
+  form.hidden = mode === "guest" || !snapshot.can_write;
+  guestForm.hidden = mode !== "guest" || !(snapshot.experience_names || []).length;
   draw();
   if (selected) showDay(selected);
 }
@@ -96,7 +129,8 @@ function showDay(key) {
     const item = document.createElement("p");
     if (row.status === "pending") item.className = "booking-pending";
     if (row.status === "confirmed") item.className = "booking-confirmed";
-    item.textContent = `${row.booking_id}번 ${row.status_label} ${row.label} ${row.num_people}명`;
+    const clock = row.visit_time ? ` ${row.visit_time}` : "";
+    item.textContent = `${row.booking_id}번 ${row.status_label} ${row.label}${clock} ${row.num_people}명`;
     if (snapshot.can_write) {
       ["confirmed", "rejected"].forEach((status) => {
         const button = document.createElement("button");
@@ -146,6 +180,26 @@ async function removeEntry(row) {
   statusNode.textContent = response.ok ? "일정을 지웠습니다." : "지우지 못했습니다.";
   if (response.ok) await load(true);
 }
+
+guestForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!selected) {
+    statusNode.textContent = "날짜를 먼저 눌러 주세요.";
+    return;
+  }
+  const response = await fetch(`/api/book/${token}`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      label: guestProgram.value,
+      visit_date: selected,
+      visit_time: document.getElementById("visit-time").value,
+      num_people: Number(document.getElementById("guest-people").value),
+    }),
+  });
+  statusNode.textContent = response.ok ? "예약을 접수했습니다." : "예약하지 못했습니다.";
+  if (response.ok) await load(true);
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();

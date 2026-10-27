@@ -4,6 +4,7 @@ from services.booking import get_booking_by_id, list_bookings_for_village, updat
 from services.calendar_link import operator_from_calendar_token
 from services.program_share import delete_calendar_entry, list_calendar, save_calendar_entry
 from services.supabase_client import get_village_by_id
+from services.guest_book import operating_names
 from services.village_programs import program_key, program_labels
 
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
@@ -24,6 +25,7 @@ def _booking_view(row: dict) -> dict:
         "booking_id": row.get("booking_id"),
         "label": row.get("program_label") or "체험 미정",
         "visit_date": str(row.get("visit_date") or "")[:10],
+        "visit_time": str(row.get("visit_time") or "")[:5],
         "num_people": row.get("num_people") or 0,
         "status": status,
         "status_label": _STATUS_LABEL.get(status, status),
@@ -44,16 +46,20 @@ def calendar_snapshot(token: str) -> dict | None:
         return None
     village = get_village_by_id(str(operator["village_id"])) or {}
     labels = program_labels(village)
+    names = operating_names(village)
     role = str(operator.get("role") or "village")
     if role == "program":
         key = str(operator.get("program_key") or "")
         labels = [label for label in labels if program_key(label) == key]
+        names = [label for label in names if program_key(label) == key]
     listed = list_calendar(operator)
     return {
+        "mode": "operator",
         "village_id": operator["village_id"],
         "village_name": village.get("village_name") or operator["village_id"],
         "can_write": role == "village",
         "programs": labels,
+        "experience_names": names,
         "entries": [_public_entry(row) for row in listed.get("entries") or []],
         "bookings": _bookings_for(operator),
     }

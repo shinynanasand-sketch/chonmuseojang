@@ -164,7 +164,8 @@ def test_booking_button_guides_without_saving(test_client):
         assert "도선국사체험마을영농조합법인" in text
         assert "광양시" in text
         assert "예시" not in text
-        assert "체험 이름 2026-11-01 30명" in text
+        assert "달력에서 체험, 날짜, 시간을 고릅니다." in text
+        assert "/book/" in response.text
         assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
     assert list_my_bookings("guest") == before
 

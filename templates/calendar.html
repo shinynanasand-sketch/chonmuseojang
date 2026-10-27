@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}체험 달력{% endblock %}
 {% block content %}
-<section id="calendar-app" data-token="{{ token }}">
+<section id="calendar-app" data-token="{{ token }}" data-mode="{{ mode }}">
   <h1 id="calendar-title">체험 달력</h1>
   <p id="calendar-status" class="muted">일정을 불러오는 중입니다.</p>
+  <ul id="program-list" class="program-list"></ul>
   <div class="month-bar">
     <button type="button" id="prev-month">이전달</button>
     <strong id="month-label"></strong>
@@ -27,8 +28,20 @@
     </label>
     <button type="submit">이 날짜에 저장</button>
   </form>
+  <form id="guest-form" hidden>
+    <label>체험
+      <select id="guest-program"></select>
+    </label>
+    <label>시간
+      <input type="time" id="visit-time" required>
+    </label>
+    <label>인원
+      <input type="number" id="guest-people" min="1" inputmode="numeric">
+    </label>
+    <button type="submit">이 날짜에 예약</button>
+  </form>
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261017c"></script>
+<script src="/static/js/calendar.js?v=20261027a"></script>
 {% endblock %}

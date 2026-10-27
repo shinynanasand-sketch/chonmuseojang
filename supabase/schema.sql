@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     num_people INTEGER,
     program_key TEXT,
     program_label TEXT,
+    visit_time TEXT,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected')),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -126,6 +127,15 @@ CREATE TABLE IF NOT EXISTS experience_calendar (
     UNIQUE (village_id, program_key, visit_date, group_name)
 );
 
+CREATE TABLE IF NOT EXISTS guest_book_links (
+    token TEXT PRIMARY KEY,
+    village_id TEXT NOT NULL REFERENCES villages_cache(village_id),
+    customer_kakao_id TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_book_links_village ON guest_book_links(village_id);
+
 CREATE TABLE IF NOT EXISTS sync_logs (
     log_id SERIAL PRIMARY KEY,
     source TEXT NOT NULL,
@@ -145,4 +155,5 @@ ALTER TABLE public.contents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.village_program_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.experience_calendar ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.guest_book_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;

@@ -18,6 +18,7 @@ from services.calendar_board import (
     save_calendar_from_token,
     set_booking_status_from_token,
 )
+from services.guest_book import guest_snapshot, save_guest_booking
 from services.kakao_home import home_kakao_guide
 from services.site_index import robots_txt, sitemap_xml
 from services.village_promo import list_published_villages, public_village_promo
@@ -101,6 +102,8 @@ def _calendar_result(result: dict):
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     if reason == "forbidden":
         raise HTTPException(status_code=403, detail="체험 달력은 마을 운영자만 등록할 수 있습니다.")
+    if reason == "program_not_found":
+        raise HTTPException(status_code=400, detail="이 마을에서 운영 중인 체험이 아닙니다.")
     raise HTTPException(status_code=400, detail="체험 이름, 날짜, 단체, 인원을 확인해 주세요.")
 
 
@@ -196,8 +199,38 @@ async def calendar_page(request: Request, token: str):
     if calendar_snapshot(token) is None:
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     return request.app.state.templates.TemplateResponse(
-        request, "calendar.html", {"title": "체험 달력", "token": token}
+        request, "calendar.html", {"title": "체험 달력", "token": token, "mode": "operator"}
     )
+
+
+@router.get("/book/{token}", response_class=HTMLResponse)
+async def guest_book_page(request: Request, token: str):
+    if guest_snapshot(token) is None:
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    return request.app.state.templates.TemplateResponse(
+        request, "calendar.html", {"title": "예약 달력", "token": token, "mode": "guest"}
+    )
+
+
+@router.get("/api/book/{token}")
+async def guest_book_api(token: str):
+    snapshot = guest_snapshot(token)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    return snapshot
+
+
+@router.post("/api/book/{token}")
+async def guest_book_save(token: str, request: Request):
+    body = await request.json()
+    result = save_guest_booking(
+        token,
+        str(body.get("label") or ""),
+        str(body.get("visit_date") or ""),
+        str(body.get("visit_time") or ""),
+        body.get("num_people"),
+    )
+    return _calendar_result(result)
 
 
 @router.get("/api/calendar/{token}")

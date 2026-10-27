@@ -16,6 +16,7 @@ _program_status: list[dict] = []
 _program_notes: list[dict] = []
 _calendar: list[dict] = []
 _calendar_id_counter = 1
+_guest_links: list[dict] = []
 _client = None
 _recommend_cache: tuple[float, list[dict]] | None = None
 _RECOMMEND_TTL = 60.0
@@ -419,12 +420,13 @@ def get_operator_by_login_id(login_id: str) -> dict | None:
 
 
 def reset_booking_store() -> None:
-    """테스트용 예약·후기 인메모리 초기화."""
-    global _bookings, _reviews, _booking_id_counter, _review_id_counter
+    """테스트용 예약·후기·체험객 링크 인메모리 초기화."""
+    global _bookings, _reviews, _booking_id_counter, _review_id_counter, _guest_links
     _bookings = []
     _reviews = []
     _booking_id_counter = 1
     _review_id_counter = 1
+    _guest_links = []
 
 
 def reset_content_store() -> None:
@@ -530,6 +532,33 @@ def delete_program_notes_for_village(village_id: str) -> None:
             raise
         return
     _program_notes = [row for row in _program_notes if row.get("village_id") != village_id]
+
+
+def insert_guest_book_link(row: dict) -> None:
+    """체험객 달력 토큰. 주소에는 카카오 사용자 ID를 넣지 않는다."""
+    client = get_supabase_client()
+    if client:
+        client.table("guest_book_links").insert(row).execute()
+        return
+    _guest_links.append(dict(row))
+
+
+def get_guest_book_link(token: str) -> dict | None:
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("guest_book_links")
+            .select("token,village_id,customer_kakao_id,expires_at")
+            .eq("token", token)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+    for row in _guest_links:
+        if row.get("token") == token:
+            return dict(row)
+    return None
 
 
 def insert_booking(row: dict) -> dict:
