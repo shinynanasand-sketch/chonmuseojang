@@ -1,5 +1,7 @@
 """관광객 마을 화면은 확인된 최신 홍보만 보여 준다."""
 
+from config import presentation_enabled
+from main import templates
 from services.supabase_client import insert_content, insert_operator, insert_review, upsert_villages
 
 _AUTH = {"Authorization": "Bearer owner_v001"}
@@ -363,3 +365,79 @@ def test_deleting_shared_photo_hides_it_on_the_village_page(test_client):
     promo = test_client.get("/api/villages/V001/promo").json()
     assert promo["photo_url"] == ""
     assert promo["intro"] == "페이지 소개"
+
+
+def _presentation(monkeypatch, enabled: bool) -> None:
+    monkeypatch.setitem(templates.env.globals, "presentation_mode", enabled)
+
+
+def test_presentation_flag_is_off_only_for_zero():
+    assert presentation_enabled("0") is False
+    assert presentation_enabled(" 0 ") is False
+    assert presentation_enabled("1") is True
+    assert presentation_enabled("") is True
+    assert presentation_enabled("false") is True
+
+
+def _assert_role_menus(text: str) -> None:
+    assert 'aria-label="체험객"' in text
+    assert 'aria-label="사무장"' in text
+    assert 'href="/recommend"' in text
+    assert 'href="/map"' in text
+    assert 'href="/nearby"' in text
+    assert 'href="/villages"' in text
+    assert 'href="/operator"' in text
+    assert 'href="/guide/use"' in text
+    assert 'href="/guide/register"' not in text
+    assert 'href="/guide/dev"' not in text
+    assert 'href="/dashboard"' not in text
+
+
+def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch):
+    _presentation(monkeypatch, True)
+    text = test_client.get("/").text
+    _assert_role_menus(text)
+    assert 'id="demo"' in text
+    assert 'href="/#demo"' in text
+    assert "시연 순서" in text
+    assert "사무장 관리" in text
+    assert "카카오 홍보 사진" in text
+    assert "카카오 관리" in text
+    assert 'href="/operator#status"' in text
+    assert 'href="/operator#bookings"' in text
+    assert 'href="/operator#reviews"' in text
+    assert 'href="/operator#programs"' in text
+    assert 'href="/operator#promo"' in text
+    for utterance in ("홍보 사진", "예약 현황", "7번 승인", "7번 거절", "체험 달력 조회", "체험 글 조회"):
+        assert f'data-copy="{utterance}"' in text
+    assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
+    assert "달력이 열립니다" in text
+    assert "owner_v001" not in text
+    assert "kakao_owner" not in text
+    assert "GB-001" not in text
+    operator = test_client.get("/operator").text
+    assert 'id="status"' in operator
+    assert 'id="bookings"' in operator
+    assert 'id="reviews"' in operator
+    assert 'id="promo"' in operator
+    assert 'id="programs"' in operator
+    assert "소개글과 SNS 초안" in operator
+    assert "관광객에게 공개" in operator
+
+
+def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatch):
+    _presentation(monkeypatch, False)
+    text = test_client.get("/").text
+    _assert_role_menus(text)
+    assert 'id="demo"' not in text
+    assert 'href="/#demo"' not in text
+    assert "시연 순서" not in text
+    assert "7번 승인" not in text
+    assert "data-copy=" not in text
+    assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
+    assert "달력이 열립니다" in text
+    assert "내 예약" in text
+    operator = test_client.get("/operator").text
+    assert 'id="promo"' in operator
+    assert "소개글과 SNS 초안" not in operator
+    assert "관광객에게 공개" in operator

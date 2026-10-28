@@ -5,18 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="naver-site-verification" content="bf6009ea39af06737f3b4647a7e8a848b21a4bf0">
   <title>{% block title %}체험마을 AI사무장{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=20261017i">
+  <link rel="stylesheet" href="/static/css/style.css?v=20261029b">
   {% block head %}{% endblock %}
 </head>
 <body>
   <header>
-    <nav>
+    <nav class="role-nav" aria-label="체험객">
+      <span class="nav-role">체험객</span>
       <a href="/">홈</a>
       <a href="/recommend">AI 추천</a>
       <a href="/map">지도</a>
       <a href="/nearby">주변정보</a>
       <a href="/villages">마을 소개</a>
+    </nav>
+    <nav class="role-nav" aria-label="사무장">
+      <span class="nav-role">사무장</span>
       <a href="/operator">내 마을</a>
+      <a href="/guide/use">사용 안내</a>
+      {% if presentation_mode %}
+      <a href="/#demo">시연</a>
+      {% endif %}
     </nav>
   </header>
   <main>

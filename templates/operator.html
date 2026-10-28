@@ -12,18 +12,22 @@
   </label>
   <button type="submit">조회</button>
 </form>
-<section>
+<section id="status">
   <h2>내 운영 현황</h2>
   <p id="operator-status" class="muted">로그인 아이디를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
   <p id="village-rank" class="muted"></p>
   <div id="stat-grid" class="stat-grid"></div>
   <canvas id="booking-chart" width="400" height="180" hidden></canvas>
 </section>
-<h2>최근 예약</h2>
+<h2 id="bookings">최근 예약</h2>
 <div id="booking-list"></div>
-<h2>후기</h2>
+<h2 id="reviews">후기</h2>
 <div id="review-list"></div>
+<section id="promo">
 <h2>홍보문구</h2>
+{% if presentation_mode %}
+<p>카카오에서 올린 사진이 소개글과 SNS 초안으로 쌓입니다. 공개는 관광객에게 공개 버튼입니다.</p>
+{% endif %}
 <form id="content-form">
   <label>
     짧은 설명
@@ -38,7 +42,8 @@
 <p><button type="button" id="publish-content">관광객에게 공개</button></p>
 <p id="content-status" class="muted">설명을 적으면 이 마을 소개글과 SNS 문구를 만듭니다.</p>
 <div id="content-list"></div>
-<h2>프로그램</h2>
+</section>
+<h2 id="programs">프로그램</h2>
 <p id="program-status" class="muted">로그인하면 이 마을 프로그램의 운영 여부를 바꿉니다.</p>
 <div id="program-list"></div>
 {% endblock %}

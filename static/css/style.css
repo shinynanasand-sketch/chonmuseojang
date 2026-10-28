@@ -1,7 +1,13 @@
-body { font-family: sans-serif; margin: 0; padding: 0; color: #1b1b1b; }
-header { background: #2d6a4f; padding: 0.75rem 1rem; }
-header nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; }
+body { font-family: sans-serif; margin: 0; padding: 0; color: #1b1b1b; background: #fff; }
+header { background: #2d6a4f; padding: 0.75rem 1rem; display: grid; gap: 0.35rem; }
+header nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; }
 header a { color: white; text-decoration: none; }
+.nav-role { color: #d8f3dc; font-weight: 700; }
+.audience { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0; }
+.audience article, .demo-tracks article { border: 1px solid #ddd; border-radius: 4px; padding: 1rem; background: #fff; }
+.audience h2, .demo-tracks h3 { margin: 0 0 0.5rem; }
+.demo-tracks { display: grid; gap: 0.75rem; margin: 0 0 1.5rem; }
+.demo-tracks > h2 { margin: 0; }
 main { padding: 1.5rem; max-width: 960px; margin: 0 auto; }
 textarea, input[type="search"] { width: 100%; box-sizing: border-box; }
 textarea { margin-bottom: 0.5rem; }
