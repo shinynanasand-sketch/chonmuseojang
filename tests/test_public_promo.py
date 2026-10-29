@@ -2,6 +2,7 @@
 
 from config import presentation_enabled
 from main import templates
+from services.booking import create_booking
 from services.supabase_client import insert_content, insert_operator, insert_review, upsert_villages
 
 _AUTH = {"Authorization": "Bearer owner_v001"}
@@ -448,3 +449,66 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert 'id="promo"' in operator
     assert "소개글과 SNS 초안" not in operator
     assert "관광객에게 공개" in operator
+
+
+def test_presentation_board_uses_the_connected_village(test_client, monkeypatch):
+    upsert_villages(
+        [
+            {
+                "village_id": "VK-BOARD",
+                "village_name": "돌담시연마을",
+                "sigungu": "해남군",
+                "program_name": "조개잡이",
+            }
+        ]
+    )
+    insert_operator(
+        {
+            "village_id": "VK-BOARD",
+            "kakao_user_id": "secret-board-owner",
+            "login_id": "secret-board-login",
+            "operator_name": "숨은사무장",
+            "registration_code": "SECRET-BOARD",
+            "role": "village",
+            "is_active": True,
+        }
+    )
+    create_booking(
+        "VK-BOARD",
+        "secret-board-guest",
+        "2026-12-01",
+        4,
+        customer_name="숨은손님",
+        visit_time="10:00",
+    )
+    _content("VK-BOARD", "소개글", "비밀 소개 초안", photo_url="https://example.test/board.jpg")
+
+    _presentation(monkeypatch, True)
+    text = test_client.get("/").text
+    assert 'data-copy="예약하기 돌담시연마을"' in text
+    assert 'data-copy="조개잡이 2026-11-01 10:00 30명"' in text
+    assert 'data-copy="조개잡이 2026-11-01 광주소등학교 30명"' in text
+    assert 'data-copy="1번 승인"' in text
+    assert 'data-copy="1번 거절"' in text
+    assert "1번 대기 2026-12-01 10:00 4명" in text
+    assert "비밀 소개 초안" in text
+    assert "초안" in text
+    assert "https://example.test/board.jpg" in text
+    assert 'href="/village/VK-BOARD"' not in text
+    assert "번호 7은 예시입니다." not in text
+    for secret in (
+        "secret-board-owner",
+        "secret-board-guest",
+        "secret-board-login",
+        "숨은손님",
+        "숨은사무장",
+        "SECRET-BOARD",
+    ):
+        assert secret not in text
+
+    _presentation(monkeypatch, False)
+    hidden = test_client.get("/").text
+    assert 'data-copy="예약하기 돌담시연마을"' not in hidden
+    assert "1번 대기 2026-12-01 10:00 4명" not in hidden
+    assert "비밀 소개 초안" not in hidden
+    assert "secret-board-guest" not in hidden

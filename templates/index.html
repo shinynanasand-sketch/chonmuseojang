@@ -10,13 +10,32 @@
     <li>
       <span class="demo-num">1</span>
       <h3>체험객 예약</h3>
-      <p>카카오에서 예약하기를 누르면 달력이 열립니다.</p>
-      <p class="card-links"><a href="#kakao-book">카카오 예약</a></p>
+      <p>카카오는 달력으로 예약 카드를 엽니다. 문장 예약은 예약번호와 대기로 답합니다.</p>
+      <p class="demo-copies">
+        <button type="button" data-copy="{{ demo.book_utterance }}">{{ demo.book_utterance }}</button>
+        <button type="button" data-copy="{{ demo.sentence_utterance }}">{{ demo.sentence_utterance }}</button>
+      </p>
+      {% if demo.extra_note %}<p>{{ demo.extra_note }}</p>{% endif %}
+      <p class="card-links">
+        <a href="{{ demo.channel_url }}">카카오 채널</a>
+        <a href="#kakao-book">카카오 예약</a>
+      </p>
     </li>
     <li>
       <span class="demo-num">2</span>
       <h3>사무장 관리</h3>
       <p>내 마을에서 운영 현황, 예약, 후기, 프로그램을 확인합니다.</p>
+      {% if demo.connected %}
+      <div class="demo-result">
+        {% if demo.booking_lines %}
+        {% for line in demo.booking_lines %}
+        <p>{{ line }}</p>
+        {% endfor %}
+        {% else %}
+        <p>예약이 없습니다.</p>
+        {% endif %}
+      </div>
+      {% endif %}
       <p class="card-links">
         <a href="/operator#status">운영 현황</a>
         <a href="/operator#bookings">최근 예약</a>
@@ -27,24 +46,38 @@
     <li>
       <span class="demo-num">3</span>
       <h3>카카오 홍보 사진</h3>
-      <p>사진 한 장이 소개글과 SNS 문구가 되고, 공개 뒤 마을 소개에 나갑니다.</p>
+      <p>홍보 사진을 누른 뒤 사진 한 장을 올립니다.</p>
       <p class="demo-copies">
         <button type="button" data-copy="홍보 사진">홍보 사진</button>
       </p>
+      {% if demo.promo %}
+      <div class="demo-result">
+        {% if demo.promo.draft %}<p class="demo-draft">초안</p>{% endif %}
+        {% if demo.promo.photo_url %}
+        <img class="demo-photo" src="{{ demo.promo.photo_url }}" alt="홍보 사진">
+        {% endif %}
+        {% if demo.promo.intro %}<p>{{ demo.promo.intro }}</p>{% endif %}
+        {% if demo.promo.sns %}<p>{{ demo.promo.sns }}</p>{% endif %}
+      </div>
+      {% endif %}
       <p class="card-links">
         <a href="/operator#promo">홍보문구 확인</a>
-        <a href="/villages">마을 소개</a>
+        {% if demo.promo and demo.promo.village_page %}
+        <a href="{{ demo.promo.village_page }}">마을 소개</a>
+        {% endif %}
       </p>
     </li>
     <li>
       <span class="demo-num">4</span>
       <h3>카카오 관리</h3>
-      <p>카카오에 넣고, 결과는 내 마을 예약에서 봅니다. 번호 7은 예시입니다.</p>
+      <p>카카오에 넣고, 결과는 내 마을 예약에서 봅니다.</p>
+      {% if demo.approve_is_example %}<p>번호 7은 예시입니다.</p>{% endif %}
       <p class="demo-copies">
         <button type="button" data-copy="예약 현황">예약 현황</button>
-        <button type="button" data-copy="7번 승인">7번 승인</button>
-        <button type="button" data-copy="7번 거절">7번 거절</button>
+        <button type="button" data-copy="{{ demo.approve_utterance }}">{{ demo.approve_utterance }}</button>
+        <button type="button" data-copy="{{ demo.reject_utterance }}">{{ demo.reject_utterance }}</button>
         <button type="button" data-copy="체험 달력 조회">체험 달력 조회</button>
+        <button type="button" data-copy="{{ demo.calendar_utterance }}">{{ demo.calendar_utterance }}</button>
         <button type="button" data-copy="체험 글 조회">체험 글 조회</button>
       </p>
       <p class="card-links">

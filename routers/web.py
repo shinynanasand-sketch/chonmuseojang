@@ -40,11 +40,12 @@ def robots():
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return request.app.state.templates.TemplateResponse(
-        request,
-        "index.html",
-        {"title": "체험마을 AI사무장", "kakao_guide": home_kakao_guide()},
-    )
+    context = {"title": "체험마을 AI사무장", "kakao_guide": home_kakao_guide()}
+    if request.app.state.templates.env.globals.get("presentation_mode"):
+        from services.presentation_board import presentation_board
+
+        context["demo"] = presentation_board()
+    return request.app.state.templates.TemplateResponse(request, "index.html", context)
 
 
 @router.get("/recommend", response_class=HTMLResponse)
