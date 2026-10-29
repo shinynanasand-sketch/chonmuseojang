@@ -402,6 +402,13 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert 'href="/#demo"' in text
     assert "시연 순서" in text
     assert "카카오에서 하고, 웹에서 확인합니다." in text
+    assert "카카오에 넣는 문장" in text
+    assert "카카오 답변" in text
+    assert "예약번호와 대기로 접수됩니다." in text
+    assert "사진을 한 장 올려 주세요." in text
+    assert "예약이 승인되었습니다." in text
+    assert "예약이 거절되었습니다." in text
+    assert 'class="kakao-ask"' in text
     assert "체험객 예약" in text
     for number in ("1", "2", "3", "4"):
         assert f'class="demo-num">{number}' in text
@@ -442,6 +449,10 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert "demo-num" not in text
     assert "7번 승인" not in text
     assert "data-copy=" not in text
+    assert "카카오에 넣는 문장" not in text
+    assert "카카오 답변" not in text
+    assert "예약번호와 대기로 접수됩니다." not in text
+    assert "달력에서 체험, 날짜, 시간을 고릅니다." not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
     assert "달력이 열립니다" in text
     assert "내 예약" in text
@@ -486,6 +497,11 @@ def test_presentation_board_uses_the_connected_village(test_client, monkeypatch)
     _presentation(monkeypatch, True)
     text = test_client.get("/").text
     assert 'data-copy="예약하기 돌담시연마을"' in text
+    assert "돌담시연마을 해남군. 달력에서 체험, 날짜, 시간을 고릅니다." in text
+    assert "달력으로 예약" in text
+    assert "예약번호와 대기로 접수됩니다." in text
+    assert 'class="kakao-ask"' in text
+    assert 'class="kakao-reply"' in text
     assert 'data-copy="조개잡이 2026-11-01 10:00 30명"' in text
     assert 'data-copy="조개잡이 2026-11-01 광주소등학교 30명"' in text
     assert 'data-copy="1번 승인"' in text
@@ -509,6 +525,8 @@ def test_presentation_board_uses_the_connected_village(test_client, monkeypatch)
     _presentation(monkeypatch, False)
     hidden = test_client.get("/").text
     assert 'data-copy="예약하기 돌담시연마을"' not in hidden
+    assert "달력에서 체험, 날짜, 시간을 고릅니다." not in hidden
+    assert "카카오에 넣는 문장" not in hidden
     assert "1번 대기 2026-12-01 10:00 4명" not in hidden
     assert "비밀 소개 초안" not in hidden
     assert "secret-board-guest" not in hidden

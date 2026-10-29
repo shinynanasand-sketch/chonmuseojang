@@ -12,6 +12,10 @@ _INTRO = "소개글"
 _SNS = "SNS홍보문구"
 _FALLBACK_PROGRAM = "체험이름"
 _EXAMPLE_BOOKING = 7
+_SENTENCE_REPLY = "예약번호와 대기로 접수됩니다."
+_PHOTO_PROMPT = "사진을 한 장 올려 주세요."
+_APPROVE_REPLY = "예약이 승인되었습니다."
+_REJECT_REPLY = "예약이 거절되었습니다."
 
 
 def _program_label(village: dict) -> str:
@@ -55,6 +59,15 @@ def _latest_promo(village_id: str) -> dict | None:
     }
 
 
+def _place(row: dict) -> str:
+    """예약 카드가 마을 이름 뒤에 시군을 붙이는 것과 같다."""
+    return " ".join(
+        part
+        for part in (str(row.get("village_name") or "").strip(), str(row.get("sigungu") or "").strip())
+        if part
+    )
+
+
 def _pending_id(rows: list[dict]) -> int | None:
     pending = [row for row in rows if row.get("status") == "pending" and row.get("booking_id") is not None]
     if not pending:
@@ -75,6 +88,11 @@ def presentation_board() -> dict:
         "approve_utterance": f"{_EXAMPLE_BOOKING}번 승인",
         "reject_utterance": f"{_EXAMPLE_BOOKING}번 거절",
         "approve_is_example": True,
+        "book_reply": "",
+        "sentence_reply": _SENTENCE_REPLY,
+        "photo_prompt": _PHOTO_PROMPT,
+        "approve_reply": _APPROVE_REPLY,
+        "reject_reply": _REJECT_REPLY,
         "booking_lines": [],
         "promo": None,
         "channel_url": KAKAO_CHANNEL_URL,
@@ -85,6 +103,7 @@ def presentation_board() -> dict:
     village = get_village_by_id(chosen["village_id"]) or chosen
     label = _program_label(village)
     name = str(chosen.get("village_name") or "").strip()
+    place = _place(village)
     rows = list_bookings_for_village(str(chosen["village_id"]))
     pending = _pending_id(rows)
     board.update(
@@ -95,6 +114,7 @@ def presentation_board() -> dict:
             "book_utterance": f"예약하기 {name}".strip(),
             "sentence_utterance": f"{label} 2026-11-01 10:00 30명",
             "calendar_utterance": f"{label} 2026-11-01 광주소등학교 30명",
+            "book_reply": f"{place}. 달력에서 체험, 날짜, 시간을 고릅니다." if place else "",
             "booking_lines": [booking_summary(row) for row in rows[:5]],
             "promo": _latest_promo(str(chosen["village_id"])),
         }
