@@ -7,7 +7,7 @@
   <h2>시연 순서</h2>
   <p class="demo-lead">카카오에서 하고, 웹에서 확인합니다. 노란 말은 카카오에 넣는 문장이고, 흰 말은 카카오 답변입니다.</p>
   <ol class="demo-flow">
-    <li>
+    <li class="demo-book">
       <span class="demo-num">1</span>
       <h3>체험객 예약</h3>
       <div class="kakao-thread">
@@ -38,6 +38,15 @@
         <a href="{{ demo.channel_url }}">카카오 채널</a>
         <a href="#kakao-book">카카오 예약</a>
       </p>
+      <form id="demo-book" class="filter-row">
+        <label>
+          시연 비밀번호
+          <input type="password" name="password" autocomplete="current-password">
+        </label>
+        <button type="submit">열기</button>
+      </form>
+      <p id="demo-book-status" class="muted"></p>
+      <h3>체험객 예약 달력</h3>
       <div id="demo-book-frame"></div>
     </li>
     <li>
@@ -351,30 +360,35 @@ function copyUtteranceFallback(text, done) {
 document.querySelectorAll('[data-copy]').forEach((button) => {
   button.addEventListener('click', () => copyUtterance(button.getAttribute('data-copy') || '', button));
 });
+const demoBook = document.getElementById('demo-book');
+if (demoBook) {
+  demoBook.addEventListener('submit', (event) => openDemoCalendar(event, demoBook, 'demo-book-status', 'book_url', 'demo-book-frame', '예약 달력'));
+}
 const demoCalendar = document.getElementById('demo-calendar');
 if (demoCalendar) {
-  demoCalendar.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const status = document.getElementById('demo-calendar-status');
-    status.replaceChildren();
-    const password = new FormData(demoCalendar).get('password') || '';
-    const response = await fetch('/api/presentation/calendar', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({password}),
-    });
-    const data = response.ok ? await response.json() : null;
-    if (!data || !data.book_url || !data.calendar_url) {
-      status.textContent = '달력을 열 수 없습니다.';
-      mountCalendar('demo-book-frame', '', '');
-      mountCalendar('demo-approve-frame', '', '');
-      return;
-    }
-    status.replaceChildren();
-    mountCalendar('demo-book-frame', data.book_url, '예약 달력');
-    mountCalendar('demo-approve-frame', data.calendar_url, '승인 달력');
-    document.getElementById('demo-approve-frame').scrollIntoView({block: 'start'});
+  demoCalendar.addEventListener('submit', (event) => openDemoCalendar(event, demoCalendar, 'demo-calendar-status', 'calendar_url', 'demo-approve-frame', '승인 달력'));
+}
+
+async function openDemoCalendar(event, form, statusId, urlKey, frameId, title) {
+  event.preventDefault();
+  const status = document.getElementById(statusId);
+  status.replaceChildren();
+  const password = new FormData(form).get('password') || '';
+  const response = await fetch('/api/presentation/calendar', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password}),
   });
+  const data = response.ok ? await response.json() : null;
+  const url = data && data[urlKey];
+  if (!url) {
+    status.textContent = '달력을 열 수 없습니다.';
+    mountCalendar(frameId, '', '');
+    return;
+  }
+  status.replaceChildren();
+  mountCalendar(frameId, url, title);
+  document.getElementById(frameId).scrollIntoView({block: 'start'});
 }
 
 function mountCalendar(id, url, title) {

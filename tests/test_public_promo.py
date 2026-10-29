@@ -412,10 +412,15 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert "달력에서 승인" in text
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in text
     assert 'id="demo-calendar"' in text
+    assert 'id="demo-book"' in text
     assert 'id="demo-book-frame"' in text
     assert 'id="demo-approve-frame"' in text
+    assert "체험객 예약 달력" in text
     assert "사무장 승인" in text
+    assert "demo-book" in text
     assert "demo-approve" in text
+    assert "'book_url', 'demo-book-frame'" in text
+    assert "'calendar_url', 'demo-approve-frame'" in text
     assert "<iframe" not in text
     assert "/book/" not in text
     assert "/calendar/" not in text
@@ -466,8 +471,10 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert "달력에서 체험, 날짜, 시간을 고릅니다." not in text
     assert "달력에서 승인" not in text
     assert 'id="demo-calendar"' not in text
+    assert 'id="demo-book"' not in text
     assert 'id="demo-book-frame"' not in text
     assert 'id="demo-approve-frame"' not in text
+    assert "체험객 예약 달력" not in text
     assert "사무장 승인" not in text
     assert "/book/" not in text
     assert "/calendar/" not in text
@@ -576,6 +583,7 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     _presentation(monkeypatch, True)
     page = test_client.get("/").text
     assert 'id="demo-calendar"' in page
+    assert 'id="demo-book"' in page
     assert 'id="demo-book-frame"' in page
     assert 'id="demo-approve-frame"' in page
     assert "<iframe" not in page
