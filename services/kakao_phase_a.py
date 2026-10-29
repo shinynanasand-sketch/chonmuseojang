@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
 from services.auth import get_operator_by_kakao_id, register_operator, register_operator_with_ids, resolve_kakao_role
-from services.calendar_link import attach_calendar_card
+from services.calendar_link import attach_approval_calendar, attach_calendar_card
 from services.kakao_client import (
     allow_external,
     attach_guide_card,
@@ -177,7 +177,10 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     if role.get("role") == "program":
         return build_error_skill_response(_VILLAGE_ONLY)
     if kind == "status":
-        return _status(str(role["village_id"]))
+        operator = get_operator_by_kakao_id(user_id)
+        if not operator:
+            return attach_guide_card(build_error_skill_response(_STATUS_HINT))
+        return _status(str(role["village_id"]), operator)
     return _decide(kind, str(role["village_id"]), payload)
 
 
@@ -418,16 +421,16 @@ def _review_lines(village_id: str, village_name: str, start: int) -> dict:
     )
 
 
-def _status(village_id: str) -> dict:
+def _status(village_id: str, operator: dict) -> dict:
     if not allow_external():
         return time_budget_response()
     rows = booking.list_bookings_for_village(village_id)
     if not rows:
-        return build_error_skill_response("예약이 없습니다.")
-    lines = []
-    for row in rows:
-        lines.append(booking.booking_summary(row))
-    return _skill_lines("예약 현황", lines, len(rows))
+        body = build_error_skill_response("예약이 없습니다.")
+    else:
+        lines = [booking.booking_summary(row) for row in rows]
+        body = _skill_lines("예약 현황", lines, len(rows))
+    return attach_approval_calendar(body, operator)
 
 
 def _promo_photo(user_id: str, role: dict, payload: KakaoSkillRequest) -> dict:

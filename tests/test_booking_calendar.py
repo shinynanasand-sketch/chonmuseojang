@@ -94,7 +94,7 @@ def test_program_operator_sees_booking_but_cannot_approve(test_client, booking_v
     assert next(row for row in again if row["booking_id"] == matched[0]["booking_id"])["status"] == "pending"
 
 
-def test_village_operator_approves_only_that_booking(test_client, booking_villages):
+def test_village_operator_approves_only_that_booking(test_client, booking_villages, monkeypatch):
     register_operator("book_owner_a", "예약달력마을 BA-001")
     register_operator("book_owner_b", "다른예약마을 BB-001")
     test_client.post("/kakao/booking", json=_book("달력예약체험 2026-11-03 30명"))
@@ -106,6 +106,11 @@ def test_village_operator_approves_only_that_booking(test_client, booking_villag
         },
     )
     other = create_booking("VBOOKB", "book_guest", "2026-11-05", 4)
+    told = []
+    monkeypatch.setattr(
+        "services.calendar_board.notify_booking_decided",
+        lambda booking, decision: told.append((booking.get("customer_kakao_id"), decision)),
+    )
     token = issue_calendar_token(get_operator_by_kakao_id("book_owner_a"))
     rows = test_client.get(f"/api/calendar/{token}").json()["bookings"]
     target = next(row for row in rows if row["visit_date"] == "2026-11-03")
@@ -116,6 +121,7 @@ def test_village_operator_approves_only_that_booking(test_client, booking_villag
     )
     assert approved.status_code == 200
     assert approved.json()["status"] == "confirmed"
+    assert told == [("book_guest", "approve")]
     after = test_client.get(f"/api/calendar/{token}").json()["bookings"]
     assert next(row for row in after if row["booking_id"] == target["booking_id"])["status"] == "confirmed"
     assert next(row for row in after if row["booking_id"] == kept["booking_id"])["status"] == "pending"

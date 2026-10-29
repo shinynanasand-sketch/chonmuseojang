@@ -375,8 +375,27 @@ def test_booking_status_uses_simple_text(test_client):
     assert "대기" in text
     assert "2026-11-01" in text
     assert "4명" in text
+    card = next(item["basicCard"] for item in body["template"]["outputs"] if "basicCard" in item)
+    button = card["buttons"][0]
+    assert button["label"] == "달력에서 승인"
+    assert card["description"] == "대기인 날짜를 눌러 승인하거나 거절합니다."
+    assert "/calendar/" in button["webLinkUrl"]
+    assert "owner_test" not in button["webLinkUrl"]
     assert "start_date" not in payload["action"]["params"]
     assert "context" not in body
+
+
+def test_booking_status_without_rows_still_opens_the_calendar(test_client):
+    payload = {
+        "intent": {"name": "예약 현황 조회"},
+        "userRequest": {"utterance": "예약 현황", "user": {"id": "owner_test"}},
+        "action": {"params": {}},
+    }
+    body = test_client.post("/kakao/booking", json=payload).json()
+    assert "예약이 없습니다." in body["template"]["outputs"][0]["simpleText"]["text"]
+    card = next(item["basicCard"] for item in body["template"]["outputs"] if "basicCard" in item)
+    assert card["buttons"][0]["label"] == "달력에서 승인"
+    assert "owner_test" not in card["buttons"][0]["webLinkUrl"]
 
 
 def test_operator_register_block_uses_representative_values(test_client):

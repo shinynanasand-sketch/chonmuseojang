@@ -45,21 +45,28 @@ def calendar_page_url(operator: dict) -> str:
     return f"{base}/calendar/{issue_calendar_token(operator)}"
 
 
-def attach_calendar_card(body: dict, operator: dict) -> dict:
-    """조회 답장 아래에 달력 열기 버튼을 붙인다."""
+def attach_calendar_card(
+    body: dict,
+    operator: dict,
+    *,
+    title: str = "체험 달력",
+    description: str = "날짜를 눌러 일정을 확인합니다.",
+    label: str = "달력 열기",
+) -> dict:
+    """답장 아래에 운영자 달력 버튼을 붙인다. 주소에는 카카오 사용자 ID가 없다."""
     from config import KAKAO_CARD_IMAGE_URL
 
     outputs = body.setdefault("template", {}).setdefault("outputs", [])
     outputs.append(
         {
             "basicCard": {
-                "title": "체험 달력",
-                "description": "날짜를 눌러 일정을 확인합니다.",
+                "title": title,
+                "description": description,
                 "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
                 "buttons": [
                     {
                         "action": "webLink",
-                        "label": "달력 열기",
+                        "label": label,
                         "webLinkUrl": calendar_page_url(operator),
                     }
                 ],
@@ -67,3 +74,14 @@ def attach_calendar_card(body: dict, operator: dict) -> dict:
         }
     )
     return body
+
+
+def attach_approval_calendar(body: dict, operator: dict) -> dict:
+    """예약 현황 아래에 날짜에서 승인하는 달력을 연다."""
+    return attach_calendar_card(
+        body,
+        operator,
+        title="예약 달력",
+        description="대기인 날짜를 눌러 승인하거나 거절합니다.",
+        label="달력에서 승인",
+    )

@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks
 
 from models.kakao_schemas import KakaoSkillRequest
 from services import auth, booking, kakao_client, review, trust_score
+from services.calendar_link import attach_approval_calendar
 from services.kakao_ask import answer_kakao_question
 from services.kakao_client import skill_http_response
 from services.kakao_phase_a import finish_promo_photo, handle_phase_a, promo_photo_should_defer
@@ -119,8 +120,13 @@ def _inquiry_response(utterance: str, user_id: str):
             )
         if role.get("role") == "program":
             return kakao_client.build_error_skill_response("예약 현황은 마을 운영자만 볼 수 있습니다.")
+        operator = auth.get_operator_by_kakao_id(user_id)
+        if not operator:
+            return kakao_client.attach_guide_card(
+                kakao_client.build_error_skill_response(_REGISTER_HINT)
+            )
         lines = booking.format_booking_lines(booking.list_bookings_for_operator(user_id))
-        return kakao_client.build_skill_response("예약 현황", lines)
+        return attach_approval_calendar(kakao_client.build_skill_response("예약 현황", lines), operator)
 
     if utterance == "내 예약":
         lines = booking.format_booking_lines(booking.list_my_bookings(user_id))

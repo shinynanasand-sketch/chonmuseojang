@@ -406,8 +406,9 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert "카카오 답변" in text
     assert "예약번호와 대기로 접수됩니다." in text
     assert "사진을 한 장 올려 주세요." in text
-    assert "예약이 승인되었습니다." in text
-    assert "예약이 거절되었습니다." in text
+    assert "달력에서 승인" in text
+    assert "대기인 날짜를 눌러 승인하거나 거절합니다." in text
+    assert "/calendar/" not in text
     assert 'class="kakao-ask"' in text
     assert "체험객 예약" in text
     for number in ("1", "2", "3", "4"):
@@ -453,6 +454,8 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert "카카오 답변" not in text
     assert "예약번호와 대기로 접수됩니다." not in text
     assert "달력에서 체험, 날짜, 시간을 고릅니다." not in text
+    assert "달력에서 승인" not in text
+    assert "/calendar/" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
     assert "달력이 열립니다" in text
     assert "내 예약" in text

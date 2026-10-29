@@ -1,6 +1,7 @@
 """토큰으로 여는 체험 달력. 마을 번호는 토큰의 운영자에게서만 읽는다."""
 
 from services.booking import get_booking_by_id, list_bookings_for_village, update_booking_status
+from services.kakao_client import notify_booking_decided
 from services.calendar_link import operator_from_calendar_token
 from services.program_share import delete_calendar_entry, list_calendar, save_calendar_entry
 from services.supabase_client import get_village_by_id
@@ -91,6 +92,7 @@ def set_booking_status_from_token(token: str, booking_id, status: str) -> dict:
     saved = update_booking_status(existing["booking_id"], status)
     if not saved:
         return {"ok": False, "reason": "forbidden"}
+    notify_booking_decided(existing, "approve" if status == "confirmed" else "reject")
     view = _booking_view(saved)
     view["ok"] = True
     return view
