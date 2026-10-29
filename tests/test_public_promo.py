@@ -408,6 +408,7 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert "사진을 한 장 올려 주세요." in text
     assert "달력에서 승인" in text
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in text
+    assert 'id="demo-calendar"' in text
     assert "/calendar/" not in text
     assert 'class="kakao-ask"' in text
     assert "체험객 예약" in text
@@ -455,6 +456,7 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert "예약번호와 대기로 접수됩니다." not in text
     assert "달력에서 체험, 날짜, 시간을 고릅니다." not in text
     assert "달력에서 승인" not in text
+    assert 'id="demo-calendar"' not in text
     assert "/calendar/" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
     assert "달력이 열립니다" in text
@@ -533,3 +535,52 @@ def test_presentation_board_uses_the_connected_village(test_client, monkeypatch)
     assert "1번 대기 2026-12-01 10:00 4명" not in hidden
     assert "비밀 소개 초안" not in hidden
     assert "secret-board-guest" not in hidden
+
+
+def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypatch):
+    upsert_villages(
+        [
+            {
+                "village_id": "VK-BOARD",
+                "village_name": "돌담시연마을",
+                "sigungu": "해남군",
+                "program_name": "조개잡이",
+            }
+        ]
+    )
+    insert_operator(
+        {
+            "village_id": "VK-BOARD",
+            "kakao_user_id": "secret-board-owner",
+            "login_id": "secret-board-login",
+            "operator_name": "숨은사무장",
+            "registration_code": "SECRET-BOARD",
+            "role": "village",
+            "is_active": True,
+        }
+    )
+    monkeypatch.setenv("PRESENTATION_CALENDAR_PASSWORD", "demo-pass")
+    _presentation(monkeypatch, True)
+    page = test_client.get("/").text
+    assert 'id="demo-calendar"' in page
+    assert "/calendar/" not in page
+    assert "demo-pass" not in page
+
+    wrong = test_client.post("/api/presentation/calendar", json={"password": "nope"})
+    assert wrong.status_code == 404
+    assert "/calendar/" not in wrong.text
+    assert "secret-board-owner" not in wrong.text
+
+    opened = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})
+    assert opened.status_code == 200
+    url = opened.json()["url"]
+    assert "/calendar/" in url
+    assert "secret-board-owner" not in url
+    assert "secret-board-login" not in url
+    assert list(opened.json()) == ["url"]
+
+    _presentation(monkeypatch, False)
+    hidden = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})
+    assert hidden.status_code == 404
+    assert "/calendar/" not in hidden.text
+    assert 'id="demo-calendar"' not in test_client.get("/").text

@@ -112,6 +112,14 @@
           <p>대기인 날짜를 눌러 승인하거나 거절합니다.</p>
         </div>
       </div>
+      <form id="demo-calendar" class="filter-row">
+        <label>
+          시연 비밀번호
+          <input type="password" name="password" autocomplete="current-password">
+        </label>
+        <button type="submit">열기</button>
+      </form>
+      <p id="demo-calendar-status" class="muted"></p>
       {% if demo.approve_is_example %}<p>번호 7은 예시입니다.</p>{% endif %}
       <ul class="demo-copies">
         <li>
@@ -340,6 +348,29 @@ function copyUtteranceFallback(text, done) {
 document.querySelectorAll('[data-copy]').forEach((button) => {
   button.addEventListener('click', () => copyUtterance(button.getAttribute('data-copy') || '', button));
 });
+const demoCalendar = document.getElementById('demo-calendar');
+if (demoCalendar) {
+  demoCalendar.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const status = document.getElementById('demo-calendar-status');
+    status.replaceChildren();
+    const password = new FormData(demoCalendar).get('password') || '';
+    const response = await fetch('/api/presentation/calendar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password}),
+    });
+    if (!response.ok) {
+      status.textContent = '달력을 열 수 없습니다.';
+      return;
+    }
+    const data = await response.json();
+    const link = document.createElement('a');
+    link.href = data.url || '';
+    link.textContent = '달력 열기';
+    status.replaceChildren(link);
+  });
+}
 document.getElementById('sigungu-filter').addEventListener('change', renderVillages);
 document.getElementById('name-filter').addEventListener('input', renderVillages);
 document.getElementById('village-filter').addEventListener('submit', (event) => event.preventDefault());

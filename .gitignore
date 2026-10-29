@@ -1,5 +1,8 @@
 .env
 .env.local
+env
+env.download
+env.example
 .venv/
 __pycache__/
 *.py[cod]

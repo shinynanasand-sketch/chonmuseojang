@@ -1,10 +1,14 @@
 """발표 보드용 문장과 결과. 고객 이름과 카카오 사용자 ID는 넣지 않는다."""
 
+import hmac
+import os
+
 from config import KAKAO_CHANNEL_URL
 from services.booking import booking_summary, list_bookings_for_village
+from services.calendar_link import calendar_page_url
 from services.guest_book import operating_names
 from services.kakao_home import list_kakao_booking_villages
-from services.supabase_client import get_village_by_id, list_contents
+from services.supabase_client import get_village_by_id, get_village_operator, list_contents
 from services.village_programs import program_labels
 from services.village_promo import public_village_promo
 
@@ -124,3 +128,20 @@ def presentation_board() -> dict:
         board["reject_utterance"] = f"{pending}번 거절"
         board["approve_is_example"] = False
     return board
+
+
+def presentation_calendar_url(password: str) -> str | None:
+    """시연 비밀번호가 맞을 때만 첫 예약 마을의 달력 주소를 준다."""
+    expected = os.getenv("PRESENTATION_CALENDAR_PASSWORD", "")
+    given = (password or "").strip()
+    if not expected or not given or len(expected) != len(given):
+        return None
+    if not hmac.compare_digest(expected, given):
+        return None
+    villages = list_kakao_booking_villages()
+    if not villages:
+        return None
+    operator = get_village_operator(str(villages[0]["village_id"]))
+    if not operator:
+        return None
+    return calendar_page_url(operator)

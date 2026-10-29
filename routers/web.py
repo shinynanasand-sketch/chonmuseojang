@@ -48,6 +48,19 @@ async def home(request: Request):
     return request.app.state.templates.TemplateResponse(request, "index.html", context)
 
 
+@router.post("/api/presentation/calendar")
+async def presentation_calendar(request: Request):
+    if not request.app.state.templates.env.globals.get("presentation_mode"):
+        raise HTTPException(status_code=404, detail="달력을 열 수 없습니다.")
+    body = await request.json()
+    from services.presentation_board import presentation_calendar_url
+
+    url = presentation_calendar_url(str(body.get("password") or ""))
+    if not url:
+        raise HTTPException(status_code=404, detail="달력을 열 수 없습니다.")
+    return {"url": url}
+
+
 @router.get("/recommend", response_class=HTMLResponse)
 async def recommend_page(request: Request):
     return request.app.state.templates.TemplateResponse(
