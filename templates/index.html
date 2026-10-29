@@ -6,8 +6,18 @@
 <section id="demo" class="demo-board">
   <h2>시연 순서</h2>
   <p class="demo-lead">카카오에서 하고, 웹에서 확인합니다. 노란 말은 카카오에 넣는 문장이고, 흰 말은 카카오 답변입니다.</p>
+  <div class="demo-steps">
+    <button type="button" data-demo-step="1" aria-current="true">1 체험객 예약</button>
+    <button type="button" data-demo-step="2">2 사무장 관리</button>
+    <button type="button" data-demo-step="3">3 카카오 홍보 사진</button>
+    <button type="button" data-demo-step="4">4 카카오 관리</button>
+  </div>
+  <p class="demo-move">
+    <button type="button" id="demo-prev" disabled>이전</button>
+    <button type="button" id="demo-next">다음</button>
+  </p>
   <ol class="demo-flow">
-    <li class="demo-book">
+    <li class="demo-book" data-demo-panel="1">
       <span class="demo-num">1</span>
       <h3>체험객 예약</h3>
       <div class="kakao-thread">
@@ -49,7 +59,7 @@
       <h3>체험객 예약 달력</h3>
       <div id="demo-book-frame"></div>
     </li>
-    <li>
+    <li data-demo-panel="2" hidden>
       <span class="demo-num">2</span>
       <h3>사무장 관리</h3>
       <div class="kakao-thread">
@@ -78,7 +88,7 @@
         <a href="/operator#programs">프로그램</a>
       </p>
     </li>
-    <li>
+    <li data-demo-panel="3" hidden>
       <span class="demo-num">3</span>
       <h3>카카오 홍보 사진</h3>
       <div class="kakao-thread">
@@ -107,7 +117,7 @@
         {% endif %}
       </p>
     </li>
-    <li class="demo-approve">
+    <li class="demo-approve" data-demo-panel="4" hidden>
       <span class="demo-num">4</span>
       <h3>카카오 관리</h3>
       <div class="kakao-thread">
@@ -360,6 +370,42 @@ function copyUtteranceFallback(text, done) {
 document.querySelectorAll('[data-copy]').forEach((button) => {
   button.addEventListener('click', () => copyUtterance(button.getAttribute('data-copy') || '', button));
 });
+const demoPanels = [...document.querySelectorAll('[data-demo-panel]')];
+const demoStepButtons = [...document.querySelectorAll('[data-demo-step]')];
+const demoPrev = document.getElementById('demo-prev');
+const demoNext = document.getElementById('demo-next');
+
+function showDemoStep(step) {
+  const index = Number(step);
+  demoPanels.forEach((panel) => {
+    panel.hidden = Number(panel.getAttribute('data-demo-panel')) !== index;
+  });
+  demoStepButtons.forEach((button) => {
+    if (Number(button.getAttribute('data-demo-step')) === index) button.setAttribute('aria-current', 'true');
+    else button.removeAttribute('aria-current');
+  });
+  if (demoPrev) demoPrev.disabled = index <= 1;
+  if (demoNext) demoNext.disabled = index >= demoPanels.length;
+}
+
+if (demoPanels.length) {
+  demoStepButtons.forEach((button) => {
+    button.addEventListener('click', () => showDemoStep(button.getAttribute('data-demo-step')));
+  });
+  if (demoPrev) {
+    demoPrev.addEventListener('click', () => {
+      const current = demoPanels.find((panel) => !panel.hidden);
+      showDemoStep(Number(current.getAttribute('data-demo-panel')) - 1);
+    });
+  }
+  if (demoNext) {
+    demoNext.addEventListener('click', () => {
+      const current = demoPanels.find((panel) => !panel.hidden);
+      showDemoStep(Number(current.getAttribute('data-demo-panel')) + 1);
+    });
+  }
+}
+
 const demoBook = document.getElementById('demo-book');
 if (demoBook) {
   demoBook.addEventListener('submit', (event) => openDemoCalendar(event, demoBook, 'demo-book-status', 'book_url', 'demo-book-frame', '예약 달력'));
