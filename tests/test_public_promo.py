@@ -645,6 +645,7 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert _PRESENTATION_GUEST_ID not in book_page.text
     script = test_client.get("/static/js/calendar.js").text
     assert "예약 승인" in script
+    assert "체험 일정" in script
     assert "대기 예약이 없습니다." in script
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
     assert "날짜를 누르고 체험, 시간, 인원을 고릅니다." in script

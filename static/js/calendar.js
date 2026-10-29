@@ -105,7 +105,8 @@ async function load(keepStatus) {
     document.getElementById("calendar-title").textContent = `${snapshot.village_name} 체험 달력`;
     showPrograms();
   } else {
-    document.getElementById("calendar-title").textContent = `${snapshot.village_name} 예약 승인`;
+    const heading = snapshot.can_write ? "예약 승인" : "체험 일정";
+    document.getElementById("calendar-title").textContent = `${snapshot.village_name} ${heading}`;
     showPending();
   }
   if (!keepStatus) {
