@@ -146,7 +146,9 @@ def presentation_calendars(password: str) -> dict[str, str] | None:
     operator = get_village_operator(village_id)
     if not operator:
         return None
+    calendar_url = calendar_page_url(operator)
     return {
         "book_url": f"{issue_guest_book_link(_PRESENTATION_GUEST_ID, village_id)}?embed=1",
-        "calendar_url": f"{calendar_page_url(operator)}?embed=1",
+        "calendar_url": f"{calendar_url}?embed=1",
+        "program_url": f"{calendar_url}?embed=1&view=program",
     }

@@ -421,12 +421,18 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert "demo-approve" in text
     assert "'book_url', 'demo-book-frame'" in text
     assert "'calendar_url', 'demo-approve-frame'" in text
+    assert "'program_url', 'demo-program-frame'" in text
+    assert 'id="demo-program"' in text
+    assert "체험 담당 달력" in text
+    assert "체험 담당은 같은 마을 달력을 함께 봅니다." in text
+    assert "승인과 거절은 없습니다." in text
+    assert "날짜를 눌러 일정을 확인합니다." in text
     assert "<iframe" not in text
     assert "/book/" not in text
     assert "/calendar/" not in text
     assert 'class="kakao-ask"' in text
     assert "체험객 예약" in text
-    for number in ("1", "2", "3", "4"):
+    for number in ("1", "2", "3", "4", "5"):
         assert f'class="demo-num">{number}' in text
         assert f'data-demo-step="{number}"' in text
     assert 'id="demo-prev"' in text
@@ -435,10 +441,12 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert ">2 사무장 관리</button>" in text
     assert ">3 카카오 홍보 사진</button>" in text
     assert ">4 카카오 관리</button>" in text
+    assert ">5 체험 담당</button>" in text
     assert 'data-demo-panel="1"' in text
     assert 'data-demo-panel="2" hidden' in text
     assert 'data-demo-panel="3" hidden' in text
     assert 'data-demo-panel="4" hidden' in text
+    assert 'data-demo-panel="5" hidden' in text
     assert text.index("시연 순서") < text.index("체험객</h2>")
     assert "사무장 관리" in text
     assert "카카오 홍보 사진" in text
@@ -491,6 +499,9 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert 'id="demo-approve-frame"' not in text
     assert "체험객 예약 달력" not in text
     assert "사무장 승인" not in text
+    assert 'id="demo-program"' not in text
+    assert "체험 담당 달력" not in text
+    assert ">5 체험 담당</button>" not in text
     assert "/book/" not in text
     assert "/calendar/" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
@@ -579,7 +590,7 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
                 "village_id": "VK-BOARD",
                 "village_name": "돌담시연마을",
                 "sigungu": "해남군",
-                "program_name": "조개잡이",
+                "program_name": "조개잡이+소금체험",
             }
         ]
     )
@@ -601,7 +612,10 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert 'id="demo-book"' in page
     assert 'id="demo-book-frame"' in page
     assert 'id="demo-approve-frame"' in page
+    assert 'id="demo-program"' in page
+    assert 'id="demo-program-frame"' in page
     assert "<iframe" not in page
+    assert "view=program" not in page
     assert "/book/" not in page
     assert "/calendar/" not in page
     assert "demo-pass" not in page
@@ -617,11 +631,15 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     opened = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})
     assert opened.status_code == 200
     body = opened.json()
-    assert set(body) == {"book_url", "calendar_url"}
+    assert set(body) == {"book_url", "calendar_url", "program_url"}
     assert "/book/" in body["book_url"]
     assert "/calendar/" in body["calendar_url"]
+    assert "/calendar/" in body["program_url"]
     assert "embed=1" in body["book_url"]
     assert "embed=1" in body["calendar_url"]
+    assert "embed=1" in body["program_url"]
+    assert "view=program" in body["program_url"]
+    assert "view=program" not in body["calendar_url"]
     for secret in ("secret-board-owner", "secret-board-login", _PRESENTATION_GUEST_ID, "demo-pass"):
         assert secret not in opened.text
 
@@ -630,12 +648,18 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
         query = f"?{parts.query}" if parts.query else ""
         return f"{parts.path}{query}"
 
+    create_booking("VK-BOARD", "guest-shell", "2026-11-01", 30, program_label="조개잡이", visit_time="10:00")
+    create_booking("VK-BOARD", "guest-salt", "2026-11-02", 10, program_label="소금체험", visit_time="11:00")
     book_page = test_client.get(app_path(body["book_url"]))
     approve_page = test_client.get(app_path(body["calendar_url"]))
+    program_page = test_client.get(app_path(body["program_url"]))
     plain_page = test_client.get(urlsplit(body["calendar_url"]).path)
     assert book_page.status_code == 200
     assert approve_page.status_code == 200
+    assert program_page.status_code == 200
     assert plain_page.status_code == 200
+    assert 'data-view="program"' in program_page.text
+    assert 'data-view="program"' not in approve_page.text
     assert 'class="role-nav"' not in book_page.text
     assert 'class="role-nav"' not in approve_page.text
     assert 'class="role-nav"' in plain_page.text
@@ -649,6 +673,15 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert "대기 예약이 없습니다." in script
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
     assert "날짜를 누르고 체험, 시간, 인원을 고릅니다." in script
+    assert "?view=program" in script
+    program_token = urlsplit(body["program_url"]).path.rsplit("/", 1)[-1]
+    narrowed = test_client.get(f"/api/calendar/{program_token}?view=program").json()
+    opened_all = test_client.get(f"/api/calendar/{program_token}").json()
+    assert narrowed["can_write"] is False
+    assert narrowed["programs"] == ["조개잡이"]
+    assert [row["label"] for row in narrowed["bookings"]] == ["조개잡이"]
+    assert opened_all["can_write"] is True
+    assert {row["label"] for row in opened_all["bookings"]} == {"조개잡이", "소금체험"}
 
     _presentation(monkeypatch, False)
     hidden = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})

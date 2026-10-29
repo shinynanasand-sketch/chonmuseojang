@@ -95,7 +95,9 @@ function showPending() {
 }
 
 async function load(keepStatus) {
-  const response = await fetch(mode === "guest" ? `/api/book/${token}` : `/api/calendar/${token}`);
+  const programView = app.dataset.view === "program";
+  const calendarPath = programView ? `/api/calendar/${token}?view=program` : `/api/calendar/${token}`;
+  const response = await fetch(mode === "guest" ? `/api/book/${token}` : calendarPath);
   if (!response.ok) {
     statusNode.textContent = "달력을 열 수 없습니다.";
     return;

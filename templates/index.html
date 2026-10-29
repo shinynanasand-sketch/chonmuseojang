@@ -11,6 +11,7 @@
     <button type="button" data-demo-step="2">2 사무장 관리</button>
     <button type="button" data-demo-step="3">3 카카오 홍보 사진</button>
     <button type="button" data-demo-step="4">4 카카오 관리</button>
+    <button type="button" data-demo-step="5">5 체험 담당</button>
   </div>
   <p class="demo-move">
     <button type="button" id="demo-prev" disabled>이전</button>
@@ -168,6 +169,33 @@
       <p class="card-links">
         <a href="/operator#bookings">예약 확인</a>
       </p>
+    </li>
+    <li class="demo-program" data-demo-panel="5" hidden>
+      <span class="demo-num">5</span>
+      <h3>체험 담당</h3>
+      <div class="kakao-thread">
+        <div class="kakao-ask">
+          <span class="kakao-who">카카오에 넣는 문장</span>
+          <p>체험 달력 조회</p>
+          <button type="button" data-copy="체험 달력 조회">복사</button>
+        </div>
+        <div class="kakao-reply">
+          <span class="kakao-who">카카오 답변</span>
+          <p>날짜를 눌러 일정을 확인합니다.</p>
+          <p class="kakao-chip">달력 열기</p>
+        </div>
+      </div>
+      <p>체험 담당은 같은 마을 달력을 함께 봅니다. 승인과 거절은 없습니다.</p>
+      <form id="demo-program" class="filter-row">
+        <label>
+          시연 비밀번호
+          <input type="password" name="password" autocomplete="current-password">
+        </label>
+        <button type="submit">열기</button>
+      </form>
+      <p id="demo-program-status" class="muted"></p>
+      <h3>체험 담당 달력</h3>
+      <div id="demo-program-frame"></div>
     </li>
   </ol>
 </section>
@@ -413,6 +441,10 @@ if (demoBook) {
 const demoCalendar = document.getElementById('demo-calendar');
 if (demoCalendar) {
   demoCalendar.addEventListener('submit', (event) => openDemoCalendar(event, demoCalendar, 'demo-calendar-status', 'calendar_url', 'demo-approve-frame', '승인 달력'));
+}
+const demoProgram = document.getElementById('demo-program');
+if (demoProgram) {
+  demoProgram.addEventListener('submit', (event) => openDemoCalendar(event, demoProgram, 'demo-program-status', 'program_url', 'demo-program-frame', '체험 일정'));
 }
 
 async function openDemoCalendar(event, form, statusId, urlKey, frameId, title) {

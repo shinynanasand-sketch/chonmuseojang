@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}체험 달력{% endblock %}
 {% block content %}
-<section id="calendar-app" data-token="{{ token }}" data-mode="{{ mode }}">
+<section id="calendar-app" data-token="{{ token }}" data-mode="{{ mode }}" data-view="{{ view|default('') }}">
   <h1 id="calendar-title">체험 달력</h1>
   <p id="calendar-status" class="muted">일정을 불러오는 중입니다.</p>
   <ul id="program-list" class="program-list"></ul>
@@ -44,5 +44,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261029k"></script>
+<script src="/static/js/calendar.js?v=20261029l"></script>
 {% endblock %}

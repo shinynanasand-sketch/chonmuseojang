@@ -213,13 +213,19 @@ def _embed(embed: str) -> bool:
 
 
 @router.get("/calendar/{token}", response_class=HTMLResponse)
-async def calendar_page(request: Request, token: str, embed: str = ""):
+async def calendar_page(request: Request, token: str, embed: str = "", view: str = ""):
     if calendar_snapshot(token) is None:
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     return request.app.state.templates.TemplateResponse(
         request,
         "calendar.html",
-        {"title": "체험 달력", "token": token, "mode": "operator", "embed": _embed(embed)},
+        {
+            "title": "체험 달력",
+            "token": token,
+            "mode": "operator",
+            "embed": _embed(embed),
+            "view": "program" if view == "program" else "",
+        },
     )
 
 
@@ -256,8 +262,8 @@ async def guest_book_save(token: str, request: Request):
 
 
 @router.get("/api/calendar/{token}")
-async def calendar_api(token: str):
-    snapshot = calendar_snapshot(token)
+async def calendar_api(token: str, view: str = ""):
+    snapshot = calendar_snapshot(token, view)
     if snapshot is None:
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     return snapshot

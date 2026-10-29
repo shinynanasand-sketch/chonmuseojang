@@ -41,7 +41,17 @@ def _bookings_for(operator: dict) -> list[dict]:
     return [_booking_view(row) for row in rows]
 
 
-def calendar_snapshot(token: str) -> dict | None:
+def _first_program_key(village: dict) -> str:
+    names = operating_names(village)
+    if names:
+        return program_key(names[0])
+    labels = program_labels(village)
+    if labels:
+        return program_key(labels[0])
+    return ""
+
+
+def calendar_snapshot(token: str, view: str = "") -> dict | None:
     operator = operator_from_calendar_token(token)
     if not operator:
         return None
@@ -49,20 +59,28 @@ def calendar_snapshot(token: str) -> dict | None:
     labels = program_labels(village)
     names = operating_names(village)
     role = str(operator.get("role") or "village")
-    if role == "program":
-        key = str(operator.get("program_key") or "")
-        labels = [label for label in labels if program_key(label) == key]
-        names = [label for label in names if program_key(label) == key]
+    program_view = view == "program" and role == "village"
+    focus = str(operator.get("program_key") or "") if role == "program" else ""
+    if program_view:
+        focus = _first_program_key(village)
+    if role == "program" or program_view:
+        labels = [label for label in labels if program_key(label) == focus]
+        names = [label for label in names if program_key(label) == focus]
     listed = list_calendar(operator)
+    entries = [_public_entry(row) for row in listed.get("entries") or []]
+    bookings = _bookings_for(operator)
+    if program_view:
+        entries = [row for row in entries if program_key(str(row.get("label") or "")) == focus]
+        bookings = [row for row in bookings if program_key(str(row.get("label") or "")) == focus]
     return {
         "mode": "operator",
         "village_id": operator["village_id"],
         "village_name": village.get("village_name") or operator["village_id"],
-        "can_write": role == "village",
+        "can_write": role == "village" and not program_view,
         "programs": labels,
         "experience_names": names,
-        "entries": [_public_entry(row) for row in listed.get("entries") or []],
-        "bookings": _bookings_for(operator),
+        "entries": entries,
+        "bookings": bookings,
     }
 
 
