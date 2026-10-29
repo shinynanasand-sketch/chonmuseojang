@@ -43,6 +43,7 @@ function fillSelect(select, labels) {
 }
 
 function showPrograms() {
+  programList.hidden = false;
   programList.innerHTML = "";
   const names = snapshot.experience_names || [];
   if (!names.length) {
@@ -58,6 +59,41 @@ function showPrograms() {
   });
 }
 
+function showPending() {
+  const slot = document.getElementById("pending-list");
+  slot.innerHTML = "";
+  if (mode === "guest") {
+    slot.hidden = true;
+    return;
+  }
+  programList.hidden = true;
+  programList.innerHTML = "";
+  slot.hidden = false;
+  const pending = (snapshot.bookings || []).filter((row) => row.status === "pending");
+  if (!pending.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "대기 예약이 없습니다.";
+    slot.appendChild(empty);
+    return;
+  }
+  pending.forEach((row) => {
+    const item = document.createElement("p");
+    item.className = "booking-pending";
+    const clock = row.visit_time ? ` ${row.visit_time}` : "";
+    item.textContent = `${row.booking_id}번 대기 ${row.label}${clock} ${row.num_people}명 ${row.visit_date}`;
+    if (snapshot.can_write) {
+      ["confirmed", "rejected"].forEach((status) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = status === "confirmed" ? "승인" : "거절";
+        button.addEventListener("click", () => decideBooking(row, status));
+        item.appendChild(button);
+      });
+    }
+    slot.appendChild(item);
+  });
+}
+
 async function load(keepStatus) {
   const response = await fetch(mode === "guest" ? `/api/book/${token}` : `/api/calendar/${token}`);
   if (!response.ok) {
@@ -65,8 +101,13 @@ async function load(keepStatus) {
     return;
   }
   snapshot = await response.json();
-  document.getElementById("calendar-title").textContent = `${snapshot.village_name} 체험 달력`;
-  showPrograms();
+  if (mode === "guest") {
+    document.getElementById("calendar-title").textContent = `${snapshot.village_name} 체험 달력`;
+    showPrograms();
+  } else {
+    document.getElementById("calendar-title").textContent = `${snapshot.village_name} 예약 승인`;
+    showPending();
+  }
   if (!keepStatus) {
     if (mode === "guest") {
       statusNode.textContent = (snapshot.experience_names || []).length
@@ -74,7 +115,7 @@ async function load(keepStatus) {
         : "운영 중인 체험이 없습니다.";
     } else {
       statusNode.textContent = snapshot.can_write
-        ? "날짜를 누르고 단체와 인원을 저장합니다."
+        ? "대기인 날짜를 눌러 승인하거나 거절합니다."
         : "자기 체험 일정만 봅니다.";
     }
   }

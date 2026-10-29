@@ -414,6 +414,8 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert 'id="demo-calendar"' in text
     assert 'id="demo-book-frame"' in text
     assert 'id="demo-approve-frame"' in text
+    assert "사무장 승인" in text
+    assert "demo-approve" in text
     assert "<iframe" not in text
     assert "/book/" not in text
     assert "/calendar/" not in text
@@ -466,6 +468,7 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert 'id="demo-calendar"' not in text
     assert 'id="demo-book-frame"' not in text
     assert 'id="demo-approve-frame"' not in text
+    assert "사무장 승인" not in text
     assert "/book/" not in text
     assert "/calendar/" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
@@ -613,7 +616,15 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert 'class="role-nav"' not in book_page.text
     assert 'class="role-nav"' not in approve_page.text
     assert 'class="role-nav"' in plain_page.text
+    assert 'data-mode="guest"' in book_page.text
+    assert 'data-mode="operator"' in approve_page.text
+    assert 'id="pending-list"' in approve_page.text
     assert _PRESENTATION_GUEST_ID not in book_page.text
+    script = test_client.get("/static/js/calendar.js").text
+    assert "예약 승인" in script
+    assert "대기 예약이 없습니다." in script
+    assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
+    assert "날짜를 누르고 체험, 시간, 인원을 고릅니다." in script
 
     _presentation(monkeypatch, False)
     hidden = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})

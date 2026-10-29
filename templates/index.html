@@ -98,7 +98,7 @@
         {% endif %}
       </p>
     </li>
-    <li>
+    <li class="demo-approve">
       <span class="demo-num">4</span>
       <h3>카카오 관리</h3>
       <div class="kakao-thread">
@@ -121,6 +121,7 @@
         <button type="submit">열기</button>
       </form>
       <p id="demo-calendar-status" class="muted"></p>
+      <h3>사무장 승인</h3>
       <div id="demo-approve-frame"></div>
       {% if demo.approve_is_example %}<p>번호 7은 예시입니다.</p>{% endif %}
       <ul class="demo-copies">
@@ -372,6 +373,7 @@ if (demoCalendar) {
     status.replaceChildren();
     mountCalendar('demo-book-frame', data.book_url, '예약 달력');
     mountCalendar('demo-approve-frame', data.calendar_url, '승인 달력');
+    document.getElementById('demo-approve-frame').scrollIntoView({block: 'start'});
   });
 }
 
