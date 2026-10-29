@@ -1,8 +1,11 @@
 """관광객 마을 화면은 확인된 최신 홍보만 보여 준다."""
 
+from urllib.parse import urlsplit
+
 from config import presentation_enabled
 from main import templates
 from services.booking import create_booking
+from services.presentation_board import _PRESENTATION_GUEST_ID
 from services.supabase_client import insert_content, insert_operator, insert_review, upsert_villages
 
 _AUTH = {"Authorization": "Bearer owner_v001"}
@@ -409,6 +412,10 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert "달력에서 승인" in text
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in text
     assert 'id="demo-calendar"' in text
+    assert 'id="demo-book-frame"' in text
+    assert 'id="demo-approve-frame"' in text
+    assert "<iframe" not in text
+    assert "/book/" not in text
     assert "/calendar/" not in text
     assert 'class="kakao-ask"' in text
     assert "체험객 예약" in text
@@ -457,6 +464,9 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert "달력에서 체험, 날짜, 시간을 고릅니다." not in text
     assert "달력에서 승인" not in text
     assert 'id="demo-calendar"' not in text
+    assert 'id="demo-book-frame"' not in text
+    assert 'id="demo-approve-frame"' not in text
+    assert "/book/" not in text
     assert "/calendar/" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
     assert "달력이 열립니다" in text
@@ -563,24 +573,51 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     _presentation(monkeypatch, True)
     page = test_client.get("/").text
     assert 'id="demo-calendar"' in page
+    assert 'id="demo-book-frame"' in page
+    assert 'id="demo-approve-frame"' in page
+    assert "<iframe" not in page
+    assert "/book/" not in page
     assert "/calendar/" not in page
     assert "demo-pass" not in page
+    assert _PRESENTATION_GUEST_ID not in page
 
     wrong = test_client.post("/api/presentation/calendar", json={"password": "nope"})
     assert wrong.status_code == 404
+    assert "/book/" not in wrong.text
     assert "/calendar/" not in wrong.text
     assert "secret-board-owner" not in wrong.text
+    assert _PRESENTATION_GUEST_ID not in wrong.text
 
     opened = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})
     assert opened.status_code == 200
-    url = opened.json()["url"]
-    assert "/calendar/" in url
-    assert "secret-board-owner" not in url
-    assert "secret-board-login" not in url
-    assert list(opened.json()) == ["url"]
+    body = opened.json()
+    assert set(body) == {"book_url", "calendar_url"}
+    assert "/book/" in body["book_url"]
+    assert "/calendar/" in body["calendar_url"]
+    assert "embed=1" in body["book_url"]
+    assert "embed=1" in body["calendar_url"]
+    for secret in ("secret-board-owner", "secret-board-login", _PRESENTATION_GUEST_ID, "demo-pass"):
+        assert secret not in opened.text
+
+    def app_path(url: str) -> str:
+        parts = urlsplit(url)
+        query = f"?{parts.query}" if parts.query else ""
+        return f"{parts.path}{query}"
+
+    book_page = test_client.get(app_path(body["book_url"]))
+    approve_page = test_client.get(app_path(body["calendar_url"]))
+    plain_page = test_client.get(urlsplit(body["calendar_url"]).path)
+    assert book_page.status_code == 200
+    assert approve_page.status_code == 200
+    assert plain_page.status_code == 200
+    assert 'class="role-nav"' not in book_page.text
+    assert 'class="role-nav"' not in approve_page.text
+    assert 'class="role-nav"' in plain_page.text
+    assert _PRESENTATION_GUEST_ID not in book_page.text
 
     _presentation(monkeypatch, False)
     hidden = test_client.post("/api/presentation/calendar", json={"password": "demo-pass"})
     assert hidden.status_code == 404
+    assert "/book/" not in hidden.text
     assert "/calendar/" not in hidden.text
     assert 'id="demo-calendar"' not in test_client.get("/").text

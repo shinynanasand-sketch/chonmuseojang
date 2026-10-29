@@ -53,12 +53,12 @@ async def presentation_calendar(request: Request):
     if not request.app.state.templates.env.globals.get("presentation_mode"):
         raise HTTPException(status_code=404, detail="달력을 열 수 없습니다.")
     body = await request.json()
-    from services.presentation_board import presentation_calendar_url
+    from services.presentation_board import presentation_calendars
 
-    url = presentation_calendar_url(str(body.get("password") or ""))
-    if not url:
+    found = presentation_calendars(str(body.get("password") or ""))
+    if not found:
         raise HTTPException(status_code=404, detail="달력을 열 수 없습니다.")
-    return {"url": url}
+    return found
 
 
 @router.get("/recommend", response_class=HTMLResponse)
@@ -208,21 +208,29 @@ async def guide_use_page(request: Request):
     )
 
 
+def _embed(embed: str) -> bool:
+    return embed == "1"
+
+
 @router.get("/calendar/{token}", response_class=HTMLResponse)
-async def calendar_page(request: Request, token: str):
+async def calendar_page(request: Request, token: str, embed: str = ""):
     if calendar_snapshot(token) is None:
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     return request.app.state.templates.TemplateResponse(
-        request, "calendar.html", {"title": "체험 달력", "token": token, "mode": "operator"}
+        request,
+        "calendar.html",
+        {"title": "체험 달력", "token": token, "mode": "operator", "embed": _embed(embed)},
     )
 
 
 @router.get("/book/{token}", response_class=HTMLResponse)
-async def guest_book_page(request: Request, token: str):
+async def guest_book_page(request: Request, token: str, embed: str = ""):
     if guest_snapshot(token) is None:
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     return request.app.state.templates.TemplateResponse(
-        request, "calendar.html", {"title": "예약 달력", "token": token, "mode": "guest"}
+        request,
+        "calendar.html",
+        {"title": "예약 달력", "token": token, "mode": "guest", "embed": _embed(embed)},
     )
 
 

@@ -6,7 +6,7 @@ import os
 from config import KAKAO_CHANNEL_URL
 from services.booking import booking_summary, list_bookings_for_village
 from services.calendar_link import calendar_page_url
-from services.guest_book import operating_names
+from services.guest_book import issue_guest_book_link, operating_names
 from services.kakao_home import list_kakao_booking_villages
 from services.supabase_client import get_village_by_id, get_village_operator, list_contents
 from services.village_programs import program_labels
@@ -20,6 +20,7 @@ _SENTENCE_REPLY = "예약번호와 대기로 접수됩니다."
 _PHOTO_PROMPT = "사진을 한 장 올려 주세요."
 _APPROVE_REPLY = "예약이 승인되었습니다."
 _REJECT_REPLY = "예약이 거절되었습니다."
+_PRESENTATION_GUEST_ID = "presentation-guest"
 
 
 def _program_label(village: dict) -> str:
@@ -130,8 +131,8 @@ def presentation_board() -> dict:
     return board
 
 
-def presentation_calendar_url(password: str) -> str | None:
-    """시연 비밀번호가 맞을 때만 첫 예약 마을의 달력 주소를 준다."""
+def presentation_calendars(password: str) -> dict[str, str] | None:
+    """시연 비밀번호가 맞을 때만 예약 달력과 승인 달력 주소를 준다."""
     expected = os.getenv("PRESENTATION_CALENDAR_PASSWORD", "")
     given = (password or "").strip()
     if not expected or not given or len(expected) != len(given):
@@ -141,7 +142,11 @@ def presentation_calendar_url(password: str) -> str | None:
     villages = list_kakao_booking_villages()
     if not villages:
         return None
-    operator = get_village_operator(str(villages[0]["village_id"]))
+    village_id = str(villages[0]["village_id"])
+    operator = get_village_operator(village_id)
     if not operator:
         return None
-    return calendar_page_url(operator)
+    return {
+        "book_url": f"{issue_guest_book_link(_PRESENTATION_GUEST_ID, village_id)}?embed=1",
+        "calendar_url": f"{calendar_page_url(operator)}?embed=1",
+    }
