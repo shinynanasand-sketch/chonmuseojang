@@ -400,6 +400,11 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
     assert 'id="demo"' in text
     assert 'href="/#demo"' in text
     assert "시연 순서" in text
+    assert "카카오에서 하고, 웹에서 확인합니다." in text
+    assert "체험객 예약" in text
+    for number in ("1", "2", "3", "4"):
+        assert f'class="demo-num">{number}' in text
+    assert text.index("시연 순서") < text.index("체험객</h2>")
     assert "사무장 관리" in text
     assert "카카오 홍보 사진" in text
     assert "카카오 관리" in text
@@ -432,6 +437,8 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert 'id="demo"' not in text
     assert 'href="/#demo"' not in text
     assert "시연 순서" not in text
+    assert "체험객 예약" not in text
+    assert "demo-num" not in text
     assert "7번 승인" not in text
     assert "data-copy=" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text

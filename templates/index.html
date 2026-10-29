@@ -2,6 +2,58 @@
 {% block title %}홈 - 체험마을 AI사무장{% endblock %}
 {% block content %}
 <h1>체험마을 AI사무장</h1>
+{% if presentation_mode %}
+<section id="demo" class="demo-board">
+  <h2>시연 순서</h2>
+  <p class="demo-lead">카카오에서 하고, 웹에서 확인합니다.</p>
+  <ol class="demo-flow">
+    <li>
+      <span class="demo-num">1</span>
+      <h3>체험객 예약</h3>
+      <p>카카오에서 예약하기를 누르면 달력이 열립니다.</p>
+      <p class="card-links"><a href="#kakao-book">카카오 예약</a></p>
+    </li>
+    <li>
+      <span class="demo-num">2</span>
+      <h3>사무장 관리</h3>
+      <p>내 마을에서 운영 현황, 예약, 후기, 프로그램을 확인합니다.</p>
+      <p class="card-links">
+        <a href="/operator#status">운영 현황</a>
+        <a href="/operator#bookings">최근 예약</a>
+        <a href="/operator#reviews">후기</a>
+        <a href="/operator#programs">프로그램</a>
+      </p>
+    </li>
+    <li>
+      <span class="demo-num">3</span>
+      <h3>카카오 홍보 사진</h3>
+      <p>사진 한 장이 소개글과 SNS 문구가 되고, 공개 뒤 마을 소개에 나갑니다.</p>
+      <p class="demo-copies">
+        <button type="button" data-copy="홍보 사진">홍보 사진</button>
+      </p>
+      <p class="card-links">
+        <a href="/operator#promo">홍보문구 확인</a>
+        <a href="/villages">마을 소개</a>
+      </p>
+    </li>
+    <li>
+      <span class="demo-num">4</span>
+      <h3>카카오 관리</h3>
+      <p>카카오에 넣고, 결과는 내 마을 예약에서 봅니다. 번호 7은 예시입니다.</p>
+      <p class="demo-copies">
+        <button type="button" data-copy="예약 현황">예약 현황</button>
+        <button type="button" data-copy="7번 승인">7번 승인</button>
+        <button type="button" data-copy="7번 거절">7번 거절</button>
+        <button type="button" data-copy="체험 달력 조회">체험 달력 조회</button>
+        <button type="button" data-copy="체험 글 조회">체험 글 조회</button>
+      </p>
+      <p class="card-links">
+        <a href="/operator#bookings">예약 확인</a>
+      </p>
+    </li>
+  </ol>
+</section>
+{% endif %}
 <section class="audience">
   <article>
     <h2>체험객</h2>
@@ -13,7 +65,7 @@
       <a href="/nearby">주변정보</a>
       <a href="/villages">마을 소개</a>
     </p>
-    <section class="kakao-guide">
+    <section id="kakao-book" class="kakao-guide">
       <div>
         <h3>카카오로 예약하기</h3>
         <p>카카오톡 채널 체험마을AI사무장에서 예약합니다.</p>
@@ -42,64 +94,6 @@
     </p>
   </article>
 </section>
-{% if presentation_mode %}
-<section id="demo" class="demo-tracks">
-  <h2>시연 순서</h2>
-  <article>
-    <h3>사무장 관리</h3>
-    <p>내 마을에서 운영 현황, 예약, 후기, 프로그램을 확인합니다.</p>
-    <p class="card-links">
-      <a href="/operator#status">운영 현황</a>
-      <a href="/operator#bookings">최근 예약</a>
-      <a href="/operator#reviews">후기</a>
-      <a href="/operator#programs">프로그램</a>
-    </p>
-  </article>
-  <article>
-    <h3>카카오 홍보 사진</h3>
-    <p>채널에서 홍보 사진을 누르고 사진 한 장을 올립니다. 내 마을에서 소개글과 SNS 문구를 확인하고, 관광객에게 공개를 누른 뒤 마을 소개에서 결과를 봅니다.</p>
-    <div class="guide-lines">
-      <div class="guide-line">
-        <p>홍보 사진</p>
-        <button type="button" data-copy="홍보 사진">복사</button>
-      </div>
-    </div>
-    <p class="card-links">
-      <a href="/operator#promo">홍보문구 확인</a>
-      <a href="/villages">마을 소개</a>
-    </p>
-  </article>
-  <article>
-    <h3>카카오 관리</h3>
-    <p>카카오에 아래 문장을 넣고, 같은 결과는 내 마을 예약에서 확인합니다. 번호 7은 예시입니다.</p>
-    <div class="guide-lines">
-      <div class="guide-line">
-        <p>예약 현황</p>
-        <button type="button" data-copy="예약 현황">복사</button>
-      </div>
-      <div class="guide-line">
-        <p>7번 승인</p>
-        <button type="button" data-copy="7번 승인">복사</button>
-      </div>
-      <div class="guide-line">
-        <p>7번 거절</p>
-        <button type="button" data-copy="7번 거절">복사</button>
-      </div>
-      <div class="guide-line">
-        <p>체험 달력 조회</p>
-        <button type="button" data-copy="체험 달력 조회">복사</button>
-      </div>
-      <div class="guide-line">
-        <p>체험 글 조회</p>
-        <button type="button" data-copy="체험 글 조회">복사</button>
-      </div>
-    </div>
-    <p class="card-links">
-      <a href="/operator#bookings">예약 확인</a>
-    </p>
-  </article>
-</section>
-{% endif %}
 <section id="village-finder">
 <p>광주·전남 농촌체험마을을 시군과 이름으로 찾아 보세요.</p>
 <form id="village-filter" class="filter-row">
