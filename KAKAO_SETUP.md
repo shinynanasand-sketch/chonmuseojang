@@ -59,7 +59,13 @@ WHERE village_id = 'V001';
 
 ## 3. 이벤트 API
 
-예약이 저장되면 그 마을 운영자에게 이벤트 `booking_received`를, 승인이나 거절이 되면 그 관광객에게 이벤트 `booking_decided`를 호출합니다. 주소는 `POST https://bot-api.kakao.com/v2/bots/{KAKAO_BOT_ID}/talk`이고 키는 `KAKAO_REST_API_KEY`입니다. 키나 봇 ID가 없거나 카카오가 잔액 부족·이벤트 이름 오류로 거절하면 스킬 답은 지금과 같고 요금은 나가지 않습니다. 오픈빌더 블록에 같은 이벤트 이름이 있어야 말풍선이 나갑니다. 친구 메시지 주소는 쓰지 않습니다.
+예약이 저장되면 그 마을 운영자에게 이벤트 `booking_received`를, 승인이나 거절이 되면 그 관광객에게 이벤트 `booking_decided`를 호출합니다. 일정 변경을 제안하면 그 관광객에게 `booking_change_offered`를, 고객이 변경을 승인하거나 거부하면 그 마을 운영자에게 `booking_change_answered`를 호출합니다. 주소는 `POST https://bot-api.kakao.com/v2/bots/{KAKAO_BOT_ID}/talk`이고 키는 `KAKAO_REST_API_KEY`입니다. 키나 봇 ID가 없거나 카카오가 잔액 부족·이벤트 이름 오류로 거절하면 스킬 답은 지금과 같고 요금은 나가지 않습니다. 오픈빌더 블록에 같은 이벤트 이름이 있어야 말풍선이 나갑니다. 친구 메시지 주소는 쓰지 않습니다.
+
+말풍선 문구는 이벤트 데이터의 `message`입니다. 오픈빌더에서 이렇게 바꿉니다.
+
+- `booking_decided` 본문을 `{{#current.event.data.message}}`로 바꿉니다. 거절이면 방문 일시와 사과 문장이고, 승인이면 승인 문장입니다.
+- `booking_change_offered` 본문 첫 줄은 `{{#current.event.data.message}}`, 다음 줄은 `{{#current.event.data.link}}`입니다. 웹링크 버튼 이름은 `달력에서 확인`이고 주소는 `{{#current.event.data.link}}`입니다. 주소란이 그 문자를 받지 않으면 버튼은 두지 않고 본문 둘째 줄만 남깁니다.
+- `booking_change_answered` 본문은 `{{#current.event.data.message}}`입니다. 받는 사람은 마을 운영자입니다.
 
 ## 4. 시연 흐름
 

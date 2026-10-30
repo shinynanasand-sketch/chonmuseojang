@@ -41,8 +41,15 @@
     </label>
     <button type="submit">이 날짜에 예약</button>
   </form>
+  <form id="propose-form" hidden>
+    <p id="propose-target"></p>
+    <label>시간
+      <input type="time" id="propose-time" required>
+    </label>
+    <button type="submit">이 날짜로 제안</button>
+  </form>
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261029l"></script>
+<script src="/static/js/calendar.js?v=20261029m"></script>
 {% endblock %}

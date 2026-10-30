@@ -4,7 +4,7 @@ import pytest
 
 import json
 
-from services.booking import create_booking, get_booking_by_id
+from services.booking import create_booking, get_booking_by_id, save_booking_proposal
 from services.review import list_reviews_for_village
 from services.supabase_client import insert_review, upsert_villages
 
@@ -112,11 +112,13 @@ def test_approve_event_uses_chatbot_talk_url(monkeypatch, test_client, booking_f
     assert sent["url"] == "https://bot-api.kakao.com/v2/bots/bot-test/talk"
     assert sent["json"]["event"]["name"] == "booking_decided"
     assert sent["json"]["event"]["data"]["decision"] == "승인"
+    assert "승인되었습니다" in sent["json"]["event"]["data"]["message"]
     assert sent["json"]["user"] == [{"type": "botUserKey", "id": "customer_test"}]
     assert "owner_test" not in str(sent["json"]["user"])
 
 
 def test_reject_event_sends_decline_to_customer(monkeypatch, test_client, booking_for_approve):
+    save_booking_proposal(booking_for_approve["booking_id"], "2026-11-08", "14:00")
     calls = _enable_event(monkeypatch, {"status": "SUCCESS"})
     payload = {
         "intent": {"name": "예약거절"},
@@ -128,7 +130,14 @@ def test_reject_event_sends_decline_to_customer(monkeypatch, test_client, bookin
     sent = [item for item in calls if isinstance(item, dict)][0]
     assert sent["json"]["event"]["name"] == "booking_decided"
     assert sent["json"]["event"]["data"]["decision"] == "거절"
+    message = sent["json"]["event"]["data"]["message"]
+    assert "2026-09-20" in message
+    assert "불편을 드려 죄송합니다" in message
     assert sent["json"]["user"][0]["id"] == "customer_test"
+    rejected = get_booking_by_id(booking_for_approve["booking_id"])
+    assert rejected["status"] == "rejected"
+    assert not rejected.get("proposed_visit_date")
+    assert not rejected.get("proposed_visit_time")
 
 
 def test_approve_with_nonexistent_booking_id_does_not_crash(test_client, booking_for_approve):
