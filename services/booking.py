@@ -2,7 +2,13 @@
 
 import re
 
-from services.supabase_client import insert_booking, list_bookings, reset_booking_store, save_booking_status
+from services.supabase_client import (
+    insert_booking,
+    list_bookings,
+    reset_booking_store,
+    save_booking_status,
+    update_booking,
+)
 
 _DATE_IN_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}")
 _COUNT_IN_TEXT = re.compile(r"(\d+)\s*명")
@@ -144,6 +150,54 @@ def update_booking_status(booking_id: int | str, status: str) -> dict | None:
     return save_booking_status(bid, status)
 
 
+def _booking_id(booking_id: int | str) -> int | None:
+    try:
+        return int(booking_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def save_booking_proposal(booking_id: int | str, visit_date: str, visit_time: str) -> dict | None:
+    """대기 예약에 제안 일시만 덮어쓴다. 방문 일시와 상태는 그대로다."""
+    bid = _booking_id(booking_id)
+    if bid is None:
+        return None
+    return update_booking(
+        bid,
+        {"proposed_visit_date": visit_date, "proposed_visit_time": visit_time},
+    )
+
+
+def clear_booking_proposal(booking_id: int | str) -> dict | None:
+    bid = _booking_id(booking_id)
+    if bid is None:
+        return None
+    return update_booking(bid, {"proposed_visit_date": None, "proposed_visit_time": None})
+
+
+def apply_booking_proposal(booking_id: int | str) -> dict | None:
+    """제안 일시를 방문 일시로 옮기고 제안 칸을 비운다. 상태는 바꾸지 않는다."""
+    bid = _booking_id(booking_id)
+    if bid is None:
+        return None
+    row = get_booking_by_id(bid)
+    if not row:
+        return None
+    day = str(row.get("proposed_visit_date") or "")[:10]
+    clock = str(row.get("proposed_visit_time") or "")[:5]
+    if not day or not clock:
+        return None
+    return update_booking(
+        bid,
+        {
+            "visit_date": day,
+            "visit_time": clock,
+            "proposed_visit_date": None,
+            "proposed_visit_time": None,
+        },
+    )
+
+
 def list_bookings_for_village(village_id: str) -> list[dict]:
     return list_bookings(village_id=village_id)
 
@@ -166,13 +220,20 @@ _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절
 
 
 def booking_summary(row: dict) -> str:
-    """예약 한 줄. 시간이 있으면 날짜 뒤에 붙인다."""
+    """예약 한 줄. 시간이 있으면 날짜 뒤에 붙인다. 열린 제안이 있으면 그 일시를 덧붙인다."""
     label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
-    when = str(row.get("visit_date") or "")
-    clock = str(row.get("visit_time") or "").strip()
+    when = str(row.get("visit_date") or "")[:10]
+    clock = str(row.get("visit_time") or "").strip()[:5]
     if clock:
         when = f"{when} {clock}".strip()
-    return f"{row.get('booking_id')}번 {label} {when} {row.get('num_people')}명"
+    line = f"{row.get('booking_id')}번 {label} {when} {row.get('num_people')}명"
+    offered = str(row.get("proposed_visit_date") or "")[:10]
+    if offered:
+        offered_clock = str(row.get("proposed_visit_time") or "").strip()[:5]
+        if offered_clock:
+            offered = f"{offered} {offered_clock}"
+        line = f"{line} 변경 제안 {offered}"
+    return line
 
 
 def format_booking_lines(rows: list[dict]) -> str:

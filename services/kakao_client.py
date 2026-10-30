@@ -294,6 +294,37 @@ def notify_booking_received(booking: dict) -> None:
     )
 
 
+def _slot(booking: dict, date_key: str = "visit_date", time_key: str = "visit_time") -> str:
+    day = str(booking.get(date_key) or "")[:10]
+    clock = str(booking.get(time_key) or "").strip()[:5]
+    return f"{day} {clock}".strip()
+
+
+def booking_decision_message(booking: dict, decision: str) -> str:
+    """승인·거절 말풍선. 거절은 원래 방문 일시와 사과를 넣는다."""
+    booking_id = booking.get("booking_id")
+    if decision == "approve":
+        return f"예약 {booking_id}번이 승인되었습니다."
+    when = _slot(booking)
+    return f"예약 {booking_id}번 {when}은 진행이 어렵습니다. 불편을 드려 죄송합니다."
+
+
+def booking_offer_message(booking: dict) -> str:
+    when = _slot(booking, "proposed_visit_date", "proposed_visit_time")
+    return (
+        f"예약 {booking.get('booking_id')}번을 {when}으로 바꿀 수 있습니다. "
+        "달력에서 변경을 승인하거나 거부해 주세요."
+    )
+
+
+def booking_answer_message(booking: dict, accepted: bool) -> str:
+    booking_id = booking.get("booking_id")
+    if accepted:
+        when = _slot(booking)
+        return f"예약 {booking_id}번 고객이 {when} 변경에 동의했습니다. 달력에서 승인해 주세요."
+    return f"예약 {booking_id}번 고객이 일정 변경을 거부했습니다. 다른 시간을 제안하거나 거절할 수 있습니다."
+
+
 def notify_booking_decided(booking: dict, decision: str) -> None:
     """승인·거절 선톡. 그 예약을 한 관광객에게만 보낸다."""
     label = "승인" if decision == "approve" else "거절"
@@ -303,5 +334,36 @@ def notify_booking_decided(booking: dict, decision: str) -> None:
         {
             "booking_id": booking.get("booking_id"),
             "decision": label,
+            "message": booking_decision_message(booking, decision),
+        },
+    )
+
+
+def notify_booking_change_offered(booking: dict, link: str) -> None:
+    """일정 변경 제안 선톡. 그 예약을 한 관광객에게만 보낸다."""
+    send_kakao_event(
+        "booking_change_offered",
+        str(booking.get("customer_kakao_id") or ""),
+        {
+            "booking_id": booking.get("booking_id"),
+            "message": booking_offer_message(booking),
+            "link": link,
+        },
+    )
+
+
+def notify_booking_change_answered(booking: dict, accepted: bool) -> None:
+    """고객의 변경 답. 그 마을 운영자에게만 보낸다."""
+    from services.supabase_client import get_village_operator
+
+    operator = get_village_operator(str(booking.get("village_id") or ""))
+    if not operator or not operator.get("is_active", True):
+        return
+    send_kakao_event(
+        "booking_change_answered",
+        str(operator.get("kakao_user_id") or ""),
+        {
+            "booking_id": booking.get("booking_id"),
+            "message": booking_answer_message(booking, accepted),
         },
     )

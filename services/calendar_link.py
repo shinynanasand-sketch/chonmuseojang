@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import os
 import time
+from datetime import date
 
 from services.supabase_client import get_operator_by_id
 
@@ -38,6 +39,45 @@ def operator_from_calendar_token(token: str) -> dict | None:
     except (TypeError, ValueError):
         return None
     return found
+
+
+def issue_change_token(booking_id: int, visit_date: str, visit_time: str) -> str:
+    """제안 일시가 바뀌면 이전 토큰은 맞지 않는다. 카카오 사용자 ID는 넣지 않는다."""
+    expires = int(time.time()) + _TTL_SECONDS
+    clock = f"{visit_time[:2]}{visit_time[3:5]}"
+    payload = f"{int(booking_id)}.{visit_date}.{clock}.{expires}"
+    signature = hmac.new(_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()[:20]
+    return f"{payload}.{signature}"
+
+
+def booking_from_change_token(token: str) -> dict | None:
+    parts = (token or "").split(".")
+    if len(parts) != 5:
+        return None
+    booking_id, visit_date, clock, expires, signature = parts
+    if len(clock) != 4 or not clock.isdigit():
+        return None
+    payload = f"{booking_id}.{visit_date}.{clock}.{expires}"
+    expected = hmac.new(_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()[:20]
+    if len(expected) != len(signature) or not hmac.compare_digest(expected, signature):
+        return None
+    try:
+        if int(expires) < int(time.time()):
+            return None
+        parsed_id = int(booking_id)
+        date.fromisoformat(visit_date)
+    except (TypeError, ValueError):
+        return None
+    return {
+        "booking_id": parsed_id,
+        "proposed_visit_date": visit_date,
+        "proposed_visit_time": f"{clock[:2]}:{clock[2:]}",
+    }
+
+
+def change_page_url(booking_id: int, visit_date: str, visit_time: str) -> str:
+    base = os.getenv("PUBLIC_BASE_URL", "https://chonmuseojang.vercel.app").rstrip("/")
+    return f"{base}/change/{issue_change_token(booking_id, visit_date, visit_time)}"
 
 
 def calendar_page_url(operator: dict) -> str:
