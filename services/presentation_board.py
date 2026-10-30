@@ -8,9 +8,8 @@ from services.booking import booking_summary, list_bookings_for_village
 from services.calendar_link import calendar_page_url
 from services.guest_book import issue_guest_book_link, operating_names
 from services.kakao_home import list_kakao_booking_villages
-from services.supabase_client import get_village_by_id, get_village_operator, list_contents
+from services.supabase_client import get_village_operator, list_contents
 from services.village_programs import program_labels
-from services.village_promo import public_village_promo
 
 _INTRO = "소개글"
 _SNS = "SNS홍보문구"
@@ -42,25 +41,27 @@ def _http_photo(row: dict) -> str:
 
 def _latest_promo(village_id: str) -> dict | None:
     latest: dict[str, dict] = {}
+    published: dict[str, dict] = {}
     for row in list_contents(village_id=village_id):
         kind = row.get("content_type")
-        if kind in {_INTRO, _SNS}:
-            latest[kind] = row
+        if kind not in {_INTRO, _SNS}:
+            continue
+        latest[kind] = row
+        if row.get("is_public"):
+            published[kind] = row
     if not latest:
         return None
     intro = latest.get(_INTRO, {})
     sns = latest.get(_SNS, {})
-    published = public_village_promo(village_id) or {}
-    page = ""
-    if (published.get("intro") or "").strip() or (published.get("sns") or "").strip():
-        page = f"/village/{village_id}"
+    published_intro = str(published.get(_INTRO, {}).get("body") or "").strip()
+    published_sns = str(published.get(_SNS, {}).get("body") or "").strip()
     draft = any(row and not row.get("is_public") for row in (intro, sns) if row.get("body"))
     return {
         "intro": str(intro.get("body") or ""),
         "sns": str(sns.get("body") or ""),
         "photo_url": _http_photo(intro) or _http_photo(sns),
         "draft": draft,
-        "village_page": page,
+        "village_page": f"/village/{village_id}" if published_intro or published_sns else "",
     }
 
 
@@ -105,7 +106,7 @@ def presentation_board() -> dict:
     if not villages:
         return board
     chosen = villages[0]
-    village = get_village_by_id(chosen["village_id"]) or chosen
+    village = chosen
     label = _program_label(village)
     name = str(chosen.get("village_name") or "").strip()
     place = _place(village)

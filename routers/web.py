@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -8,13 +9,16 @@ from models.schemas import RecommendRequest
 from services.booking import get_public_dashboard_summary
 from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
-from services.supabase_client import list_program_status_map, list_public_villages
+from services.supabase_client import get_supabase_client, list_program_status_map, list_public_villages
 from services.tourapi import get_nearby_for_village
 from services.dev_admin import clear_village_records, dev_open, issue_dev_cookie, village_choices
 from services.guide_access import codes_open, guide_rows, issue_unlock_cookie
 from services.calendar_board import (
+    answer_booking_change,
     calendar_snapshot,
+    change_snapshot,
     delete_calendar_from_token,
+    propose_booking_from_token,
     save_calendar_from_token,
     set_booking_status_from_token,
 )
@@ -27,15 +31,39 @@ from services.trust_score import calculate_trust_score
 
 router = APIRouter()
 
+_VILLAGE_LIST_TTL = 60.0
+_village_list_cache: dict[tuple[str, str], tuple[float, dict]] = {}
+
+
+def _cdn(fresh: int, stale: int) -> dict[str, str]:
+    """브라우저가 미국 서버를 기다리지 않게 서울 CDN이 응답을 보관한다."""
+    shared = f"public, s-maxage={fresh}, stale-while-revalidate={stale}"
+    return {
+        "Cache-Control": f"public, max-age=0, s-maxage={fresh}, stale-while-revalidate={stale}",
+        "Vercel-CDN-Cache-Control": shared,
+    }
+
+
+# 홈은 예약 문장이 있어서 짧게만 보관한다. 나머지 공개 화면은 더 오래 둔다.
+_HOME_CDN = _cdn(15, 45)
+_PAGE_CDN = _cdn(300, 3600)
+_VILLAGE_CDN = _cdn(120, 600)
+
+
+def _html(request: Request, template: str, context: dict, headers: dict[str, str]):
+    response = request.app.state.templates.TemplateResponse(request, template, context)
+    response.headers.update(headers)
+    return response
+
 
 @router.get("/sitemap.xml")
 def sitemap():
-    return Response(content=sitemap_xml(), media_type="application/xml")
+    return Response(content=sitemap_xml(), media_type="application/xml", headers=_PAGE_CDN)
 
 
 @router.get("/robots.txt")
 def robots():
-    return PlainTextResponse(robots_txt())
+    return PlainTextResponse(robots_txt(), headers=_PAGE_CDN)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -45,7 +73,7 @@ async def home(request: Request):
         from services.presentation_board import presentation_board
 
         context["demo"] = presentation_board()
-    return request.app.state.templates.TemplateResponse(request, "index.html", context)
+    return _html(request, "index.html", context, _HOME_CDN)
 
 
 @router.post("/api/presentation/calendar")
@@ -63,38 +91,31 @@ async def presentation_calendar(request: Request):
 
 @router.get("/recommend", response_class=HTMLResponse)
 async def recommend_page(request: Request):
-    return request.app.state.templates.TemplateResponse(
-        request, "recommend.html", {"title": "AI 추천"}
-    )
+    return _html(request, "recommend.html", {"title": "AI 추천"}, _PAGE_CDN)
 
 
 @router.get("/map", response_class=HTMLResponse)
 async def map_page(request: Request):
-    return request.app.state.templates.TemplateResponse(
-        request, "map.html", {"title": "마을 지도"}
-    )
+    return _html(request, "map.html", {"title": "마을 지도"}, _PAGE_CDN)
 
 
 @router.get("/nearby", response_class=HTMLResponse)
 async def nearby_page(request: Request):
-    return request.app.state.templates.TemplateResponse(
-        request, "nearby.html", {"title": "주변정보"}
-    )
+    return _html(request, "nearby.html", {"title": "주변정보"}, _PAGE_CDN)
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
-    return request.app.state.templates.TemplateResponse(
-        request, "dashboard.html", {"title": "운영 현황"}
-    )
+    return _html(request, "dashboard.html", {"title": "운영 현황"}, _PAGE_CDN)
 
 
 @router.get("/villages", response_class=HTMLResponse)
 async def villages_page(request: Request):
-    return request.app.state.templates.TemplateResponse(
+    return _html(
         request,
         "villages.html",
         {"title": "마을 소개", "villages": list_published_villages()},
+        _VILLAGE_CDN,
     )
 
 
@@ -103,8 +124,11 @@ async def village_page(request: Request, village_id: str):
     promo = public_village_promo(village_id)
     if promo is None:
         raise HTTPException(status_code=404, detail="마을을 찾지 못했습니다.")
-    return request.app.state.templates.TemplateResponse(
-        request, "village.html", {"title": promo["village_name"] or "마을", "promo": promo}
+    return _html(
+        request,
+        "village.html",
+        {"title": promo["village_name"] or "마을", "promo": promo},
+        _VILLAGE_CDN,
     )
 
 
@@ -118,6 +142,14 @@ def _calendar_result(result: dict):
         raise HTTPException(status_code=403, detail="체험 달력은 마을 운영자만 등록할 수 있습니다.")
     if reason == "program_not_found":
         raise HTTPException(status_code=400, detail="이 마을에서 운영 중인 체험이 아닙니다.")
+    if reason == "bad_slot":
+        raise HTTPException(status_code=400, detail="날짜와 시간을 확인해 주세요.")
+    if reason == "not_pending":
+        raise HTTPException(status_code=400, detail="대기 예약만 일정을 바꿀 수 있습니다.")
+    if reason == "closed":
+        raise HTTPException(status_code=400, detail="이 일정 변경은 이미 끝났습니다.")
+    if reason == "bad_decision":
+        raise HTTPException(status_code=400, detail="변경 승인 또는 변경 거부를 선택해 주세요.")
     raise HTTPException(status_code=400, detail="체험 이름, 날짜, 단체, 인원을 확인해 주세요.")
 
 
@@ -289,6 +321,44 @@ async def calendar_booking_status(token: str, booking_id: int, request: Request)
     return _calendar_result(result)
 
 
+@router.post("/api/calendar/{token}/bookings/{booking_id}/proposal")
+async def calendar_booking_proposal(token: str, booking_id: int, request: Request):
+    body = await request.json()
+    result = propose_booking_from_token(
+        token,
+        booking_id,
+        str(body.get("visit_date") or ""),
+        str(body.get("visit_time") or ""),
+    )
+    return _calendar_result(result)
+
+
+@router.get("/change/{token}", response_class=HTMLResponse)
+async def change_page(request: Request, token: str):
+    if change_snapshot(token) is None:
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "calendar.html",
+        {"title": "일정 변경", "token": token, "mode": "change", "embed": False},
+    )
+
+
+@router.get("/api/change/{token}")
+async def change_api(token: str):
+    snapshot = change_snapshot(token)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
+    return snapshot
+
+
+@router.post("/api/change/{token}")
+async def change_answer(token: str, request: Request):
+    body = await request.json()
+    result = answer_booking_change(token, str(body.get("decision") or ""))
+    return _calendar_result(result)
+
+
 @router.delete("/api/calendar/{token}")
 async def calendar_delete(token: str, request: Request):
     body = await request.json()
@@ -346,8 +416,13 @@ async def api_village_promo(village_id: str):
     return promo
 
 
-@router.get("/api/villages")
-async def api_villages(sigungu: str | None = None, program_type: str | None = None):
+def _village_list_payload(sigungu: str | None, program_type: str | None) -> dict:
+    key = (sigungu or "", program_type or "")
+    now = time.monotonic()
+    cached = _village_list_cache.get(key)
+    live = get_supabase_client() is not None
+    if live and cached is not None and now - cached[0] < _VILLAGE_LIST_TTL:
+        return cached[1]
     source = list_public_villages(sigungu=sigungu, program_type=program_type)
     saved = list_program_status_map([str(village.get("village_id") or "") for village in source])
     villages = []
@@ -356,7 +431,16 @@ async def api_villages(sigungu: str | None = None, program_type: str | None = No
         village_id = str(village.get("village_id") or "")
         item["programs"] = programs_for(village, saved.get(village_id, []))
         villages.append(item)
-    return {"status": "success", "count": len(villages), "villages": villages}
+    payload = {"status": "success", "count": len(villages), "villages": villages}
+    if live:
+        _village_list_cache[key] = (now, payload)
+    return payload
+
+
+@router.get("/api/villages")
+async def api_villages(response: Response, sigungu: str | None = None, program_type: str | None = None):
+    response.headers.update(_VILLAGE_CDN)
+    return _village_list_payload(sigungu, program_type)
 
 
 @router.get("/api/nearby")

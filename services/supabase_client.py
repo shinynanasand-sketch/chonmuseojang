@@ -244,6 +244,29 @@ def list_villages(sigungu: str | None = None, program_type: str | None = None) -
     return rows
 
 
+def list_villages_by_ids(village_ids: list[str]) -> list[dict]:
+    """여러 마을을 한 번에 읽는다. 공개 화면에 필요한 열만 가져온다."""
+    ids = [str(village_id) for village_id in village_ids if village_id]
+    if not ids:
+        return []
+    client = get_supabase_client()
+    if client:
+        columns = "village_id,village_name,sigungu,program_name,program_type"
+        found: list[dict] = []
+        for start in range(0, len(ids), 100):
+            chunk = ids[start : start + 100]
+            result = (
+                client.table("villages_cache")
+                .select(columns)
+                .in_("village_id", chunk)
+                .execute()
+            )
+            found.extend(result.data or [])
+        return found
+    wanted = set(ids)
+    return [row for row in _villages_cache if str(row.get("village_id") or "") in wanted]
+
+
 def get_village_by_id(village_id: str) -> dict | None:
     client = get_supabase_client()
     if client:
@@ -606,20 +629,27 @@ def list_bookings(
     return [dict(row) for row in sorted(rows, key=lambda row: row.get("booking_id") or 0)]
 
 
-def save_booking_status(booking_id: int, status: str) -> dict | None:
+def update_booking(booking_id: int, fields: dict) -> dict | None:
+    """예약 칸만 바꾼다. 없는 번호면 None."""
     client = get_supabase_client()
     if client:
-        result = (
-            client.table("bookings").update({"status": status}).eq("booking_id", booking_id).execute()
-        )
+        result = client.table("bookings").update(fields).eq("booking_id", booking_id).execute()
         if not result.data:
             return None
         return result.data[0]
     for row in _bookings:
         if row.get("booking_id") == booking_id:
-            row["status"] = status
+            row.update(fields)
             return dict(row)
     return None
+
+
+def save_booking_status(booking_id: int, status: str) -> dict | None:
+    fields = {"status": status}
+    if status in ("confirmed", "rejected"):
+        fields["proposed_visit_date"] = None
+        fields["proposed_visit_time"] = None
+    return update_booking(booking_id, fields)
 
 
 def insert_review(row: dict) -> dict:

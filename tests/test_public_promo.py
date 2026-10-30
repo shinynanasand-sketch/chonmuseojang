@@ -171,6 +171,7 @@ def test_home_exposes_naver_verification_and_public_sitemap(test_client):
 def test_home_links_to_village_page(test_client):
     page = test_client.get("/")
     assert page.status_code == 200
+    assert page.headers["cache-control"].startswith("public, max-age=0, s-maxage=15")
     assert "/village/" in page.text
     assert "마을 소개" in page.text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in page.text

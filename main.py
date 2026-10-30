@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.responses import Response as StarletteResponse
 
 from config import PRESENTATION_MODE
 from routers import kakao, operator, web
@@ -19,7 +20,18 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["presentation_mode"] = PRESENTATION_MODE
 app.state.templates = templates
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+class CachedStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope) -> StarletteResponse:
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=604800"
+            response.headers["Vercel-CDN-Cache-Control"] = (
+                "public, s-maxage=86400, stale-while-revalidate=604800"
+            )
+        return response
+
+
+app.mount("/static", CachedStaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 app.include_router(web.router)
 app.include_router(operator.router)

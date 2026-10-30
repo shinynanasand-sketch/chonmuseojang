@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}홈 - 체험마을 AI사무장{% endblock %}
+{% block head %}
+<script>
+window.villageListPromise = fetch("/api/villages");
+</script>
+{% endblock %}
 {% block content %}
 <h1>체험마을 AI사무장</h1>
 {% if presentation_mode %}
@@ -359,7 +364,7 @@ function fillSigunguOptions() {
 async function loadVillages() {
   const count = document.getElementById('village-count');
   try {
-    const res = await fetch('/api/villages');
+    const res = await (window.villageListPromise || fetch('/api/villages'));
     const data = await res.json();
     allVillages = data.villages || [];
     if (!allVillages.length) {

@@ -1,4 +1,6 @@
 {
+  "fluid": true,
+  "regions": ["icn1"],
   "builds": [
     {
       "src": "api/index.py",
