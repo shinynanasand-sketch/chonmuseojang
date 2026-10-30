@@ -4,8 +4,10 @@
 <section id="calendar-app" data-token="{{ token }}" data-mode="{{ mode }}" data-view="{{ view|default('') }}">
   <h1 id="calendar-title">체험 달력</h1>
   <p id="calendar-status" class="muted">일정을 불러오는 중입니다.</p>
+  <p id="calendar-legend" class="muted" hidden>분홍은 대기, 연두는 승인입니다.</p>
   <ul id="program-list" class="program-list"></ul>
-  <div id="pending-list" hidden></div>
+  <div id="pending-list" class="booking-board" hidden></div>
+  <div id="approved-list" class="booking-board" hidden></div>
   <div class="month-bar">
     <button type="button" id="prev-month">이전달</button>
     <strong id="month-label"></strong>
@@ -18,6 +20,7 @@
   <h2 id="day-title">날짜를 눌러 주세요</h2>
   <div id="day-entries"></div>
   <form id="entry-form" hidden>
+    <h2>단체 일정</h2>
     <label>체험
       <select id="program-label"></select>
     </label>
@@ -30,6 +33,7 @@
     <button type="submit">이 날짜에 저장</button>
   </form>
   <form id="guest-form" hidden>
+    <p id="guest-date"></p>
     <label>체험
       <select id="guest-program"></select>
     </label>
@@ -37,7 +41,7 @@
       <input type="time" id="visit-time" required>
     </label>
     <label>인원
-      <input type="number" id="guest-people" min="1" inputmode="numeric">
+      <input type="number" id="guest-people" min="1" required inputmode="numeric">
     </label>
     <button type="submit">이 날짜에 예약</button>
   </form>
@@ -51,5 +55,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261029m"></script>
+<script src="/static/js/calendar.js?v=20261030a"></script>
 {% endblock %}

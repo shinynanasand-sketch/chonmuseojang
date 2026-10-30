@@ -11,6 +11,7 @@ const guestForm = document.getElementById("guest-form");
 const programSelect = document.getElementById("program-label");
 const guestProgram = document.getElementById("guest-program");
 const programList = document.getElementById("program-list");
+const legend = document.getElementById("calendar-legend");
 
 let snapshot = null;
 let shown = new Date();
@@ -31,6 +32,18 @@ function entriesOn(day) {
 
 function bookingsOn(day) {
   return (snapshot.bookings || []).filter((row) => row.visit_date === day);
+}
+
+function proposalsOn(day) {
+  return (snapshot.bookings || []).filter((row) => row.proposed_visit_date === day);
+}
+
+function bySlot(left, right) {
+  const a = `${left.visit_date} ${left.visit_time || ""}`;
+  const b = `${right.visit_date} ${right.visit_time || ""}`;
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return (left.booking_id || 0) - (right.booking_id || 0);
 }
 
 function fillSelect(select, labels) {
@@ -66,58 +79,125 @@ function offerText(row) {
   return ` 변경 제안 중 ${row.proposed_visit_date}${clock}`;
 }
 
+function describeProposal(row) {
+  const clock = row.visit_time ? ` ${row.visit_time}` : "";
+  return `${row.label} · ${row.booking_id}번 · 현재 ${row.visit_date}${clock}. 바꿀 날짜를 누르고 시간을 입력합니다.`;
+}
+
 function addStatusButtons(item, row) {
-  if (!snapshot.can_write) return;
+  if (!snapshot.can_write || row.status !== "pending") return;
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
   ["confirmed", "rejected"].forEach((status) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = status === "confirmed" ? "승인" : "거절";
     button.addEventListener("click", () => decideBooking(row, status));
-    item.appendChild(button);
+    actions.appendChild(button);
   });
-  if (row.status !== "pending") return;
   const change = document.createElement("button");
   change.type = "button";
   change.textContent = "일정 변경";
   change.addEventListener("click", () => startPropose(row));
-  item.appendChild(change);
+  actions.appendChild(change);
+  item.appendChild(actions);
 }
 
 function addAnswerButtons(item) {
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
   ["accept", "decline"].forEach((decision) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = decision === "accept" ? "변경 승인" : "변경 거부";
     button.addEventListener("click", () => answerChange(decision));
-    item.appendChild(button);
+    actions.appendChild(button);
+  });
+  item.appendChild(actions);
+}
+
+function appendSlot(card, row) {
+  const clock = row.visit_time ? ` ${row.visit_time}` : "";
+  if (row.proposed_visit_date) {
+    const pair = document.createElement("div");
+    pair.className = "slot-pair";
+    const original = document.createElement("p");
+    original.textContent = `원래 ${row.visit_date}${clock}`;
+    const offered = document.createElement("p");
+    const offerClock = row.proposed_visit_time ? ` ${row.proposed_visit_time}` : "";
+    offered.textContent = `제안 ${row.proposed_visit_date}${offerClock}`;
+    pair.appendChild(original);
+    pair.appendChild(offered);
+    card.appendChild(pair);
+    return;
+  }
+  const when = document.createElement("p");
+  when.textContent = `${row.visit_date}${clock}`;
+  card.appendChild(when);
+}
+
+function fillBoard(slot, title, rows, emptyText, withActions) {
+  slot.innerHTML = "";
+  slot.hidden = false;
+  const heading = document.createElement("h2");
+  heading.textContent = title;
+  slot.appendChild(heading);
+  if (!rows.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = emptyText;
+    slot.appendChild(empty);
+    return;
+  }
+  rows.forEach((row) => {
+    const card = document.createElement("article");
+    card.className = row.status === "confirmed" ? "booking-card booking-confirmed" : "booking-card booking-pending";
+    const name = document.createElement("p");
+    name.className = "booking-name";
+    name.textContent = row.label;
+    const meta = document.createElement("p");
+    meta.textContent = `${row.num_people}명 · ${row.booking_id}번`;
+    card.appendChild(name);
+    appendSlot(card, row);
+    card.appendChild(meta);
+    if (withActions) addStatusButtons(card, row);
+    slot.appendChild(card);
   });
 }
 
-function showPending() {
-  const slot = document.getElementById("pending-list");
-  slot.innerHTML = "";
+function showBoards() {
+  const pendingSlot = document.getElementById("pending-list");
+  const approvedSlot = document.getElementById("approved-list");
   if (mode !== "operator") {
-    slot.hidden = true;
+    pendingSlot.hidden = true;
+    approvedSlot.hidden = true;
     return;
   }
   programList.hidden = true;
   programList.innerHTML = "";
-  slot.hidden = false;
-  const pending = (snapshot.bookings || []).filter((row) => row.status === "pending");
-  if (!pending.length) {
-    const empty = document.createElement("p");
-    empty.textContent = "대기 예약이 없습니다.";
-    slot.appendChild(empty);
-    return;
-  }
-  pending.forEach((row) => {
-    const item = document.createElement("p");
-    item.className = "booking-pending";
-    const clock = row.visit_time ? ` ${row.visit_time}` : "";
-    item.textContent = `${row.booking_id}번 대기 ${row.label}${clock} ${row.num_people}명 ${row.visit_date}${offerText(row)}`;
-    addStatusButtons(item, row);
-    slot.appendChild(item);
-  });
+  const bookings = snapshot.bookings || [];
+  fillBoard(
+    pendingSlot,
+    "대기 예약",
+    bookings.filter((row) => row.status === "pending").sort(bySlot),
+    "대기 예약이 없습니다.",
+    true,
+  );
+  fillBoard(
+    approvedSlot,
+    "승인된 체험",
+    bookings.filter((row) => row.status === "confirmed").sort(bySlot),
+    "승인된 체험이 없습니다.",
+    false,
+  );
+}
+
+function syncGuestForm() {
+  const names = (snapshot && snapshot.experience_names) || [];
+  const open = mode === "guest" && names.length > 0 && Boolean(selected);
+  guestForm.hidden = !open;
+  const dateLine = document.getElementById("guest-date");
+  if (dateLine) dateLine.textContent = open ? `${selected}에 예약합니다.` : "";
 }
 
 function snapshotPath() {
@@ -134,6 +214,12 @@ async function load(keepStatus) {
     return;
   }
   snapshot = await response.json();
+  if (proposing) {
+    const still = (snapshot.bookings || []).find(
+      (row) => row.booking_id === proposing.booking_id && row.status === "pending",
+    );
+    proposing = still || null;
+  }
   if (mode === "guest") {
     document.getElementById("calendar-title").textContent = `${snapshot.village_name} 체험 달력`;
     showPrograms();
@@ -142,7 +228,7 @@ async function load(keepStatus) {
       ? `${snapshot.village_name} 일정 변경`
       : "일정 변경";
     programList.hidden = true;
-    showPending();
+    showBoards();
     if (snapshot.open && snapshot.focus_date) {
       const parts = snapshot.focus_date.split("-");
       shown = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
@@ -151,8 +237,9 @@ async function load(keepStatus) {
   } else {
     const heading = snapshot.can_write ? "예약 승인" : "체험 일정";
     document.getElementById("calendar-title").textContent = `${snapshot.village_name} ${heading}`;
-    showPending();
+    showBoards();
   }
+  if (legend) legend.hidden = mode === "change";
   if (!keepStatus) {
     if (mode === "guest") {
       statusNode.textContent = (snapshot.experience_names || []).length
@@ -171,10 +258,14 @@ async function load(keepStatus) {
   fillSelect(programSelect, snapshot.programs || []);
   fillSelect(guestProgram, snapshot.experience_names || []);
   form.hidden = mode !== "operator" || !snapshot.can_write;
-  guestForm.hidden = mode !== "guest" || !(snapshot.experience_names || []).length;
-  if (!proposing) document.getElementById("propose-form").hidden = true;
+  const proposeForm = document.getElementById("propose-form");
+  proposeForm.hidden = !proposing;
+  if (proposing) {
+    document.getElementById("propose-target").textContent = describeProposal(proposing);
+  }
   draw();
   if (selected) showDay(selected);
+  else syncGuestForm();
 }
 
 function draw() {
@@ -194,9 +285,14 @@ function draw() {
     button.type = "button";
     button.className = "day-cell";
     const dayBookings = bookingsOn(key);
-    if (dayBookings.some((row) => row.status === "pending")) button.classList.add("pending");
-    else if (dayBookings.some((row) => row.status === "confirmed")) button.classList.add("confirmed");
-    else if (entriesOn(key).length || dayBookings.length) button.classList.add("has");
+    const hasPending = dayBookings.some((row) => row.status === "pending");
+    const hasConfirmed = dayBookings.some((row) => row.status === "confirmed");
+    if (hasPending) button.classList.add("pending");
+    if (hasConfirmed) button.classList.add("confirmed");
+    if (!hasPending && !hasConfirmed && (entriesOn(key).length || dayBookings.length)) {
+      button.classList.add("has");
+    }
+    if (proposalsOn(key).length) button.classList.add("proposed");
     if (key === selected) button.classList.add("selected");
     button.textContent = String(day);
     button.addEventListener("click", () => showDay(key));
@@ -217,9 +313,10 @@ function showDay(key) {
     dayEntries.appendChild(empty);
   }
   bookings.forEach((row) => {
-    const item = document.createElement("p");
-    if (row.status === "pending") item.className = "booking-pending";
-    if (row.status === "confirmed") item.className = "booking-confirmed";
+    const item = document.createElement("div");
+    item.className = "day-line";
+    if (row.status === "pending") item.classList.add("booking-pending");
+    if (row.status === "confirmed") item.classList.add("booking-confirmed");
     const clock = row.visit_time ? ` ${row.visit_time}` : "";
     if (mode === "change") {
       const originalClock = row.original_visit_time ? ` ${row.original_visit_time}` : "";
@@ -244,6 +341,7 @@ function showDay(key) {
     }
     dayEntries.appendChild(item);
   });
+  syncGuestForm();
   draw();
 }
 
@@ -251,7 +349,9 @@ function startPropose(row) {
   proposing = row;
   const proposeForm = document.getElementById("propose-form");
   proposeForm.hidden = false;
-  document.getElementById("propose-target").textContent = `${row.booking_id}번 예약을 바꿀 날짜를 누르고 시간을 입력합니다.`;
+  document.getElementById("propose-target").textContent = describeProposal(row);
+  const timeInput = document.getElementById("propose-time");
+  if (row.visit_time) timeInput.value = String(row.visit_time).slice(0, 5);
   statusNode.textContent = "바꿀 날짜를 누른 뒤 시간을 입력하고 제안을 보냅니다.";
 }
 
@@ -307,8 +407,13 @@ guestForm.addEventListener("submit", async (event) => {
       num_people: Number(document.getElementById("guest-people").value),
     }),
   });
-  statusNode.textContent = response.ok ? "예약을 접수했습니다." : "예약하지 못했습니다.";
-  if (response.ok) await load(true);
+  if (!response.ok) {
+    statusNode.textContent = "예약하지 못했습니다.";
+    return;
+  }
+  const saved = await response.json();
+  statusNode.textContent = `${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다.`;
+  await load(true);
 });
 
 document.getElementById("propose-form").addEventListener("submit", async (event) => {

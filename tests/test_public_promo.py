@@ -665,13 +665,20 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert 'class="role-nav"' not in approve_page.text
     assert 'class="role-nav"' in plain_page.text
     assert 'data-mode="guest"' in book_page.text
+    assert 'id="guest-date"' in book_page.text
+    assert 'id="guest-people" min="1" required' in book_page.text
     assert 'data-mode="operator"' in approve_page.text
     assert 'id="pending-list"' in approve_page.text
+    assert 'id="approved-list"' in approve_page.text
+    assert "단체 일정" in approve_page.text
+    assert "분홍은 대기, 연두는 승인입니다." in approve_page.text
     assert _PRESENTATION_GUEST_ID not in book_page.text
     script = test_client.get("/static/js/calendar.js").text
     assert "예약 승인" in script
     assert "체험 일정" in script
     assert "대기 예약이 없습니다." in script
+    assert "승인된 체험" in script
+    assert "원래 " in script
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
     assert "날짜를 누르고 체험, 시간, 인원을 고릅니다." in script
     assert "?view=program" in script
