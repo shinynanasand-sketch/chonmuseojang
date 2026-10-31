@@ -1,0 +1,214 @@
+{% extends "brand_base.html" %}
+{% block title %}서비스 이야기·이용 안내 - 체험마을 AI사무장{% endblock %}
+{% block description %}사무장 부재와 고령화로 체험 운영이 어려운 현장에서 출발한 AI 업무 도우미. 익숙한 카카오의 말풍선 메뉴로 예약·관리에 접근하고 사진으로 홍보 초안 도움을 받는다.{% endblock %}
+{% block content %}
+<section class="guide-screen" aria-labelledby="guide-title">
+  <div class="container">
+    <a class="text-link back-link" href="/brand">← 브랜드 화면으로</a>
+    <nav aria-label="서비스 이야기와 이용 안내 바로가기">
+      <ul class="section-links">
+        <li><a href="#why">왜 만들었는가</a></li>
+        <li><a href="#direction">어떤 방향을 검토했는가</a></li>
+        <li><a href="#response">무엇을 구현했는가</a></li>
+        <li><a href="#roles">누가 사용하는가</a></li>
+        <li><a href="#usage">어떻게 사용하는가</a></li>
+        <li><a href="#start">이용·시연 안내</a></li>
+      </ul>
+    </nav>
+
+    <section id="why" class="guide-heading section" aria-labelledby="guide-title">
+      <p class="eyebrow">실제 마을 인터뷰에서 출발했다</p>
+      <h1 id="guide-title" tabindex="-1">
+        사무장이 없거나, 고령화로<br>
+        체험 운영이 어려운 마을이 있었다.
+      </h1>
+      <p class="intro">
+        실제 마을 인터뷰에서 사무장이 없거나 고령화로 인해
+        체험 운영과 예약 관리에 어려움을 겪는 상황을 확인했다.
+        종이와 전화로 정보를 관리하는 과정에서는 누락과 변경 전달의
+        어려움이 있었고, 홍보 문구 작성에도 부담이 있었다.
+      </p>
+      <span class="evidence">인터뷰에서 확인한 사례 · 모든 체험마을에 대한 일반화가 아니다</span>
+    </section>
+
+    <section id="direction" class="section direction" aria-labelledby="direction-title">
+      <p class="eyebrow">문제에서 구현으로 바로 뛰어넘지 않았다</p>
+      <h2 id="direction-title">익숙한 카카오로 운영을 도울 수 있을까?</h2>
+      <p>
+        새로운 도구의 사용 부담을 줄이기 위해,
+        익숙한 카카오를 활용해 체험 운영을 지원할 수 있는지 검토했다.
+        그 방향을 바탕으로 메뉴 선택, 예약·관리 접근,
+        정보 공유와 홍보 초안 지원을 구성했다.
+      </p>
+      <ul class="reason-list">
+        <li>
+          <strong>익숙한 접점에서 시작</strong>
+          <span>별도 서비스 사용을 요구하기보다 카카오를 이용의 출발점으로 삼았다.</span>
+        </li>
+        <li>
+          <strong>입력보다 메뉴 선택</strong>
+          <span>명령문을 작성하지 않고 말풍선 메뉴를 눌러 접근하도록 했다.</span>
+        </li>
+        <li>
+          <strong>필요한 업무를 연결</strong>
+          <span>예약·관리·공유와 홍보 도움을 기존 이용 흐름으로 이어가도록 했다.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section id="response" class="section" aria-labelledby="response-title">
+      <h2 id="response-title">검토한 방향을 이렇게 구현했다.</h2>
+      <p class="section-description">현장에서 확인한 상황, 지원 방향, 실제 구현을 구분해 설명한다.</p>
+      <div class="response-grid">
+        <article class="response-card">
+          <span class="number">01 · 예약과 관리</span>
+          <h3>사무장이 없거나,<br>고령화로 체험 운영이 어려운 상황</h3>
+          <p class="block-label">현장에서 확인한 상황</p>
+          <p>인터뷰에서 사무장 부재 또는 고령화로 체험 운영과 예약 관리에 어려움을 겪는 사례를 확인했다.</p>
+          <p class="block-label">운영 지원 방향 검토</p>
+          <p>익숙한 카카오에서 필요한 업무에 접근해 운영을 지원할 수 있는지 검토했다.</p>
+          <p class="block-label">구현한 대응</p>
+          <p class="solution">말풍선 메뉴를 누르면 연결된 웹 화면에서 예약과 관리를 이용하도록 구현했다. 일정 확인에는 기존 달력을 활용한다.</p>
+        </article>
+        <article class="response-card">
+          <span class="number">02 · 정보와 공유</span>
+          <h3>종이와 전화 사이에서 놓치기 쉬운 정보</h3>
+          <p class="block-label">현장에서 확인한 상황</p>
+          <p>종이와 전화 중심 관리에서 정보 누락과 변경 전달의 어려움을 확인했다.</p>
+          <p class="block-label">운영 지원 방향 검토</p>
+          <p>예약 정보를 확인하고 필요한 사람들에게 공유하는 흐름을 검토했다.</p>
+          <p class="block-label">구현한 대응</p>
+          <p class="solution">예약 내용을 관리하고, 체험 운영에 필요한 사람들에게 공유할 수 있도록 구현했다.</p>
+        </article>
+        <article class="response-card">
+          <span class="number">03 · AI 홍보 지원</span>
+          <h3>체험을 소개하는 문구를 쓰는 부담</h3>
+          <p class="block-label">현장에서 확인한 상황</p>
+          <p>체험 홍보 문구를 작성하는 데 어려움이 있다는 의견을 확인했다.</p>
+          <p class="block-label">운영 지원 방향 검토</p>
+          <p>사진을 활용해 AI가 문구 초안 작성을 도울 수 있도록 구성했다.</p>
+          <p class="block-label">구현한 대응</p>
+          <p class="solution">카카오에 사진을 올리면 AI가 홍보 문구 초안 작성을 돕도록 구현했다.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="roles" class="section" aria-labelledby="roles-title">
+      <p class="eyebrow">사용자별 안내</p>
+      <h2 id="roles-title">체험을 찾는 분도, 마을을 운영하는 분도.</h2>
+      <p class="section-description">역할에 맞는 기존 메뉴와 이용 경로를 사용한다.</p>
+      <div class="role-grid">
+        <article class="role-card">
+          <p class="role-label">체험객</p>
+          <h3>체험과 예약 일정을 확인한다.</h3>
+          <p>추천, 지도, 주변정보, 마을 소개에서 마을을 찾는다. 예약 달력은 카카오 말풍선 메뉴로 이어진다.{% if presentation_mode %} 화면에서 보려면 시연 1번을 연다.{% endif %}</p>
+          <nav aria-label="체험객 메뉴">
+            <ul class="role-links">
+              <li><a href="/">홈</a></li>
+              <li><a href="/recommend">AI 추천</a></li>
+              <li><a href="/map">지도</a></li>
+              <li><a href="/nearby">주변정보</a></li>
+              <li><a href="/villages">마을 소개</a></li>
+              {% if presentation_mode %}
+              <li><a href="/#demo-step-1">예약 달력 시연</a></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </article>
+        <article class="role-card manager">
+          <p class="role-label">사무장·운영 담당자</p>
+          <h3>운영에 필요한 업무를 이어간다.</h3>
+          <p>기존 권한과 진입 경로에 따라 일정 확인, 예약 관리, 공유와 홍보 도움을 이용한다. 내 마을과 사용 안내로 들어간다.{% if presentation_mode %} 승인 달력은 시연 4번에서 연다.{% endif %}</p>
+          <p>체험 담당은 같은 마을 일정을 보고, 승인과 거절은 하지 않는다.{% if presentation_mode %} 시연 5번에서 확인한다.{% endif %}</p>
+          <nav aria-label="사무장 메뉴">
+            <ul class="role-links">
+              <li><a href="/operator">내 마을</a></li>
+              <li><a href="/guide/use">사용 안내</a></li>
+              {% if presentation_mode %}
+              <li><a href="/#demo-step-4">승인 달력 시연</a></li>
+              <li><a href="/#demo-step-5">체험 담당 시연</a></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </article>
+      </div>
+    </section>
+
+    <section id="usage" class="section usage" aria-labelledby="usage-title">
+      <h2 id="usage-title">문장을 외우기보다, 메뉴를 누른다.</h2>
+      <p class="section-description">미리 구성한 카카오 말풍선 메뉴로 필요한 기능에 접근한다.</p>
+      <div class="usage-grid">
+        <article class="usage-item">
+          <h3>예약과 관리</h3>
+          <p>카카오에 연결된 웹 화면을 이용한다. 체험객과 사무장은 실제 구현된 달력으로 일정을 확인한다.</p>
+          <ol class="steps">
+            <li>말풍선 메뉴 선택</li>
+            <li>연결된 화면 이용</li>
+            <li>기존 달력·예약 확인</li>
+          </ol>
+        </article>
+        <article class="usage-item">
+          <h3>사진과 홍보 초안</h3>
+          <p>카카오에 사진을 올리면 AI가 문구 작성을 돕는다. 초안은 사실과 내용을 확인한 뒤 활용한다.</p>
+          <ol class="steps">
+            <li>홍보 메뉴 접근</li>
+            <li>사진 올리기</li>
+            <li>AI 초안 확인</li>
+          </ol>
+        </article>
+      </div>
+    </section>
+
+    <aside class="validation-note">
+      <strong>구현한 대응과 실제 효과는 구분한다.</strong><br>
+      인터뷰로 문제를 확인하고 대응 기능을 구현했다.
+      사무장 부재 상황에서의 활용 가능성, 고령 사용자의 이용 편의,
+      누락 감소, 변경 전달 개선과 시간 절감은
+      실제 현장 적용으로 추가 확인할 항목이다.
+    </aside>
+
+    <section id="start" class="section" aria-label="실제 이용과 시연 안내">
+      <div class="bottom-grid">
+        <article class="entry-card">
+          <h2>카카오에서 바로 시작한다.</h2>
+          <p>브랜드 소개와 이용 안내를 반드시 거치지 않고 카카오 채널로 바로 이동할 수 있다.</p>
+          <a class="button button-kakao" href="{{ kakao_channel_url }}" target="_blank" rel="noopener noreferrer">
+            카카오 채널로 이동 ↗
+            <span class="sr-only">새 창에서 열림</span>
+          </a>
+        </article>
+        <article class="entry-card">
+          <h2>실제 이용 과정은 시연에서.</h2>
+          <p>말풍선 메뉴, 기존 달력, 예약 관리와 사진 홍보의 상세한 흐름은 기존 시연으로 안내한다.</p>
+          {% if presentation_mode %}
+          <a class="text-link" href="/#demo">시연에서 이용 과정 보기</a>
+          {% endif %}
+        </article>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var ids = ["why", "direction", "response", "roles", "usage", "start"];
+  function focusFromHash() {
+    var id = location.hash.slice(1);
+    if (ids.indexOf(id) === -1) return;
+    var section = document.getElementById(id);
+    if (!section) return;
+    var heading = section.querySelector("h1, h2");
+    if (heading) {
+      if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    }
+    section.scrollIntoView({ block: "start" });
+  }
+  window.addEventListener("hashchange", function () {
+    requestAnimationFrame(focusFromHash);
+  });
+  if (location.hash) requestAnimationFrame(focusFromHash);
+})();
+</script>
+{% endblock %}

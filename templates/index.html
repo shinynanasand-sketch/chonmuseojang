@@ -7,6 +7,10 @@ window.villageListPromise = fetch("/api/villages");
 {% endblock %}
 {% block content %}
 <h1>체험마을 AI사무장</h1>
+<p class="card-links">
+  <a href="/brand">브랜드</a>
+  <a href="/story">서비스 이야기·이용 안내</a>
+</p>
 {% if presentation_mode %}
 <section id="demo" class="demo-board">
   <h2>시연 순서</h2>
@@ -23,22 +27,21 @@ window.villageListPromise = fetch("/api/villages");
     <button type="button" id="demo-next">다음</button>
   </p>
   <ol class="demo-flow">
-    <li class="demo-book" data-demo-panel="1">
+    <li class="demo-book" id="demo-step-1" data-demo-panel="1">
       <span class="demo-num">1</span>
       <h3>체험객 예약</h3>
       <div class="kakao-thread">
+        <div class="kakao-reply">
+          <span class="kakao-who">카카오 메뉴</span>
+          <p class="kakao-chip">{{ demo.book_utterance }}</p>
+          <p class="kakao-chip">달력으로 예약</p>
+          {% if demo.book_reply %}<p>{{ demo.book_reply }}</p>{% endif %}
+        </div>
         <div class="kakao-ask">
           <span class="kakao-who">카카오에 넣는 문장</span>
           <p>{{ demo.book_utterance }}</p>
           <button type="button" data-copy="{{ demo.book_utterance }}">복사</button>
         </div>
-        {% if demo.book_reply %}
-        <div class="kakao-reply">
-          <span class="kakao-who">카카오 답변</span>
-          <p>{{ demo.book_reply }}</p>
-          <p class="kakao-chip">달력으로 예약</p>
-        </div>
-        {% endif %}
         <div class="kakao-ask">
           <span class="kakao-who">카카오에 넣는 문장</span>
           <p>{{ demo.sentence_utterance }}</p>
@@ -123,7 +126,7 @@ window.villageListPromise = fetch("/api/villages");
         {% endif %}
       </p>
     </li>
-    <li class="demo-approve" data-demo-panel="4" hidden>
+    <li class="demo-approve" id="demo-step-4" data-demo-panel="4" hidden>
       <span class="demo-num">4</span>
       <h3>카카오 관리</h3>
       <div class="kakao-thread">
@@ -175,7 +178,7 @@ window.villageListPromise = fetch("/api/villages");
         <a href="/operator#bookings">예약 확인</a>
       </p>
     </li>
-    <li class="demo-program" data-demo-panel="5" hidden>
+    <li class="demo-program" id="demo-step-5" data-demo-panel="5" hidden>
       <span class="demo-num">5</span>
       <h3>체험 담당</h3>
       <div class="kakao-thread">
@@ -437,6 +440,16 @@ if (demoPanels.length) {
       showDemoStep(Number(current.getAttribute('data-demo-panel')) + 1);
     });
   }
+  const demoHashSteps = { 'demo-step-1': 1, 'demo-step-4': 4, 'demo-step-5': 5 };
+  function showDemoFromHash() {
+    const step = demoHashSteps[location.hash.slice(1)];
+    if (!step) return;
+    showDemoStep(step);
+    const panel = document.getElementById(`demo-step-${step}`);
+    if (panel) panel.scrollIntoView({ block: 'start' });
+  }
+  window.addEventListener('hashchange', showDemoFromHash);
+  showDemoFromHash();
 }
 
 const demoBook = document.getElementById('demo-book');

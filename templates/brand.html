@@ -1,0 +1,39 @@
+{% extends "brand_base.html" %}
+{% block title %}체험마을 AI사무장{% endblock %}
+{% block description %}체험마을의 예약·운영·홍보를 잇는 AI 업무 도우미. 익숙한 카카오에서, 체험마을 업무를 더 가깝게.{% endblock %}
+{% block content %}
+<section class="brand-screen" aria-labelledby="brand-title">
+  <div class="container hero">
+    <div>
+      <p class="eyebrow">체험마을 AI사무장</p>
+      <p class="descriptor">체험마을의 예약·운영·홍보를 잇는 AI 업무 도우미</p>
+      <h1 id="brand-title" tabindex="-1">
+        익숙한 카카오에서,<br>
+        체험마을 업무를<br>
+        더 가깝게.
+      </h1>
+      <p class="hero-copy">
+        말풍선 메뉴를 눌러 예약과 관리로 이어가고,<br>
+        사진을 올리면 AI가 홍보 문구 작성을 돕는다.
+      </p>
+      <div class="actions">
+        <a class="button button-kakao" href="{{ kakao_channel_url }}" target="_blank" rel="noopener noreferrer">
+          카카오 채널로 이동 ↗
+          <span class="sr-only">새 창에서 열림</span>
+        </a>
+        <a class="text-link" href="/story">왜 만들었는지 알아보기 →</a>
+      </div>
+      <p class="entry-note">체험객과 사무장은 카카오에서 달력으로 일정을 확인한다.</p>
+    </div>
+    <figure class="character">
+      <img
+        src="/static/ai-samujang.webp"
+        width="1280"
+        height="1280"
+        alt="태블릿을 들고 농촌 체험마을에서 안내하는 AI사무장 로봇"
+      >
+      <figcaption>마을의 업무를 돕는 AI사무장</figcaption>
+    </figure>
+  </div>
+</section>
+{% endblock %}

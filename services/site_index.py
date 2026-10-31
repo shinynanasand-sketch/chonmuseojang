@@ -1,7 +1,16 @@
 """검색 수집용 공개 주소. 운영자·달력·개발 화면은 넣지 않는다."""
 
 SITE_ORIGIN = "https://chonmuseojang.vercel.app"
-PUBLIC_PATHS = ("/", "/recommend", "/map", "/nearby", "/villages", "/dashboard")
+PUBLIC_PATHS = (
+    "/",
+    "/brand",
+    "/story",
+    "/recommend",
+    "/map",
+    "/nearby",
+    "/villages",
+    "/dashboard",
+)
 
 
 def sitemap_xml() -> str:

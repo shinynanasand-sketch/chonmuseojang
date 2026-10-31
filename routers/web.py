@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
-from config import CRON_SECRET
+from config import CRON_SECRET, KAKAO_CHANNEL_URL
 from models.schemas import RecommendRequest
 from services.booking import get_public_dashboard_summary
 from services.public_data_sync import sync_village_data
@@ -74,6 +74,34 @@ async def home(request: Request):
 
         context["demo"] = presentation_board()
     return _html(request, "index.html", context, _HOME_CDN)
+
+
+@router.get("/brand", response_class=HTMLResponse)
+async def brand_page(request: Request):
+    return _html(
+        request,
+        "brand.html",
+        {
+            "title": "체험마을 AI사무장",
+            "page": "brand",
+            "kakao_channel_url": KAKAO_CHANNEL_URL,
+        },
+        _PAGE_CDN,
+    )
+
+
+@router.get("/story", response_class=HTMLResponse)
+async def story_page(request: Request):
+    return _html(
+        request,
+        "story.html",
+        {
+            "title": "서비스 이야기·이용 안내",
+            "page": "story",
+            "kakao_channel_url": KAKAO_CHANNEL_URL,
+        },
+        _PAGE_CDN,
+    )
 
 
 @router.post("/api/presentation/calendar")
