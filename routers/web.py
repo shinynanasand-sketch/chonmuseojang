@@ -9,10 +9,18 @@ from models.schemas import RecommendRequest
 from services.booking import get_public_dashboard_summary
 from services.public_data_sync import sync_village_data
 from services.recommend import recommend_villages
-from services.supabase_client import get_supabase_client, list_program_status_map, list_public_villages
+from services.supabase_client import (
+    get_supabase_client,
+    get_village_by_id,
+    list_program_status_map,
+    list_public_villages,
+)
 from services.tourapi import get_nearby_for_village
 from services.dev_admin import clear_village_records, dev_open, issue_dev_cookie, village_choices
+from services.auth import register_operator_with_ids
 from services.guide_access import codes_open, guide_rows, issue_unlock_cookie
+from services.program_register_link import claims_from_program_register_token
+from services.village_programs import program_labels, programs_for
 from services.calendar_board import (
     answer_booking_change,
     calendar_snapshot,
@@ -26,7 +34,6 @@ from services.guest_book import guest_snapshot, save_guest_booking
 from services.kakao_home import home_kakao_guide
 from services.site_index import robots_txt, sitemap_xml
 from services.village_promo import list_published_villages, public_village_promo
-from services.village_programs import programs_for
 from services.trust_score import shown_trust_score
 
 router = APIRouter()
@@ -272,6 +279,87 @@ async def guide_dev_reset(request: Request):
     form = await request.form()
     notice = clear_village_records(str(form.get("village_id") or ""), str(form.get("kind") or ""))
     return _dev_response(request, None, notice)
+
+
+def _program_choice_page(request: Request, token: str, notice: str, programs: list[str], village_name: str):
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "program_register.html",
+        {
+            "title": "체험 담당 등록",
+            "notice": notice,
+            "programs": programs,
+            "village_name": village_name,
+            "token": token,
+        },
+    )
+
+
+def _program_choice(token: str) -> tuple[dict | None, dict | None]:
+    claims = claims_from_program_register_token(token)
+    if not claims:
+        return None, None
+    village = get_village_by_id(claims["village_id"])
+    if village is None:
+        return None, None
+    return claims, village
+
+
+@router.get("/program/{token}", response_class=HTMLResponse)
+async def program_register_page(request: Request, token: str):
+    _claims, village = _program_choice(token)
+    if village is None:
+        return _program_choice_page(
+            request,
+            token,
+            "이 링크는 쓸 수 없습니다. 카카오톡에서 마을 이름과 등록 코드를 다시 보내 주세요.",
+            [],
+            "",
+        )
+    return _program_choice_page(request, token, "", program_labels(village), str(village.get("village_name") or ""))
+
+
+@router.post("/program/{token}", response_class=HTMLResponse)
+async def program_register_submit(request: Request, token: str):
+    claims, village = _program_choice(token)
+    if claims is None or village is None:
+        return _program_choice_page(
+            request,
+            token,
+            "이 링크는 쓸 수 없습니다. 카카오톡에서 마을 이름과 등록 코드를 다시 보내 주세요.",
+            [],
+            "",
+        )
+    form = await request.form()
+    program = str(form.get("program") or "").strip()
+    labels = program_labels(village)
+    name = str(village.get("village_name") or "")
+    if program not in labels:
+        return _program_choice_page(request, token, "이 마을 체험이 아닙니다.", labels, name)
+    result = register_operator_with_ids(
+        claims["kakao_user_id"],
+        str(village["village_id"]),
+        str(village.get("registration_code") or ""),
+        program,
+    )
+    if result.get("ok") and result.get("role") == "program":
+        return _program_choice_page(
+            request,
+            token,
+            f"{program} 체험 담당으로 등록되었습니다. 카카오톡으로 돌아가 체험 달력 조회를 누르세요.",
+            [],
+            name,
+        )
+    reason = str(result.get("reason") or "")
+    if reason == "already_registered":
+        notice = "이 카카오 계정은 이미 등록되어 있습니다."
+    elif reason == "program_taken":
+        notice = "이 체험에는 이미 담당자가 있습니다."
+    elif reason == "village_operator_required":
+        notice = "먼저 마을 운영자를 등록해 주세요."
+    else:
+        notice = "이 마을 체험이 아닙니다."
+    return _program_choice_page(request, token, notice, labels, name)
 
 
 @router.get("/guide/use", response_class=HTMLResponse)

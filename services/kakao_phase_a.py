@@ -11,6 +11,7 @@ from services.calendar_link import attach_approval_calendar, attach_calendar_car
 from services.kakao_client import (
     allow_external,
     attach_guide_card,
+    attach_program_choice_card,
     build_error_skill_response,
     build_skill_response,
     guide_skill_response,
@@ -31,6 +32,7 @@ from services.operator_assistant import (
     download_kakao_photo,
     save_operator_photo_draft,
 )
+from services.program_register_link import program_register_url
 from services.program_share import list_calendar, list_program_notes, save_calendar_entry, save_program_note
 from services.recommend import recommendation_lines, recommend_for_kakao
 from services.supabase_client import get_village_by_id, list_recommend_villages
@@ -84,7 +86,7 @@ _REGISTER_REASONS = {
     "bad_format": _REGISTER_NEED,
     "village_not_found": "등록 코드가 마을과 맞지 않습니다.",
     "code_mismatch": "등록 코드가 마을과 맞지 않습니다.",
-    "already_registered": "이 마을에는 이미 마을 운영자가 있습니다. 체험 이름을 붙여 주세요.",
+    "already_registered": "이 카카오 계정은 이미 등록되어 있습니다. 체험 담당은 다른 카카오 계정으로 마을 이름과 등록 코드만 보내 주세요.",
     "village_operator_required": "먼저 마을 운영자를 등록해 주세요.",
     "program_not_found": "이 마을 체험이 아닙니다.",
     "program_taken": "이 체험에는 이미 담당자가 있습니다.",
@@ -496,6 +498,13 @@ def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
             text = f"{result['village_id']} 운영자로 등록되었습니다."
         return build_skill_response("등록 완료", text)
     reason = str(result.get("reason") or "")
+    if reason == "program_choice" and result.get("village_id"):
+        url = program_register_url(user_id, str(result["village_id"]))
+        text = (
+            "이 마을에는 이미 마을 운영자가 있습니다. "
+            "아래 링크에서 맡을 체험을 고르면 체험 담당으로 등록됩니다."
+        )
+        return attach_program_choice_card(build_error_skill_response(text), url)
     message = _REGISTER_REASONS.get(reason, "등록 코드가 마을과 맞지 않습니다.")
     return attach_guide_card(build_error_skill_response(message))
 

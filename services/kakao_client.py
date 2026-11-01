@@ -119,6 +119,32 @@ def build_error_skill_response(message: str) -> dict:
     return build_skill_response("안내", message)
 
 
+def attach_program_choice_card(body: dict, url: str) -> dict:
+    """체험 담당이 맡을 체험을 고르는 웹. 카카오는 문장 끝의 체험 이름을 등록 블록으로 받지 않는다."""
+    from config import KAKAO_CARD_IMAGE_URL
+    from services.guide_access import guide_page_url
+
+    outputs = body.setdefault("template", {}).setdefault("outputs", [])
+    outputs.append(
+        {
+            "basicCard": {
+                "title": "체험 담당",
+                "description": "맡을 체험을 고르면 이 계정으로 등록됩니다.",
+                "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
+                "buttons": [
+                    {"action": "webLink", "label": "체험 고르기", "webLinkUrl": url},
+                    {
+                        "action": "webLink",
+                        "label": "등록 안내 열기",
+                        "webLinkUrl": guide_page_url("/guide/register"),
+                    },
+                ],
+            }
+        }
+    )
+    return body
+
+
 def attach_guide_card(body: dict) -> dict:
     """등록·사용 안내 웹을 여는 카드. 바로연결은 웹 주소를 열지 못한다."""
     from config import KAKAO_CARD_IMAGE_URL

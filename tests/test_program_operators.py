@@ -80,10 +80,42 @@ def test_program_name_before_village_operator_is_rejected(share_villages):
     assert result == {"ok": False, "reason": "village_operator_required"}
 
 
-def test_second_without_program_is_rejected(share_villages):
+def test_second_without_program_asks_for_a_choice(share_villages):
     register_operator("share_owner", "등록 공유마을 SH-001")
     result = register_operator("shell_owner", "등록 공유마을 SH-001")
-    assert result == {"ok": False, "reason": "already_registered"}
+    assert result == {"ok": False, "reason": "program_choice", "village_id": "VSHARE"}
+
+
+def test_program_choice_link_registers_that_program(test_client, share_villages):
+    register_operator("share_owner", "공유마을 SH-001")
+    response = test_client.post(
+        "/kakao/ask",
+        json=_skill("운영자 등록", "prog_web", "공유마을 SH-001"),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "아래 링크에서 맡을 체험을 고르면" in response.text
+    assert "체험 이름을 붙여" not in response.text
+    button = body["template"]["outputs"][1]["basicCard"]["buttons"][0]
+    assert button["label"] == "체험 고르기"
+    token = button["webLinkUrl"].rstrip("/").split("/")[-1]
+    assert "prog_web" not in token
+    page = test_client.get(f"/program/{token}")
+    assert page.status_code == 200
+    assert "조개잡이" in page.text
+    assert "소금체험" in page.text
+    saved = test_client.post(f"/program/{token}", data={"program": "조개잡이"})
+    assert "조개잡이 체험 담당으로 등록되었습니다." in saved.text
+    row = get_operator_by_kakao_id("prog_web")
+    assert row["role"] == "program"
+    assert row["program_key"] == program_key("조개잡이")
+    again = test_client.post(f"/program/{token}", data={"program": "소금체험"})
+    assert "이 카카오 계정은 이미 등록되어 있습니다." in again.text
+
+
+def test_program_choice_link_rejects_a_bad_token(test_client):
+    page = test_client.get("/program/not-a-token")
+    assert "이 링크는 쓸 수 없습니다." in page.text
 
 
 def test_same_program_is_taken(share_villages):

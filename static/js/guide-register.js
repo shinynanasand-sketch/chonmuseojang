@@ -92,7 +92,16 @@ function showLines(group) {
     lines.appendChild(row);
   };
   add(`${prefix} ${group.code}`);
-  group.programs.forEach((program) => add(`${prefix} ${group.code} ${program}`));
+  if (group.programs.length) {
+    const note = document.createElement("p");
+    note.textContent = "답장 링크에서 고르는 체험";
+    lines.appendChild(note);
+    group.programs.forEach((program) => {
+      const item = document.createElement("p");
+      item.textContent = program;
+      lines.appendChild(item);
+    });
+  }
   lines.hidden = false;
   copyHint.hidden = false;
   locked.hidden = true;

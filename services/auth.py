@@ -93,7 +93,11 @@ def _register_matches(
     program = _coerce_program(target, program, utterance)
     if not program:
         if village_operator:
-            return {"ok": False, "reason": "already_registered"}
+            return {
+                "ok": False,
+                "reason": "program_choice",
+                "village_id": target["village_id"],
+            }
         village = _preferred_village(matches)
         supabase_client.insert_operator(
             {

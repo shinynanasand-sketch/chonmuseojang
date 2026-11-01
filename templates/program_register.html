@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}체험 담당 등록{% endblock %}
+{% block content %}
+<section class="guide">
+  <h1>체험 담당 등록</h1>
+  {% if notice %}<p class="guide-notice">{{ notice }}</p>{% endif %}
+  {% if programs %}
+  <p>{{ village_name }}에서 맡을 체험을 고릅니다.</p>
+  {% for program in programs %}
+  <form method="post">
+    <input type="hidden" name="program" value="{{ program }}">
+    <button type="submit">{{ program }}</button>
+  </form>
+  {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}
