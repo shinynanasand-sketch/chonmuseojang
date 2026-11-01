@@ -1,11 +1,11 @@
 # 시연 계정과 테스트 방법
 
-웹에서 운영자 화면을 확인하는 값입니다. 스킬 서버, 오픈빌더 봇테스트, 실기기 시연은 끝났습니다. 로그인에는 아이디와 비밀번호가 모두 필요합니다. 비밀번호는 `scripts/set_operator_password.py`로 해시만 저장합니다. 카카오 사용자 ID를 어디에 쓰고 어디에 쓰지 않는지는 [`PRIVACY_KAKAO_ID.md`](PRIVACY_KAKAO_ID.md)를 봅니다. 실기기 채팅 계정의 ID 값은 이 문서에 적지 않습니다.
+웹에서 운영자 화면을 확인하는 값입니다. 스킬 서버, 오픈빌더 봇테스트, 실기기 시연은 끝났습니다. 로그인에는 아이디와 비밀번호가 모두 필요합니다. 비밀번호 문장은 `scripts/operator_passwords.py`에 있고, `scripts/set_operator_password.py`가 해시만 저장합니다. 카카오 사용자 ID를 어디에 쓰고 어디에 쓰지 않는지는 [`PRIVACY_KAKAO_ID.md`](PRIVACY_KAKAO_ID.md)를 봅니다. 실기기 채팅 계정의 ID 값은 이 문서에 적지 않습니다.
 
 ## 웹에서 확인
 
 1. https://chonmuseojang.vercel.app/operator 를 엽니다.
-2. 로그인 아이디에 `owner_v001`을 넣고, `scripts/set_operator_password.py`로 지정한 비밀번호를 입력한 뒤 **로그인**을 누릅니다.
+2. 로그인 아이디에 `owner_v001`을 넣고, `scripts/operator_passwords.py`에 적힌 그 아이디의 비밀번호를 입력한 뒤 **로그인**을 누릅니다.
 
 보여야 하는 내용입니다. 2026-10-06 실기기 시연 이후 기준입니다.
 
