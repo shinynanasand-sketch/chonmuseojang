@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from models.schemas import OperatorContentEditRequest, OperatorContentRequest, ProgramStatusRequest
+from models.schemas import (
+    OperatorContentEditRequest,
+    OperatorContentRequest,
+    OperatorLoginRequest,
+    ProgramStatusRequest,
+)
 from services.auth import require_village_access, require_village_operator
 from services.booking import get_operator_dashboard_summary
 from services.operator_assistant import (
@@ -16,6 +21,23 @@ from services.supabase_client import get_village_by_id, list_contents
 from services.village_programs import UnknownProgram, programs_for, set_program_operating
 
 router = APIRouter(prefix="/api/operator", tags=["operator"])
+
+
+@router.post("/login")
+async def operator_login(body: OperatorLoginRequest):
+    from services.operator_password import verify_password
+    from services.operator_session import issue_operator_session
+    from services.supabase_client import get_operator_by_login_id
+
+    operator = get_operator_by_login_id(body.login_id.strip())
+    if not operator or not verify_password(body.password, str(operator.get("password_hash") or "")):
+        raise HTTPException(status_code=401, detail="운영자 인증이 필요합니다.")
+    if (operator.get("role") or "village") != "village":
+        raise HTTPException(
+            status_code=403,
+            detail="마을 운영자만 예약·후기·홍보를 다룰 수 있습니다.",
+        )
+    return {"token": issue_operator_session(operator)}
 
 
 def _reject_other_village(village_id: str | None, current_operator: dict) -> None:

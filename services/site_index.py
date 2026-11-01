@@ -10,6 +10,7 @@ PUBLIC_PATHS = (
     "/nearby",
     "/villages",
     "/dashboard",
+    "/privacy",
 )
 
 

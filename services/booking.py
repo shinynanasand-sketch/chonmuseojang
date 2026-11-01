@@ -18,6 +18,31 @@ def reset_bookings() -> None:
     reset_booking_store()
 
 
+def _slot_key(row: dict) -> tuple[str, str, str, str, str]:
+    return (
+        str(row.get("customer_kakao_id") or ""),
+        str(row.get("village_id") or ""),
+        str(row.get("program_key") or ""),
+        str(row.get("visit_date") or "")[:10],
+        str(row.get("visit_time") or "").strip()[:5],
+    )
+
+
+def _open_booking(row: dict) -> dict | None:
+    """같은 손님·체험·일시의 대기 또는 승인 예약. 거절된 예약은 다시 받을 수 있다."""
+    matches = [
+        existing
+        for existing in list_bookings(
+            village_id=str(row.get("village_id") or ""),
+            customer_kakao_id=str(row.get("customer_kakao_id") or ""),
+        )
+        if existing.get("status") in ("pending", "confirmed") and _slot_key(existing) == _slot_key(row)
+    ]
+    pending = [existing for existing in matches if existing.get("status") == "pending"]
+    chosen = pending or matches
+    return chosen[-1] if chosen else None
+
+
 def create_booking(
     village_id: str,
     customer_kakao_id: str,
@@ -31,11 +56,11 @@ def create_booking(
         "village_id": village_id,
         "customer_kakao_id": customer_kakao_id,
         "customer_name": customer_name,
-        "visit_date": visit_date,
+        "visit_date": str(visit_date)[:10],
         "num_people": num_people,
         "status": "pending",
     }
-    clock = (visit_time or "").strip()
+    clock = (visit_time or "").strip()[:5]
     if clock:
         row["visit_time"] = clock
     label = (program_label or "").strip()
@@ -44,7 +69,23 @@ def create_booking(
 
         row["program_label"] = label
         row["program_key"] = program_key(label)
-    return insert_booking(row)
+    existing = _open_booking(row)
+    if existing:
+        found = dict(existing)
+        found["already_open"] = True
+        same_people = int(existing.get("num_people") or 0) == int(num_people)
+        if existing.get("status") == "pending" and not same_people:
+            updated = update_booking(int(existing["booking_id"]), {"num_people": num_people}) or found
+            updated = dict(updated)
+            updated["already_open"] = True
+            updated["headcount_updated"] = True
+            return updated
+        found["headcount_updated"] = False
+        return found
+    saved = dict(insert_booking(row))
+    saved["already_open"] = False
+    saved["headcount_updated"] = False
+    return saved
 
 
 def _phrase_in(text: str, phrase: str) -> bool:
@@ -143,11 +184,24 @@ def get_booking_by_id(booking_id: int | str) -> dict | None:
 
 
 def update_booking_status(booking_id: int | str, status: str) -> dict | None:
+    """대기 예약만 승인·거절로 바꾼다. 이미 끝난 예약은 그대로 돌려준다."""
     try:
         bid = int(booking_id)
     except (TypeError, ValueError):
         return None
-    return save_booking_status(bid, status)
+    current = get_booking_by_id(bid)
+    if not current:
+        return None
+    if str(current.get("status") or "") != "pending":
+        unchanged = dict(current)
+        unchanged["unchanged"] = True
+        return unchanged
+    saved = save_booking_status(bid, status)
+    if not saved:
+        return None
+    saved = dict(saved)
+    saved["unchanged"] = False
+    return saved
 
 
 def _booking_id(booking_id: int | str) -> int | None:
@@ -219,6 +273,38 @@ def list_my_bookings(user_id: str) -> list[dict]:
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 
 
+def booking_receipt_text(saved: dict, link: str) -> tuple[str, str]:
+    """카카오 답. 새 접수, 인원 수정, 이미 있는 예약을 구분하고 상태 주소를 붙인다."""
+    number = saved.get("booking_id")
+    label = _STATUS_LABEL.get(saved.get("status"), "대기")
+    if saved.get("headcount_updated"):
+        title = "예약 인원을 고쳤습니다"
+        body = f"예약번호 {number}번 인원을 {saved.get('num_people')}명으로 고쳤습니다."
+    elif saved.get("already_open"):
+        title = "이미 접수된 예약입니다"
+        body = f"예약번호 {number}번은 이미 {label} 상태입니다."
+    else:
+        title = "예약이 접수되었습니다"
+        body = f"예약번호 {number}번 대기로 접수되었습니다."
+    if link:
+        body = f"{body} 진행 상태는 이 주소에서 볼 수 있습니다. {link}"
+    return title, body
+
+
+def guest_booking_reply(saved: dict) -> tuple[str, str]:
+    """새 예약만 운영자에게 알리고, 손님 답에는 상태 링크를 넣는다."""
+    from services.guest_book import issue_guest_book_link
+    from services.kakao_client import notify_booking_received
+
+    if not saved.get("already_open"):
+        notify_booking_received(saved)
+    link = issue_guest_book_link(
+        str(saved.get("customer_kakao_id") or ""),
+        str(saved.get("village_id") or ""),
+    )
+    return booking_receipt_text(saved, link)
+
+
 def booking_summary(row: dict) -> str:
     """예약 한 줄. 시간이 있으면 날짜 뒤에 붙인다. 열린 제안이 있으면 그 일시를 덧붙인다."""
     label = _STATUS_LABEL.get(row.get("status"), row.get("status"))
@@ -243,9 +329,9 @@ def format_booking_lines(rows: list[dict]) -> str:
 
 
 def _display_trust_score(village: dict) -> float:
-    from services.trust_score import calculate_trust_score
+    from services.trust_score import shown_trust_score
 
-    return calculate_trust_score(village)
+    return shown_trust_score(village)
 
 
 def _village_rank(village_id: str, villages: list[dict]) -> dict:

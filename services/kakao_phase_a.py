@@ -281,7 +281,13 @@ def _booking_guide(user_id: str, utterance: str = "") -> dict:
 def _my_bookings(user_id: str) -> dict:
     if not allow_external():
         return time_budget_response()
-    lines = booking.format_booking_lines(booking.list_my_bookings(user_id))
+    rows = booking.list_my_bookings(user_id)
+    lines = booking.format_booking_lines(rows)
+    if rows and user_id:
+        from services.guest_book import issue_guest_book_link
+
+        link = issue_guest_book_link(user_id, str(rows[-1].get("village_id") or ""))
+        lines = f"{lines} 진행 상태 {link}"
     return build_skill_response("내 예약", lines)
 
 
@@ -497,12 +503,18 @@ def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
         return build_error_skill_response("예약을 찾을 수 없습니다.")
     if existing.get("village_id") != village_id:
         return build_error_skill_response(_OTHER_VILLAGE)
-    if kind == "approve":
-        booking.update_booking_status(booking_id, "confirmed")
-        notify_booking_decided(existing, "approve")
+    decision = "approve" if kind == "approve" else "reject"
+    saved = booking.update_booking_status(
+        booking_id,
+        "confirmed" if decision == "approve" else "rejected",
+    )
+    if isinstance(saved, dict) and saved.get("unchanged") is True:
+        return build_skill_response("이미 처리된 예약", "이미 처리된 예약입니다.")
+    if not saved:
+        return build_error_skill_response("예약을 찾을 수 없습니다.")
+    notify_booking_decided(existing, decision)
+    if decision == "approve":
         return build_skill_response("승인 완료", "예약이 승인되었습니다.")
-    booking.update_booking_status(booking_id, "rejected")
-    notify_booking_decided(existing, "reject")
     return build_skill_response("거절 완료", "예약이 거절되었습니다.")
 
 

@@ -4,7 +4,8 @@ from services.recommend import recommendation_lines
 from services.supabase_client import upsert_villages
 from services.village_programs import program_labels, set_program_operating
 
-_AUTH = {"Authorization": "Bearer owner_v001"}
+from conftest import operator_headers
+
 _NESTED = "자연생태체험+기타(영농체험+먹거리체험)"
 
 
@@ -55,7 +56,7 @@ def test_operator_stop_shows_on_promo_immediately(test_client):
     _seed()
     stopped = test_client.post(
         "/api/operator/programs/status",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"label": "기타(영농체험+먹거리체험)", "is_operating": False},
     )
     assert stopped.status_code == 200
@@ -73,7 +74,7 @@ def test_other_village_program_status_is_forbidden(test_client):
     _seed()
     response = test_client.post(
         "/api/operator/programs/status",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"label": "모내기", "is_operating": False, "village_id": "V002"},
     )
     assert response.status_code == 403
@@ -86,7 +87,7 @@ def test_sync_keeps_stopped_program(test_client):
     _seed()
     test_client.post(
         "/api/operator/programs/status",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"label": "자연생태체험", "is_operating": False},
     )
     upsert_villages(
@@ -110,7 +111,7 @@ def test_home_lists_operating_programs(test_client):
     _seed()
     test_client.post(
         "/api/operator/programs/status",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"label": "자연생태체험", "is_operating": False},
     )
     villages = test_client.get("/api/villages").json()["villages"]

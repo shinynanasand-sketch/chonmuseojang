@@ -186,16 +186,17 @@ def _preferred_village(rows: list[dict]) -> dict:
 async def get_current_operator(
     authorization: str | None = Header(default=None),
 ) -> dict:
-    """웹 세션은 login_id 또는 operator_id만 받는다. 카카오 user.id는 쓰지 않는다."""
+    """웹 세션은 비밀번호 확인 뒤에 발급한 토큰만 받는다. 카카오 user.id는 쓰지 않는다."""
+    from services.operator_session import operator_id_from_session
+
     operator = None
+    token = ""
     if authorization and authorization.startswith("Bearer "):
         token = authorization.removeprefix("Bearer ").strip()
-        if token.isdigit():
-            operator = supabase_client.get_operator_by_id(int(token))
-        else:
-            operator = supabase_client.get_operator_by_login_id(token)
-
-    if not operator:
+    operator_id = operator_id_from_session(token)
+    if operator_id is not None:
+        operator = supabase_client.get_operator_by_id(operator_id)
+    if not operator or not operator.get("password_hash"):
         raise HTTPException(status_code=401, detail="운영자 인증이 필요합니다.")
     operator = dict(operator)
     operator["village_id"] = scoped_village_id_for_session(operator["operator_id"])

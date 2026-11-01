@@ -63,6 +63,21 @@ def sample_village_for_trust_score():
     }
 
 
+def operator_headers(login_id: str) -> dict:
+    """테스트용 운영자 세션. 비밀번호 해시가 없으면 테스트 비밀번호를 넣는다."""
+    from services.operator_password import hash_password
+    from services.operator_session import issue_operator_session
+    from services.supabase_client import get_operator_by_login_id, update_operator_password
+
+    operator = get_operator_by_login_id(login_id)
+    if operator is None:
+        raise AssertionError(f"없는 로그인 아이디: {login_id}")
+    if not operator.get("password_hash"):
+        update_operator_password(int(operator["operator_id"]), hash_password("operator-test-pass"))
+        operator = get_operator_by_login_id(login_id)
+    return {"Authorization": f"Bearer {issue_operator_session(operator)}"}
+
+
 @pytest.fixture
 def test_client():
     return TestClient(app)

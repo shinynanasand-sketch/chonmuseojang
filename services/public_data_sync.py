@@ -1,5 +1,7 @@
 import hashlib
+import json
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -7,6 +9,10 @@ import httpx
 from config import TARGET_SIDO_NAMES, TARGET_SIGUNGU_LIST
 
 _GRADE_SKIPPED = "등급 정보를 생략했습니다."
+_SYNC_BUDGET_SECONDS = 20.0
+_PAGE_TIMEOUT_SECONDS = 8.0
+_village_resume_page: int | None = None
+_grade_resume_page: int | None = None
 _GRADE_NAME_KEYS = (
     "village_name",
     "마을명",
@@ -219,21 +225,48 @@ def _grade_page_total(payload: dict, fetched: int) -> int:
     return _page_total(payload, fetched)
 
 
-def fetch_grade_rows() -> tuple[list[dict] | None, str]:
+def _sync_deadline() -> float:
+    return time.monotonic() + _SYNC_BUDGET_SECONDS
+
+
+def _page_timeout(deadline: float) -> float | None:
+    """이번 페이지에 쓸 수 있는 시간. 1초보다 짧으면 요청을 시작하지 않는다."""
+    remaining = deadline - time.monotonic()
+    if remaining < 1:
+        return None
+    return min(_PAGE_TIMEOUT_SECONDS, remaining)
+
+
+def fetch_grade_rows(
+    start_page: int = 1,
+    deadline: float | None = None,
+) -> tuple[list[dict] | None, str]:
     """으뜸촌 OpenAPI 행을 가져온다. 주소가 없거나 호출이 실패하면 생략한다.
 
     15117119는 api.odcloud.kr 명세라 page, perPage, returnType을 쓴다.
+    남은 시간이 없으면 다음 페이지 번호를 _grade_resume_page에 남긴다.
     """
+    global _grade_resume_page
+    _grade_resume_page = None
     endpoint = os.getenv("PUBLIC_DATA_GRADE_ENDPOINT", "").strip()
     service_key = _service_key()
     if not service_key or not endpoint:
         return None, _GRADE_SKIPPED
+    if deadline is None:
+        deadline = _sync_deadline()
 
     page_size = 100
     collected: list[dict] = []
+    start = max(1, start_page)
+    page = start
     try:
-        with httpx.Client(timeout=60.0) as client:
-            for page in range(1, 11):
+        with httpx.Client(timeout=_PAGE_TIMEOUT_SECONDS) as client:
+            for page in range(start, 11):
+                timeout = _page_timeout(deadline)
+                if timeout is None:
+                    _grade_resume_page = page
+                    break
+                client.timeout = httpx.Timeout(timeout)
                 response = client.get(
                     endpoint,
                     params={
@@ -257,7 +290,7 @@ def fetch_grade_rows() -> tuple[list[dict] | None, str]:
                         return None, _GRADE_SKIPPED
                 batch = _extract_items(payload)
                 if not batch:
-                    if not collected:
+                    if not collected and _grade_resume_page is None:
                         return None, _GRADE_SKIPPED
                     break
                 collected.extend(batch)
@@ -265,24 +298,41 @@ def fetch_grade_rows() -> tuple[list[dict] | None, str]:
                 if page * page_size >= total:
                     break
     except Exception:
-        return None, _GRADE_SKIPPED
-    if not collected:
+        if collected:
+            _grade_resume_page = page
+        else:
+            return None, _GRADE_SKIPPED
+    if not collected and _grade_resume_page is None:
         return None, _GRADE_SKIPPED
     return collected, ""
 
 
-def fetch_from_public_data_api() -> list[dict]:
-    """공공데이터 OpenAPI에서 마을 목록을 가져온다."""
+def fetch_from_public_data_api(
+    start_page: int = 1,
+    deadline: float | None = None,
+) -> list[dict]:
+    """공공데이터 OpenAPI에서 마을 목록을 가져온다. 시간이 부족하면 다음 페이지를 남긴다."""
+    global _village_resume_page
+    _village_resume_page = None
     service_key = _service_key()
     endpoint = os.getenv("PUBLIC_DATA_VILLAGE_ENDPOINT", "")
     if not service_key or not endpoint:
         return []
+    if deadline is None:
+        deadline = _sync_deadline()
 
     page_size = 500
     collected: list[dict] = []
+    start = max(1, start_page)
+    page = start
     try:
-        with httpx.Client(timeout=60.0) as client:
-            for page in range(1, 11):
+        with httpx.Client(timeout=_PAGE_TIMEOUT_SECONDS) as client:
+            for page in range(start, 11):
+                timeout = _page_timeout(deadline)
+                if timeout is None:
+                    _village_resume_page = page
+                    break
+                client.timeout = httpx.Timeout(timeout)
                 response = client.get(
                     endpoint,
                     params={
@@ -311,6 +361,7 @@ def fetch_from_public_data_api() -> list[dict]:
     except Exception:
         if not collected:
             return []
+        _village_resume_page = page
     return [normalize_public_data_row(row) for row in collected]
 
 
@@ -387,34 +438,202 @@ def _with_trust_scores(rows: list[dict]) -> list[dict]:
     return scored
 
 
-def sync_village_data(use_demo_fallback: bool = False) -> dict:
-    """공공데이터 동기화 파이프라인 (FR-12)."""
+def _resume_message(cursor: dict) -> str:
+    return "resume " + json.dumps(cursor, ensure_ascii=False)
+
+
+def _read_resume() -> dict | None:
+    from services.supabase_client import latest_sync_log
+
+    row = latest_sync_log("public_data_village")
+    if not row or row.get("status") != "partial":
+        return None
+    message = str(row.get("message") or "")
+    if not message.startswith("resume "):
+        return None
     try:
-        raw_rows = fetch_from_public_data_api()
+        cursor = json.loads(message[len("resume ") :])
+    except json.JSONDecodeError:
+        return None
+    return cursor if isinstance(cursor, dict) else None
+
+
+def _grade_keys(rows: list[dict]) -> list[str]:
+    keys: list[str] = []
+    for grade in rows:
+        name = _first_text(grade, _GRADE_NAME_KEYS)
+        sigungu = _first_text(grade, _GRADE_SIGUNGU_KEYS)
+        if name and sigungu:
+            keys.append(_grade_match_key(sigungu, name))
+    return keys
+
+
+def _persist_rows(rows: list[dict]) -> tuple[list[dict], int]:
+    from services.village_retirement import (
+        apply_old_admin_names,
+        drop_old_address_rows,
+        retire_split_villages,
+    )
+
+    enriched = _with_trust_scores(rows)
+    by_id: dict[str, dict] = {}
+    for row in enriched:
+        village_id = row.get("village_id")
+        if village_id:
+            by_id[str(village_id)] = row
+    enriched = apply_old_admin_names(drop_old_address_rows(list(by_id.values())))
+    if enriched:
+        upsert_to_supabase(enriched)
+    retired = retire_split_villages(_backup_folder())
+    return enriched, len(retired)
+
+
+def _refresh_review_scores(rows: list[dict]) -> None:
+    from services.trust_score import recalculate_for_village
+
+    for row in rows:
+        village_id = str(row.get("village_id") or "")
+        if village_id:
+            recalculate_for_village(village_id)
+
+
+def _partial(source: str, fetched: int, filtered: int, cursor: dict, retired: int = 0) -> dict:
+    log_sync_result(
+        source=source,
+        total_fetched=fetched,
+        total_filtered=filtered,
+        status="partial",
+        message=_resume_message(cursor),
+    )
+    return {
+        "status": "partial",
+        "source": source,
+        "total_fetched": fetched,
+        "total_filtered": filtered,
+        "retired_old_rows": retired,
+        "resume_page": cursor.get("page"),
+    }
+
+
+def _apply_saved_grade_keys(keys: set[str]) -> int:
+    from services.supabase_client import list_villages, update_village_fields
+    from services.trust_score import recalculate_for_village
+
+    updated = 0
+    for village in list_villages():
+        village_id = str(village.get("village_id") or "")
+        if not village_id:
+            continue
+        name = str(village.get("village_name") or "")
+        sigungu = str(village.get("sigungu") or "")
+        grade = "으뜸촌" if name and sigungu and _grade_match_key(sigungu, name) in keys else None
+        update_village_fields(village_id, {"grade": grade})
+        recalculate_for_village(village_id)
+        updated += 1
+    return updated
+
+
+def _resume_grades(cursor: dict, deadline: float | None = None) -> dict:
+    global _grade_resume_page
+    keys = set(str(item) for item in cursor.get("keys") or [])
+    page = int(cursor.get("page") or 1)
+    fetched, message = fetch_grade_rows(start_page=page, deadline=deadline)
+    if fetched is None and _grade_resume_page is None:
+        log_sync_result(
+            source="public_data_village",
+            total_fetched=0,
+            total_filtered=0,
+            status="failure",
+            message=message or _GRADE_SKIPPED,
+        )
+        return {"status": "failure", "total_fetched": 0, "total_filtered": 0, "message": message}
+    keys.update(_grade_keys(fetched or []))
+    if _grade_resume_page:
+        return _partial(
+            "public_data_village",
+            len(fetched or []),
+            len(keys),
+            {"stage": "grades", "page": _grade_resume_page, "keys": sorted(keys)},
+        )
+    updated = _apply_saved_grade_keys(keys)
+    log_sync_result(
+        source="public_data_village",
+        total_fetched=updated,
+        total_filtered=updated,
+        status="success",
+        message="",
+    )
+    return {
+        "status": "success",
+        "source": "public_data_village",
+        "total_fetched": updated,
+        "total_filtered": updated,
+        "retired_old_rows": 0,
+    }
+
+
+def sync_village_data(use_demo_fallback: bool = False) -> dict:
+    """공공데이터 동기화. 30초 안에 끝나면 다음 실행이 이어서 받는다."""
+    global _village_resume_page, _grade_resume_page
+    try:
+        _village_resume_page = None
+        _grade_resume_page = None
+        cursor = _read_resume()
+        deadline = _sync_deadline()
+        if cursor and cursor.get("stage") == "grades":
+            return _resume_grades(cursor, deadline)
+        start_page = 1
+        if cursor and cursor.get("stage") == "villages":
+            start_page = int(cursor.get("page") or 1)
+        raw_rows = fetch_from_public_data_api(start_page=start_page, deadline=deadline)
         source = "public_data_village"
-        if not raw_rows and use_demo_fallback and not _stored_has_real_villages():
+        if (
+            not raw_rows
+            and start_page == 1
+            and _village_resume_page is None
+            and use_demo_fallback
+            and not _stored_has_real_villages()
+        ):
             from services.demo_data import DEMO_VILLAGES
 
             raw_rows = list(DEMO_VILLAGES)
             source = "demo_seed_fallback"
         filtered_rows = filter_gwangju_jeonnam(raw_rows)
-        graded_rows, grade_message = merge_with_grade_info(filtered_rows)
-        enriched_rows = _with_trust_scores(graded_rows)
-        by_id: dict[str, dict] = {}
-        for row in enriched_rows:
-            village_id = row.get("village_id")
-            if village_id:
-                by_id[str(village_id)] = row
-        from services.village_retirement import (
-            apply_old_admin_names,
-            drop_old_address_rows,
-            retire_split_villages,
-        )
-
-        enriched_rows = apply_old_admin_names(drop_old_address_rows(list(by_id.values())))
-        if enriched_rows:
-            upsert_to_supabase(enriched_rows)
-        retired = retire_split_villages(_backup_folder())
+        if source != "demo_seed_fallback" and _village_resume_page:
+            _saved, retired = _persist_rows(filtered_rows)
+            _refresh_review_scores(_saved)
+            return _partial(
+                source,
+                len(raw_rows),
+                len(filtered_rows),
+                {"stage": "villages", "page": _village_resume_page},
+                retired,
+            )
+        if source == "demo_seed_fallback":
+            graded_rows, grade_message = filtered_rows, ""
+        else:
+            grade_rows, grade_message = fetch_grade_rows(deadline=deadline)
+            if _grade_resume_page:
+                _saved, retired = _persist_rows(filtered_rows)
+                _refresh_review_scores(_saved)
+                return _partial(
+                    source,
+                    len(raw_rows),
+                    len(filtered_rows),
+                    {
+                        "stage": "grades",
+                        "page": _grade_resume_page,
+                        "keys": _grade_keys(grade_rows or []),
+                    },
+                    retired,
+                )
+            if grade_rows is None:
+                graded_rows = [dict(row) for row in filtered_rows]
+            else:
+                graded_rows = apply_grade_matches(filtered_rows, grade_rows)
+                grade_message = ""
+        enriched_rows, retired = _persist_rows(graded_rows)
+        _refresh_review_scores(enriched_rows)
         log_sync_result(
             source=source,
             total_fetched=len(raw_rows),
@@ -427,7 +646,7 @@ def sync_village_data(use_demo_fallback: bool = False) -> dict:
             "source": source,
             "total_fetched": len(raw_rows),
             "total_filtered": len(filtered_rows),
-            "retired_old_rows": len(retired),
+            "retired_old_rows": retired,
         }
     except Exception as exc:
         log_sync_result(

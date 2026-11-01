@@ -77,6 +77,8 @@ def test_use_page_explains_operator_buttons(test_client):
     assert "달력 열기" in page.text
     assert "예약 현황 조회" in page.text
     assert "체험 글 저장" in page.text
+    assert "상태 링크" in page.text
+    assert 'href="/privacy"' in page.text
     assert "비밀번호" not in page.text
 
 

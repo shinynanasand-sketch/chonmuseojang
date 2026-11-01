@@ -6,7 +6,12 @@ from datetime import date, datetime, timedelta, timezone
 
 from services.booking import create_booking
 from services.kakao_params import normalize_clock
-from services.supabase_client import get_guest_book_link, get_village_by_id, insert_guest_book_link
+from services.supabase_client import (
+    get_guest_book_link,
+    get_village_by_id,
+    insert_guest_book_link,
+    list_guest_book_links,
+)
 from services.village_programs import program_key, programs_for
 
 _TTL = timedelta(days=14)
@@ -25,8 +30,16 @@ def _expired(value) -> bool:
     return moment <= datetime.now(timezone.utc)
 
 
+def _status_url(token: str) -> str:
+    base = os.getenv("PUBLIC_BASE_URL", "https://chonmuseojang.vercel.app").rstrip("/")
+    return f"{base}/book/{token}"
+
+
 def issue_guest_book_link(kakao_user_id: str, village_id: str) -> str:
-    """무작위 토큰으로 14일짜리 예약 주소를 만든다."""
+    """그 손님과 마을의 유효한 주소가 있으면 다시 쓰고, 없으면 14일짜리 토큰을 만든다."""
+    for row in list_guest_book_links(kakao_user_id, village_id):
+        if row.get("token") and not _expired(row.get("expires_at")):
+            return _status_url(str(row["token"]))
     token = secrets.token_urlsafe(24)
     expires = datetime.now(timezone.utc) + _TTL
     insert_guest_book_link(
@@ -37,8 +50,7 @@ def issue_guest_book_link(kakao_user_id: str, village_id: str) -> str:
             "expires_at": expires.isoformat(),
         }
     )
-    base = os.getenv("PUBLIC_BASE_URL", "https://chonmuseojang.vercel.app").rstrip("/")
-    return f"{base}/book/{token}"
+    return _status_url(token)
 
 
 def guest_from_token(token: str) -> dict | None:
@@ -54,13 +66,19 @@ def operating_names(village: dict) -> list[str]:
     return [item["label"] for item in programs_for(village) if item.get("is_operating")]
 
 
-def _own_bookings(village_id: str, customer_kakao_id: str) -> list[dict]:
-    """그 링크의 예약만. 운영자 달력과 같은 모양이고 카카오 사용자 ID는 빼 둔다."""
+def _own_bookings(customer_kakao_id: str) -> list[dict]:
+    """그 손님의 예약만. 마을 이름과 상태를 넣고 카카오 사용자 ID는 빼 둔다."""
     from services.booking import list_bookings
     from services.calendar_board import _booking_view
 
-    rows = list_bookings(village_id=village_id, customer_kakao_id=customer_kakao_id)
-    return [_booking_view(row) for row in rows]
+    rows = list_bookings(customer_kakao_id=customer_kakao_id)
+    views = []
+    for row in rows:
+        view = _booking_view(row)
+        village = get_village_by_id(str(row.get("village_id") or "")) or {}
+        view["village_name"] = village.get("village_name") or row.get("village_id")
+        views.append(view)
+    return views
 
 
 def guest_snapshot(token: str) -> dict | None:
@@ -81,7 +99,7 @@ def guest_snapshot(token: str) -> dict | None:
         "programs": names,
         "experience_names": names,
         "entries": [],
-        "bookings": _own_bookings(str(link["village_id"]), str(link["customer_kakao_id"])),
+        "bookings": _own_bookings(str(link["customer_kakao_id"])),
     }
 
 
@@ -129,14 +147,21 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
         program_label=canonical,
         visit_time=clock,
     )
-    from services.kakao_client import notify_booking_received
+    if not saved.get("already_open"):
+        from services.kakao_client import notify_booking_received
 
-    notify_booking_received(saved)
+        notify_booking_received(saved)
+    from services.booking import _STATUS_LABEL
+
     return {
         "ok": True,
         "booking_id": saved.get("booking_id"),
         "label": canonical,
-        "visit_date": parsed.isoformat(),
-        "visit_time": clock,
-        "num_people": count,
+        "visit_date": str(saved.get("visit_date") or parsed.isoformat())[:10],
+        "visit_time": str(saved.get("visit_time") or clock)[:5],
+        "num_people": saved.get("num_people"),
+        "status": saved.get("status"),
+        "status_label": _STATUS_LABEL.get(saved.get("status"), "대기"),
+        "already_open": bool(saved.get("already_open")),
+        "headcount_updated": bool(saved.get("headcount_updated")),
     }

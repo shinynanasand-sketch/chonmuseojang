@@ -6,7 +6,7 @@ from pathlib import Path
 from services.operator_assistant import save_operator_contents
 from services.supabase_client import insert_content, upsert_villages
 
-_AUTH = {"Authorization": "Bearer owner_v001"}
+from conftest import operator_headers
 
 
 def test_pillow_import_stays_inside_photo_processing():
@@ -107,13 +107,13 @@ def test_saved_contents_stay_on_operator_village(test_client, monkeypatch):
 
     created = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"description": "가을에 조개를 잡아요"},
     )
     assert created.status_code == 200
     assert created.json()["saved"] is True
 
-    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    listed = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001"))
     assert listed.status_code == 200
     rows = listed.json()["contents"]
     assert rows
@@ -125,7 +125,7 @@ def test_saved_contents_stay_on_operator_village(test_client, monkeypatch):
 def test_other_village_id_in_body_is_forbidden(test_client):
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"description": "가을에 조개를 잡아요", "village_id": "V002"},
     )
     assert response.status_code == 403
@@ -134,11 +134,11 @@ def test_other_village_id_in_body_is_forbidden(test_client):
 def test_blank_description_is_rejected(test_client):
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"description": "  "},
     )
     assert response.status_code == 400
-    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    listed = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001"))
     assert listed.status_code == 200
     assert listed.json()["contents"] == []
 
@@ -151,12 +151,12 @@ def test_empty_llm_text_does_not_save(test_client, monkeypatch):
     )
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"description": "가을에 조개를 잡아요"},
     )
     assert response.status_code == 200
     assert response.json()["saved"] is False
-    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    listed = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001"))
     assert listed.json()["contents"] == []
 
 
@@ -197,11 +197,11 @@ def test_text_without_photo_leaves_photo_url_empty(test_client, monkeypatch):
 
     created = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"description": "가을에 조개를 잡아요"},
     )
     assert created.status_code == 200
-    rows = test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"]
+    rows = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"]
     assert rows
     assert all(not row.get("photo_url") for row in rows)
 
@@ -225,14 +225,14 @@ def test_photo_url_uses_the_operator_village(test_client, monkeypatch):
     monkeypatch.setattr("services.operator_assistant.store_content_photo", store)
     created = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         data={"description": "가을에 조개를 잡아요"},
         files={"photo": ("mud.png", _PNG, "image/png")},
     )
     assert created.status_code == 200
     assert created.json()["saved"] is True
     assert seen == {"village_id": "V001", "size": len(_PNG)}
-    rows = test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"]
+    rows = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"]
     assert {row["photo_url"] for row in rows} == {"https://example.test/content-photos/V001/a.png"}
     assert {row["village_id"] for row in rows} == {"V001"}
 
@@ -245,12 +245,12 @@ def test_other_village_id_in_form_is_forbidden(test_client, monkeypatch):
     )
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         data={"description": "가을에 조개를 잡아요", "village_id": "V002"},
         files={"photo": ("mud.png", _PNG, "image/png")},
     )
     assert response.status_code == 403
-    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    listed = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001"))
     assert listed.json()["contents"] == []
 
 
@@ -262,12 +262,12 @@ def test_non_image_is_rejected(test_client, monkeypatch):
     )
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         data={"description": "가을에 조개를 잡아요"},
         files={"photo": ("note.txt", b"hello", "text/plain")},
     )
     assert response.status_code == 400
-    assert test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"] == []
+    assert test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"] == []
 
 
 def test_photo_over_two_megabytes_is_rejected(test_client, monkeypatch):
@@ -286,13 +286,13 @@ def test_photo_over_two_megabytes_is_rejected(test_client, monkeypatch):
     blob = b"\xff\xd8\xff" + b"\x00" * (2 * 1024 * 1024)
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         data={"description": "가을에 조개를 잡아요"},
         files={"photo": ("big.jpg", blob, "image/jpeg")},
     )
     assert response.status_code == 400
     assert called["store"] is False
-    assert test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"] == []
+    assert test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"] == []
 
 
 def test_photo_upload_failure_does_not_save_text(test_client, monkeypatch):
@@ -308,13 +308,13 @@ def test_photo_upload_failure_does_not_save_text(test_client, monkeypatch):
     monkeypatch.setattr("services.operator_assistant.store_content_photo", store)
     response = test_client.post(
         "/api/operator/contents",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         data={"description": "가을에 조개를 잡아요"},
         files={"photo": ("mud.png", _PNG, "image/png")},
     )
     assert response.status_code == 200
     assert response.json()["saved"] is False
-    assert test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"] == []
+    assert test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"] == []
 
 
 def test_long_draft_is_clipped(monkeypatch):
@@ -343,7 +343,7 @@ def test_operator_can_edit_and_delete_own_copy(test_client):
     )
     edited = test_client.patch(
         f"/api/operator/contents/{saved['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"body": "고친 소개"},
     )
     assert edited.status_code == 200
@@ -352,10 +352,10 @@ def test_operator_can_edit_and_delete_own_copy(test_client):
 
     removed = test_client.delete(
         f"/api/operator/contents/{saved['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
     )
     assert removed.status_code == 200
-    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    listed = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001"))
     assert listed.json()["contents"] == []
 
 
@@ -365,13 +365,13 @@ def test_edit_other_village_content_is_forbidden(test_client):
     )
     response = test_client.patch(
         f"/api/operator/contents/{saved['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"body": "침입"},
     )
     assert response.status_code == 403
     kept = test_client.get(
         "/api/operator/contents",
-        headers={"Authorization": "Bearer owner_v002"},
+        headers=operator_headers("owner_v002"),
     )
     assert kept.json()["contents"][0]["body"] == "무등 소개"
 
@@ -382,17 +382,17 @@ def test_empty_and_long_edits_are_rejected(test_client):
     )
     empty = test_client.patch(
         f"/api/operator/contents/{saved['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"body": "   "},
     )
     assert empty.status_code == 400
     too_long = test_client.patch(
         f"/api/operator/contents/{saved['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"body": "가" * 401},
     )
     assert too_long.status_code == 400
-    listed = test_client.get("/api/operator/contents", headers=_AUTH)
+    listed = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001"))
     assert listed.json()["contents"][0]["body"] == "옛 소개"
 
 
@@ -427,10 +427,10 @@ def test_delete_text_keeps_shared_photo_on_the_other_row(test_client):
     )
     response = test_client.delete(
         f"/api/operator/contents/{intro['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 200
-    rows = test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"]
+    rows = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"]
     assert len(rows) == 1
     assert rows[0]["body"] == "문구"
     assert rows[0]["photo_url"] == photo
@@ -464,15 +464,15 @@ def test_delete_photo_clears_the_same_url_in_this_village_only(test_client):
     )
     response = test_client.delete(
         f"/api/operator/contents/{intro['content_id']}/photo",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 200
-    own = test_client.get("/api/operator/contents", headers=_AUTH).json()["contents"]
+    own = test_client.get("/api/operator/contents", headers=operator_headers("owner_v001")).json()["contents"]
     assert [row["photo_url"] for row in own] == ["", ""]
     assert [row["body"] for row in own] == ["소개", "문구"]
     other = test_client.get(
         "/api/operator/contents",
-        headers={"Authorization": "Bearer owner_v002"},
+        headers=operator_headers("owner_v002"),
     ).json()["contents"]
     assert other[0]["photo_url"] == photo
 

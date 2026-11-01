@@ -47,9 +47,45 @@ def calculate_trust_score(village: dict) -> float:
     return max(0.0, min(100.0, float(total)))
 
 
-def recalculate_for_village(village_id: str) -> float:
-    """후기 등록 후 마을 신뢰도 재계산 (스텁)."""
-    from services.supabase_client import get_village_by_id
-
-    village = get_village_by_id(village_id) or {}
+def shown_trust_score(village: dict) -> float:
+    """저장된 점수가 있으면 그 값을 쓴다. 0점도 계산값으로 바꾸지 않는다."""
+    stored = village.get("trust_score")
+    if stored is not None and stored != "":
+        try:
+            return float(stored)
+        except (TypeError, ValueError):
+            pass
     return calculate_trust_score(village)
+
+
+def _average_rating(village_id: str) -> float | None:
+    from services.review import list_reviews_for_village
+
+    ratings: list[float] = []
+    for row in list_reviews_for_village(village_id):
+        raw = row.get("rating")
+        if raw is None or str(raw).strip() == "":
+            continue
+        try:
+            ratings.append(float(raw))
+        except (TypeError, ValueError):
+            continue
+    if not ratings:
+        return None
+    return round(sum(ratings) / len(ratings), 2)
+
+
+def recalculate_for_village(village_id: str) -> float:
+    """별점 평균으로 신뢰도를 다시 계산해 마을 점수에 저장한다."""
+    from services.supabase_client import get_village_by_id, update_village_fields
+
+    village = dict(get_village_by_id(village_id) or {})
+    average = _average_rating(village_id)
+    village["average_rating"] = average
+    score = calculate_trust_score(village)
+    if get_village_by_id(village_id):
+        update_village_fields(
+            village_id,
+            {"trust_score": score, "average_rating": average},
+        )
+    return score

@@ -89,16 +89,13 @@ def _operator_answer(operator: dict) -> dict:
 def _tourist_booking(utterance: str, user_id: str) -> dict | None:
     """체험 이름, 날짜, 인원이 한 마을로 모이면 대기 예약. 아니면 추천으로 넘긴다."""
     from services.booking import accept_named_booking
-    from services.kakao_client import notify_booking_received
 
     result = accept_named_booking(user_id, utterance or "", {})
     if result.get("ok"):
-        saved = result["booking"]
-        notify_booking_received(saved)
-        return build_skill_response(
-            "예약이 접수되었습니다",
-            f"예약번호 {saved['booking_id']}번 대기로 접수되었습니다.",
-        )
+        from services.booking import guest_booking_reply
+
+        title, text = guest_booking_reply(result["booking"])
+        return build_skill_response(title, text)
     if str(result.get("text") or "").startswith("같은 체험 이름이 여러 마을"):
         return build_error_skill_response(result["text"])
     return None

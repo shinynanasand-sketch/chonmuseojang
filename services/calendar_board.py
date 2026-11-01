@@ -154,6 +154,10 @@ def set_booking_status_from_token(token: str, booking_id, status: str) -> dict:
     saved = update_booking_status(existing["booking_id"], status)
     if not saved:
         return {"ok": False, "reason": "forbidden"}
+    if saved.get("unchanged") is True:
+        view = _booking_view(existing)
+        view["ok"] = True
+        return view
     notify_booking_decided(existing, "approve" if status == "confirmed" else "reject")
     view = _booking_view(saved)
     view["ok"] = True

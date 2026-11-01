@@ -294,6 +294,56 @@ def insert_sync_log(entry: dict[str, Any]) -> None:
     _sync_logs.append(entry)
 
 
+def latest_sync_log(source: str) -> dict | None:
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("sync_logs")
+            .select("*")
+            .eq("source", source)
+            .order("log_id", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+    matched = [row for row in _sync_logs if row.get("source") == source]
+    return dict(matched[-1]) if matched else None
+
+
+def update_village_fields(village_id: str, fields: dict) -> None:
+    """마을 캐시의 일부 칸만 고친다. average_rating 칸이 없으면 그 칸만 빼고 다시 쓴다."""
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("villages_cache").update(fields).eq("village_id", village_id).execute()
+        except Exception:
+            slim = {key: value for key, value in fields.items() if key != "average_rating"}
+            if not slim or slim == fields:
+                raise
+            client.table("villages_cache").update(slim).eq("village_id", village_id).execute()
+        _clear_recommend_cache()
+        return
+    for row in _villages_cache:
+        if row.get("village_id") == village_id:
+            row.update(fields)
+            _clear_recommend_cache()
+            return
+
+
+def update_operator_password(operator_id: int, password_hash: str) -> None:
+    client = get_supabase_client()
+    if client:
+        client.table("operators").update({"password_hash": password_hash}).eq(
+            "operator_id", operator_id
+        ).execute()
+        return
+    for operator in _operators:
+        if operator.get("operator_id") == operator_id:
+            operator["password_hash"] = password_hash
+            return
+
+
 def get_operator_by_kakao_id(kakao_user_id: str) -> dict | None:
     client = get_supabase_client()
     if client:
@@ -564,6 +614,25 @@ def insert_guest_book_link(row: dict) -> None:
         client.table("guest_book_links").insert(row).execute()
         return
     _guest_links.append(dict(row))
+
+
+def list_guest_book_links(customer_kakao_id: str, village_id: str) -> list[dict]:
+    """한 손님과 한 마을의 예약 링크. 만료 판단은 호출하는 쪽에서 한다."""
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("guest_book_links")
+            .select("token,village_id,customer_kakao_id,expires_at")
+            .eq("customer_kakao_id", customer_kakao_id)
+            .eq("village_id", village_id)
+            .execute()
+        )
+        return result.data or []
+    return [
+        dict(row)
+        for row in _guest_links
+        if row.get("customer_kakao_id") == customer_kakao_id and row.get("village_id") == village_id
+    ]
 
 
 def get_guest_book_link(token: str) -> dict | None:
@@ -914,6 +983,25 @@ def list_contents(*, village_id: str | None = None) -> list[dict]:
         return result.data or []
     rows = [row for row in _contents if row.get("village_id") == village_id]
     return [dict(row) for row in sorted(rows, key=lambda row: row.get("content_id") or 0)]
+
+
+def get_review_for_booking(booking_id: int) -> dict | None:
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("reviews")
+            .select("*")
+            .eq("booking_id", booking_id)
+            .order("review_id")
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        return rows[0] if rows else None
+    for row in _reviews:
+        if row.get("booking_id") == booking_id:
+            return dict(row)
+    return None
 
 
 def list_reviews(*, village_id: str | None = None) -> list[dict]:

@@ -57,15 +57,30 @@ def main() -> int:
     r = client.get("/api/operator/dashboard")
     all_ok &= check("운영자 API 인증 없음 → 401/403", r.status_code in (401, 403))
 
-    r = client.get(
-        "/api/operator/dashboard",
-        headers={"Authorization": "Bearer owner_v001"},
-    )
-    all_ok &= check("운영자 A 대시보드", r.status_code == 200)
+    demo_password = os.getenv("OPERATOR_DEMO_PASSWORD", "")
+    if demo_password:
+        r = client.post(
+            "/api/operator/login",
+            json={"login_id": "owner_v001", "password": demo_password},
+        )
+        token = r.json().get("token") if r.status_code == 200 else ""
+        dashboard = client.get(
+            "/api/operator/dashboard",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        all_ok &= check(
+            "운영자 A 대시보드",
+            r.status_code == 200 and dashboard.status_code == 200,
+        )
+    else:
+        print("  [SKIP] OPERATOR_DEMO_PASSWORD 미설정 — 운영자 대시보드 생략")
 
     if CRON_SECRET:
         r = client.get("/api/cron/sync", headers={"Authorization": f"Bearer {CRON_SECRET}"})
-        all_ok &= check("Cron 동기화", r.status_code == 200 and r.json().get("status") == "success")
+        all_ok &= check(
+            "Cron 동기화",
+            r.status_code == 200 and r.json().get("status") in ("success", "partial"),
+        )
     else:
         print("  [SKIP] CRON_SECRET 미설정 — cron 동기화 생략")
 

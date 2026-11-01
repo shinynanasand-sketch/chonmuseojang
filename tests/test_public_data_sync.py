@@ -1,10 +1,13 @@
+import time
 from unittest.mock import patch
 
 import pytest
 
 from services.public_data_sync import (
     _extract_items,
+    _page_timeout,
     apply_grade_matches,
+    fetch_from_public_data_api,
     fetch_grade_rows,
     merge_with_grade_info,
     normalize_public_data_row,
@@ -334,3 +337,98 @@ def test_sync_recalculates_trust_score_after_grade(mock_fetch, _mock_grades, moc
     assert saved["A"]["trust_score"] == 60
     assert saved["B"]["grade"] is None
     assert saved["B"]["trust_score"] == 40
+
+
+def test_sync_resumes_village_pages_from_partial_log(monkeypatch):
+    import services.public_data_sync as sync
+
+    pages: list[int] = []
+
+    def fake_fetch(start_page: int = 1, deadline: float | None = None):
+        pages.append(start_page)
+        if start_page == 1:
+            sync._village_resume_page = 3
+            return [
+                {
+                    "village_id": "PD1",
+                    "sido": "전라남도",
+                    "sigungu": "해남군",
+                    "village_name": "가마을",
+                }
+            ]
+        sync._village_resume_page = None
+        return [
+            {
+                "village_id": "PD2",
+                "sido": "전라남도",
+                "sigungu": "해남군",
+                "village_name": "나마을",
+            }
+        ]
+
+    monkeypatch.setattr(sync, "fetch_from_public_data_api", fake_fetch)
+    monkeypatch.setattr(sync, "upsert_to_supabase", lambda rows: None)
+    first = sync.sync_village_data()
+    second = sync.sync_village_data()
+
+    assert first["status"] == "partial"
+    assert first["resume_page"] == 3
+    assert pages == [1, 3]
+    assert second["status"] == "success"
+
+
+def test_page_timeout_shrinks_to_the_time_left():
+    assert _page_timeout(time.monotonic() - 1) is None
+    soon = _page_timeout(time.monotonic() + 3)
+    assert soon is not None
+    assert 1 <= soon <= 3
+
+
+def test_fetch_does_not_start_a_page_after_the_budget(monkeypatch):
+    import services.public_data_sync as sync
+
+    monkeypatch.setenv("PUBLIC_DATA_SERVICE_KEY", "test-key")
+    monkeypatch.setenv("PUBLIC_DATA_VILLAGE_ENDPOINT", "https://example.test/villages")
+    called: list[int] = []
+
+    class _Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def get(self, *_args, **_kwargs):
+            called.append(1)
+            raise AssertionError("시간이 없는데 요청했습니다")
+
+    with patch("services.public_data_sync.httpx.Client", return_value=_Client()):
+        rows = fetch_from_public_data_api(start_page=4, deadline=time.monotonic() - 1)
+
+    assert rows == []
+    assert called == []
+    assert sync._village_resume_page == 4
+
+
+def test_sync_uses_one_deadline_for_villages_and_grades(monkeypatch):
+    import services.public_data_sync as sync
+
+    seen: list[float | None] = []
+
+    def fake_villages(start_page: int = 1, deadline: float | None = None):
+        seen.append(deadline)
+        return [{"village_id": "A", "sido": "전라남도", "sigungu": "해남군", "village_name": "가마을"}]
+
+    def fake_grades(start_page: int = 1, deadline: float | None = None):
+        seen.append(deadline)
+        return None, "등급 정보를 생략했습니다."
+
+    monkeypatch.setattr(sync, "fetch_from_public_data_api", fake_villages)
+    monkeypatch.setattr(sync, "fetch_grade_rows", fake_grades)
+    monkeypatch.setattr(sync, "upsert_to_supabase", lambda rows: None)
+    result = sync.sync_village_data()
+
+    assert result["status"] == "success"
+    assert len(seen) == 2
+    assert seen[0] is not None
+    assert seen[0] == seen[1]

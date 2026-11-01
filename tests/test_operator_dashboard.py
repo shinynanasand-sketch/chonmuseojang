@@ -1,3 +1,4 @@
+from conftest import operator_headers
 from services.booking import create_booking, get_operator_dashboard_summary, update_booking_status
 from services.review import create_review
 
@@ -34,7 +35,7 @@ def test_bearer_login_sees_only_own_village_bookings_and_reviews(test_client):
 
     response = test_client.get(
         "/api/operator/dashboard",
-        headers={"Authorization": "Bearer owner_v001"},
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 200
     body = response.json()
@@ -49,7 +50,7 @@ def test_mismatched_village_query_is_forbidden(test_client):
     response = test_client.get(
         "/api/operator/dashboard",
         params={"village_id": "V002"},
-        headers={"Authorization": "Bearer owner_v001"},
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 403
 
@@ -81,7 +82,7 @@ def test_operator_sees_rank_without_other_village_bookings(test_client):
 
     response = test_client.get(
         "/api/operator/dashboard",
-        headers={"Authorization": "Bearer owner_v001"},
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 200
     body = response.json()
@@ -117,7 +118,7 @@ def test_operator_rank_includes_demo_village_hidden_from_tourists(test_client):
 
     response = test_client.get(
         "/api/operator/dashboard",
-        headers={"Authorization": "Bearer owner_v001"},
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 200
     body = response.json()
@@ -160,7 +161,7 @@ def test_operator_dashboard_counts_own_status_and_rating(test_client):
 
     response = test_client.get(
         "/api/operator/dashboard",
-        headers={"Authorization": "Bearer owner_v001"},
+        headers=operator_headers("owner_v001"),
     )
     assert response.status_code == 200
     body = response.json()
@@ -183,11 +184,12 @@ def test_home_nav_omits_operations_link(test_client):
     assert 'href="/dashboard"' not in html
 
 
-def test_operator_page_asks_for_login_id_not_password(test_client):
+def test_operator_page_asks_for_login_id_and_password(test_client):
     response = test_client.get("/operator")
     assert response.status_code == 200
     html = response.text
-    assert 'type="password"' not in html
+    assert 'type="password"' in html
     assert 'name="login_id"' in html
+    assert "로그인" in html
     assert "내 마을" in html
     assert "내 운영 현황" in html

@@ -32,6 +32,11 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  {% if not embed %}
+  <footer>
+    <a href="/privacy">개인정보 안내</a>
+  </footer>
+  {% endif %}
   <script src="/static/js/main.js"></script>
   {% block scripts %}{% endblock %}
 </body>

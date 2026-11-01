@@ -8,7 +8,7 @@ from services.booking import create_booking
 from services.presentation_board import _PRESENTATION_GUEST_ID
 from services.supabase_client import insert_content, insert_operator, insert_review, upsert_villages
 
-_AUTH = {"Authorization": "Bearer owner_v001"}
+from conftest import operator_headers
 
 
 def _seed_village():
@@ -65,7 +65,7 @@ def test_publish_shows_only_the_latest_pair(test_client):
     )
     _content("V002", "소개글", "무등 소개", public=True)
 
-    published = test_client.post("/api/operator/contents/publish", headers=_AUTH)
+    published = test_client.post("/api/operator/contents/publish", headers=operator_headers("owner_v001"))
     assert published.status_code == 200
     assert published.json()["published"] is True
 
@@ -107,7 +107,7 @@ def test_publish_other_village_is_forbidden(test_client):
     _content("V001", "소개글", "갯벌 소개", public=True)
     response = test_client.post(
         "/api/operator/contents/publish",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"village_id": "V002"},
     )
     assert response.status_code == 403
@@ -325,7 +325,7 @@ def test_edited_public_copy_shows_on_village_page(test_client):
     _content("V001", "SNS홍보문구", "페이지 문구", public=True)
     edited = test_client.patch(
         f"/api/operator/contents/{intro['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
         json={"body": "고친 소개"},
     )
     assert edited.status_code == 200
@@ -343,7 +343,7 @@ def test_deleting_public_intro_falls_back_to_the_older_copy(test_client):
     _content("V001", "SNS홍보문구", "페이지 문구", public=True)
     removed = test_client.delete(
         f"/api/operator/contents/{newer['content_id']}",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
     )
     assert removed.status_code == 200
     page = test_client.get("/village/V001")
@@ -359,7 +359,7 @@ def test_deleting_shared_photo_hides_it_on_the_village_page(test_client):
     _content("V001", "SNS홍보문구", "페이지 문구", public=True, photo_url=photo)
     removed = test_client.delete(
         f"/api/operator/contents/{intro['content_id']}/photo",
-        headers=_AUTH,
+        headers=operator_headers("owner_v001"),
     )
     assert removed.status_code == 200
     page = test_client.get("/village/V001")
@@ -507,6 +507,7 @@ def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatc
     assert "/calendar/" not in text
     assert "아직 카카오로 예약할 수 있는 마을이 없습니다." in text
     assert "달력이 열립니다" in text
+    assert "상태 링크" in text
     assert "내 예약" in text
     operator = test_client.get("/operator").text
     assert 'id="promo"' in operator
@@ -680,7 +681,7 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert "승인된 체험" in script
     assert "원래 " in script
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
-    assert "날짜를 누르고 체험, 시간, 인원을 고릅니다." in script
+    assert "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다." in script
     assert "?view=program" in script
     program_token = urlsplit(body["program_url"]).path.rsplit("/", 1)[-1]
     narrowed = test_client.get(f"/api/calendar/{program_token}?view=program").json()

@@ -222,11 +222,54 @@ def test_ask_sentence_creates_pending_booking(test_client):
     assert response.status_code == 200
     assert "예약이 접수되었습니다" in response.text
     assert "대기로 접수" in response.text
+    assert "/book/" in response.text
     rows = list_my_bookings("ask-guest")
     assert rows[0]["status"] == "pending"
     assert rows[0]["visit_time"] == "10:00"
     assert rows[0]["num_people"] == 30
     assert rows[0]["program_label"] == "조개잡이"
+
+
+def test_repeat_sentence_keeps_one_booking_and_can_change_headcount(test_client):
+    _village("VONCE", "한번마을", "조개잡이")
+    first = test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-01 10:00 30명", "once-guest"),
+    )
+    second = test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-01 10:00 30명", "once-guest"),
+    )
+    changed = test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-01 10:00 40명", "once-guest"),
+    )
+    assert "이미 접수된 예약" in second.text
+    assert "인원을 40명으로 고쳤습니다" in changed.text
+    rows = list_my_bookings("once-guest")
+    assert len(rows) == 1
+    assert rows[0]["num_people"] == 40
+    assert f"예약번호 {rows[0]['booking_id']}번" in first.text
+
+
+def test_rejected_booking_allows_a_new_row(test_client):
+    from services.booking import update_booking_status
+
+    _village("VAGAIN", "다시마을", "조개잡이")
+    test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-03 10:00 12명", "again-guest"),
+    )
+    first = list_my_bookings("again-guest")[0]
+    update_booking_status(first["booking_id"], "rejected")
+    response = test_client.post(
+        "/kakao/ask",
+        json=_ask_sentence("조개잡이 2026-11-03 10:00 12명", "again-guest"),
+    )
+    assert "예약이 접수되었습니다" in response.text
+    rows = list_my_bookings("again-guest")
+    assert len(rows) == 2
+    assert {row["status"] for row in rows} == {"rejected", "pending"}
 
 
 def test_ask_question_stays_a_recommendation(test_client):

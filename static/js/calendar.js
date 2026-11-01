@@ -154,7 +154,8 @@ function fillBoard(slot, title, rows, emptyText, withActions) {
     card.className = row.status === "confirmed" ? "booking-card booking-confirmed" : "booking-card booking-pending";
     const name = document.createElement("p");
     name.className = "booking-name";
-    name.textContent = row.label;
+    const place = row.village_name ? `${row.village_name} ` : "";
+    name.textContent = `${place}${row.label}`;
     const meta = document.createElement("p");
     meta.textContent = `${row.num_people}명 · ${row.booking_id}번`;
     card.appendChild(name);
@@ -168,20 +169,27 @@ function fillBoard(slot, title, rows, emptyText, withActions) {
 function showBoards() {
   const pendingSlot = document.getElementById("pending-list");
   const approvedSlot = document.getElementById("approved-list");
-  if (mode !== "operator") {
+  const rejectedSlot = document.getElementById("rejected-list");
+  const guest = mode === "guest";
+  const operator = mode === "operator";
+  if (!guest && !operator) {
     pendingSlot.hidden = true;
     approvedSlot.hidden = true;
+    if (rejectedSlot) rejectedSlot.hidden = true;
     return;
   }
-  programList.hidden = true;
-  programList.innerHTML = "";
+  if (operator) {
+    programList.hidden = true;
+    programList.innerHTML = "";
+  }
   const bookings = snapshot.bookings || [];
+  const withActions = operator;
   fillBoard(
     pendingSlot,
     "대기 예약",
     bookings.filter((row) => row.status === "pending").sort(bySlot),
     "대기 예약이 없습니다.",
-    true,
+    withActions,
   );
   fillBoard(
     approvedSlot,
@@ -190,6 +198,15 @@ function showBoards() {
     "승인된 체험이 없습니다.",
     false,
   );
+  if (rejectedSlot) {
+    fillBoard(
+      rejectedSlot,
+      "거절된 예약",
+      bookings.filter((row) => row.status === "rejected").sort(bySlot),
+      "거절된 예약이 없습니다.",
+      false,
+    );
+  }
 }
 
 function syncGuestForm() {
@@ -221,8 +238,9 @@ async function load(keepStatus) {
     proposing = still || null;
   }
   if (mode === "guest") {
-    document.getElementById("calendar-title").textContent = `${snapshot.village_name} 체험 달력`;
+    document.getElementById("calendar-title").textContent = `${snapshot.village_name} 예약 상태`;
     showPrograms();
+    showBoards();
   } else if (mode === "change") {
     document.getElementById("calendar-title").textContent = snapshot.village_name
       ? `${snapshot.village_name} 일정 변경`
@@ -243,7 +261,7 @@ async function load(keepStatus) {
   if (!keepStatus) {
     if (mode === "guest") {
       statusNode.textContent = (snapshot.experience_names || []).length
-        ? "날짜를 누르고 체험, 시간, 인원을 고릅니다."
+        ? "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다."
         : "운영 중인 체험이 없습니다.";
     } else if (mode === "change") {
       statusNode.textContent = snapshot.open
@@ -324,7 +342,8 @@ function showDay(key) {
       item.textContent = `${row.booking_id}번 ${row.label}${clock} ${row.num_people}명${original}`;
       if (snapshot.open) addAnswerButtons(item);
     } else {
-      item.textContent = `${row.booking_id}번 ${row.status_label} ${row.label}${clock} ${row.num_people}명${offerText(row)}`;
+      const place = row.village_name ? `${row.village_name} ` : "";
+      item.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${row.num_people}명${offerText(row)}`;
       addStatusButtons(item, row);
     }
     dayEntries.appendChild(item);
@@ -412,7 +431,13 @@ guestForm.addEventListener("submit", async (event) => {
     return;
   }
   const saved = await response.json();
-  statusNode.textContent = `${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다.`;
+  if (saved.headcount_updated) {
+    statusNode.textContent = `예약번호 ${saved.booking_id}번 인원을 ${saved.num_people}명으로 고쳤습니다.`;
+  } else if (saved.already_open) {
+    statusNode.textContent = `예약번호 ${saved.booking_id}번은 이미 ${saved.status_label} 상태입니다.`;
+  } else {
+    statusNode.textContent = `${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다. 승인 결과는 위 목록에서 볼 수 있습니다.`;
+  }
   await load(true);
 });
 

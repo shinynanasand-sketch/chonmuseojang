@@ -10,11 +10,15 @@
     로그인 아이디
     <input type="text" name="login_id" id="login-id" autocomplete="username">
   </label>
-  <button type="submit">조회</button>
+  <label>
+    비밀번호
+    <input type="password" name="password" id="login-password" autocomplete="current-password">
+  </label>
+  <button type="submit">로그인</button>
 </form>
 <section id="status">
   <h2>내 운영 현황</h2>
-  <p id="operator-status" class="muted">로그인 아이디를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
+  <p id="operator-status" class="muted">로그인 아이디와 비밀번호를 입력하면 자기 마을 예약과 후기를 봅니다.</p>
   <p id="village-rank" class="muted"></p>
   <div id="stat-grid" class="stat-grid"></div>
   <canvas id="booking-chart" width="400" height="180" hidden></canvas>
@@ -49,7 +53,11 @@
 {% endblock %}
 {% block scripts %}
 <script>
-const TOKEN_KEY = "operator_login_id";
+const TOKEN_KEY = "operator_session";
+
+function sessionToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || "";
+}
 const STATUS_LABEL = { pending: "대기", confirmed: "승인", rejected: "거절" };
 let bookingChart = null;
 
@@ -175,23 +183,16 @@ function fillList(element, rows, emptyText, render) {
   });
 }
 
-async function loadOperator(event) {
-  if (event) event.preventDefault();
-  const token = document.getElementById("login-id").value.trim();
+async function openDashboard(token) {
   const status = document.getElementById("operator-status");
   const bookings = document.getElementById("booking-list");
   const reviews = document.getElementById("review-list");
-  if (!token) {
-    status.textContent = "로그인 아이디를 입력해 주세요.";
-    clearOps();
-    return;
-  }
-  sessionStorage.setItem(TOKEN_KEY, token);
   const response = await fetch("/api/operator/dashboard", {
     headers: { Authorization: "Bearer " + token },
   });
   if (response.status === 401) {
-    status.textContent = "운영자 인증이 필요합니다.";
+    sessionStorage.removeItem(TOKEN_KEY);
+    status.textContent = "아이디 또는 비밀번호가 맞지 않습니다.";
     clearOps();
     return;
   }
@@ -217,6 +218,33 @@ async function loadOperator(event) {
   showCards(reviews, data.recent_reviews || [], "후기가 없습니다.", reviewCard);
   loadContents(token);
   loadPrograms(token);
+}
+
+async function loadOperator(event) {
+  if (event) event.preventDefault();
+  const status = document.getElementById("operator-status");
+  const loginId = document.getElementById("login-id").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!loginId || !password) {
+    status.textContent = "로그인 아이디와 비밀번호를 입력해 주세요.";
+    clearOps();
+    return;
+  }
+  const login = await fetch("/api/operator/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login_id: loginId, password }),
+  });
+  if (!login.ok) {
+    sessionStorage.removeItem(TOKEN_KEY);
+    status.textContent = "아이디 또는 비밀번호가 맞지 않습니다.";
+    clearOps();
+    return;
+  }
+  const payload = await login.json();
+  sessionStorage.setItem(TOKEN_KEY, payload.token);
+  document.getElementById("login-password").value = "";
+  await openDashboard(payload.token);
 }
 
 function contentButton(label, onClick) {
@@ -287,17 +315,17 @@ function startContentEdit(card, row) {
   editor.maxLength = row.content_type === "SNS홍보문구" ? 120 : 400;
   const actions = actionRow([
     contentButton("저장", () => saveContent(row.content_id, editor.value)),
-    contentButton("취소", () => loadContents(document.getElementById("login-id").value.trim())),
+    contentButton("취소", () => loadContents(sessionToken())),
   ]);
   [...card.querySelectorAll("p")].slice(1).forEach((node) => node.remove());
   card.append(editor, actions);
 }
 
 async function sendContent(path, method, payload) {
-  const token = document.getElementById("login-id").value.trim();
+  const token = sessionToken();
   const status = document.getElementById("content-status");
   if (!token) {
-    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    status.textContent = "먼저 로그인해 주세요.";
     return null;
   }
   const options = {
@@ -362,18 +390,17 @@ async function loadContents(token) {
 
 async function createContent(event) {
   event.preventDefault();
-  const token = document.getElementById("login-id").value.trim();
+  const token = sessionToken();
   const status = document.getElementById("content-status");
   const description = document.getElementById("description").value.trim();
   if (!token) {
-    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    status.textContent = "먼저 로그인해 주세요.";
     return;
   }
   if (!description) {
     status.textContent = "짧은 설명을 입력해 주세요.";
     return;
   }
-  sessionStorage.setItem(TOKEN_KEY, token);
   const button = event.target.querySelector("button");
   const body = new FormData();
   body.append("description", description);
@@ -410,10 +437,10 @@ async function createContent(event) {
 }
 
 async function publishContent() {
-  const token = document.getElementById("login-id").value.trim();
+  const token = sessionToken();
   const status = document.getElementById("content-status");
   if (!token) {
-    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    status.textContent = "먼저 로그인해 주세요.";
     return;
   }
   const response = await fetch("/api/operator/contents/publish", {
@@ -472,10 +499,10 @@ async function loadPrograms(token) {
 }
 
 async function toggleProgram(label, isOperating) {
-  const token = document.getElementById("login-id").value.trim();
+  const token = sessionToken();
   const status = document.getElementById("program-status");
   if (!token) {
-    status.textContent = "로그인 아이디를 먼저 입력해 주세요.";
+    status.textContent = "먼저 로그인해 주세요.";
     return;
   }
   const response = await fetch("/api/operator/programs/status", {
@@ -497,10 +524,7 @@ async function toggleProgram(label, isOperating) {
 document.getElementById("operator-login").addEventListener("submit", loadOperator);
 document.getElementById("content-form").addEventListener("submit", createContent);
 document.getElementById("publish-content").addEventListener("click", publishContent);
-const saved = sessionStorage.getItem(TOKEN_KEY);
-if (saved) {
-  document.getElementById("login-id").value = saved;
-  loadOperator();
-}
+const saved = sessionToken();
+if (saved.includes(".")) openDashboard(saved);
 </script>
 {% endblock %}

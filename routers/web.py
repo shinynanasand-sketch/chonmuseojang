@@ -27,7 +27,7 @@ from services.kakao_home import home_kakao_guide
 from services.site_index import robots_txt, sitemap_xml
 from services.village_promo import list_published_villages, public_village_promo
 from services.village_programs import programs_for
-from services.trust_score import calculate_trust_score
+from services.trust_score import shown_trust_score
 
 router = APIRouter()
 
@@ -84,6 +84,19 @@ async def brand_page(request: Request):
         {
             "title": "체험마을 AI사무장",
             "page": "brand",
+            "kakao_channel_url": KAKAO_CHANNEL_URL,
+        },
+        _PAGE_CDN,
+    )
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy_page(request: Request):
+    return _html(
+        request,
+        "privacy.html",
+        {
+            "title": "개인정보 안내",
             "kakao_channel_url": KAKAO_CHANNEL_URL,
         },
         _PAGE_CDN,
@@ -430,7 +443,7 @@ async def api_recommend(body: RecommendRequest):
                 "grade": village.get("grade"),
                 "latitude": village.get("latitude"),
                 "longitude": village.get("longitude"),
-                "trust_score": village.get("trust_score") or calculate_trust_score(village),
+                "trust_score": shown_trust_score(village),
             }
         )
     return {"status": "success", "results": enriched}

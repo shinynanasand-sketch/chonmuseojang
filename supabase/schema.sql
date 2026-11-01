@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS villages_cache (
     homepage_url TEXT,
     grade TEXT,
     trust_score NUMERIC DEFAULT 0,
+    average_rating NUMERIC,
     registration_code TEXT,
     synced_at TIMESTAMP DEFAULT NOW()
 );
@@ -159,3 +160,6 @@ ALTER TABLE public.program_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.experience_calendar ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.guest_book_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
+
+-- 이미 만든 데이터베이스에는 별점 평균 칸을 한 번 더한다.
+ALTER TABLE public.villages_cache ADD COLUMN IF NOT EXISTS average_rating NUMERIC;

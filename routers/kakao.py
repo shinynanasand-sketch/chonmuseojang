@@ -3,15 +3,13 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks
 
 from models.kakao_schemas import KakaoSkillRequest
-from services import auth, booking, kakao_client, review, trust_score
+from services import auth, booking, kakao_client, review
 from services.calendar_link import attach_approval_calendar
 from services.kakao_ask import answer_kakao_question
 from services.kakao_client import skill_http_response
 from services.kakao_phase_a import finish_promo_photo, handle_phase_a, promo_photo_should_defer
 
 router = APIRouter(prefix="/kakao", tags=["kakao"])
-
-DEFAULT_VILLAGE_ID = "V001"
 
 
 def _skill_json(body: dict):
@@ -162,18 +160,13 @@ async def _kakao_booking(payload: KakaoSkillRequest):
         {
             "visit_date": _param_str(params, "visit_date"),
             "num_people": _param_str(params, "num_people"),
+            "visit_time": _param_str(params, "visit_time"),
         },
     )
     if not result.get("ok"):
         return _skill_json(kakao_client.build_error_skill_response(result["text"]))
-    new_booking = result["booking"]
-    kakao_client.notify_booking_received(new_booking)
-    return _skill_json(
-        kakao_client.build_skill_response(
-            "예약이 접수되었습니다",
-            f"예약번호 {new_booking['booking_id']}번 대기로 접수되었습니다.",
-        )
-    )
+    title, text = booking.guest_booking_reply(result["booking"])
+    return _skill_json(kakao_client.build_skill_response(title, text))
 
 
 @router.post("/approve")
@@ -216,18 +209,21 @@ async def _kakao_approve(payload: KakaoSkillRequest):
             kakao_client.build_error_skill_response("자기 마을의 예약만 처리할 수 있습니다.")
         )
 
-    if decision == "approve":
-        booking.update_booking_status(booking_id, "confirmed")
-        kakao_client.notify_booking_decided(existing, "approve")
-        return _skill_json(
-            kakao_client.build_skill_response("승인 완료", "예약이 승인되었습니다.")
+    if decision in ("approve", "reject"):
+        saved = booking.update_booking_status(
+            booking_id,
+            "confirmed" if decision == "approve" else "rejected",
         )
-    if decision == "reject":
-        booking.update_booking_status(booking_id, "rejected")
-        kakao_client.notify_booking_decided(existing, "reject")
-        return _skill_json(
-            kakao_client.build_skill_response("거절 완료", "예약이 거절되었습니다.")
-        )
+        if isinstance(saved, dict) and saved.get("unchanged") is True:
+            return _skill_json(
+                kakao_client.build_skill_response("이미 처리된 예약", "이미 처리된 예약입니다.")
+            )
+        if not saved:
+            return _skill_json(kakao_client.build_error_skill_response("예약을 찾을 수 없습니다."))
+        kakao_client.notify_booking_decided(existing, decision)
+        title = "승인 완료" if decision == "approve" else "거절 완료"
+        text = "예약이 승인되었습니다." if decision == "approve" else "예약이 거절되었습니다."
+        return _skill_json(kakao_client.build_skill_response(title, text))
 
     return _skill_json(
         kakao_client.build_error_skill_response("승인 또는 거절을 선택해 주세요.")
@@ -265,19 +261,22 @@ async def _kakao_review(payload: KakaoSkillRequest):
             kakao_client.build_error_skill_response("별점은 숫자로 입력해 주세요.")
         )
 
-    existing = booking.get_booking_by_id(booking_id) if booking_id else None
-    village_id = existing["village_id"] if existing else DEFAULT_VILLAGE_ID
-
-    sentiment = review.analyze_sentiment(comment)
-    review.create_review(
-        village_id=village_id,
-        booking_id=booking_id or 0,
+    if not booking_id:
+        return _skill_json(
+            kakao_client.build_error_skill_response("예약을 찾은 뒤에 후기를 등록해 주세요.")
+        )
+    if rating is not None and rating not in range(1, 6):
+        return _skill_json(
+            kakao_client.build_error_skill_response("별점은 1부터 5까지 입력해 주세요.")
+        )
+    result = review.register_booking_review(
+        booking_id=booking_id,
         customer_kakao_id=user_id,
         comment=comment,
         rating=rating,
-        sentiment=sentiment,
     )
-    trust_score.recalculate_for_village(village_id)
+    if not result.get("ok"):
+        return _skill_json(kakao_client.build_error_skill_response(result["text"]))
     return _skill_json(
         kakao_client.build_skill_response("후기 등록 완료", "소중한 후기 감사합니다!")
     )

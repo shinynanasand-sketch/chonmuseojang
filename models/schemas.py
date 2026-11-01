@@ -14,6 +14,11 @@ class OperatorContentEditRequest(BaseModel):
     body: str = ""
 
 
+class OperatorLoginRequest(BaseModel):
+    login_id: str = ""
+    password: str = ""
+
+
 class ProgramStatusRequest(BaseModel):
     label: str = ""
     is_operating: bool

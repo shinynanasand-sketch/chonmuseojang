@@ -1,5 +1,6 @@
 import pytest
 
+from conftest import operator_headers
 from services.auth import register_operator
 from services.booking import create_booking, get_booking_by_id, list_bookings_for_operator
 from services.program_share import (
@@ -214,11 +215,11 @@ def test_program_operator_web_routes_are_forbidden(test_client):
     try:
         dashboard = test_client.get(
             "/api/operator/dashboard",
-            headers={"Authorization": "Bearer prog_web"},
+            headers=operator_headers("prog_web"),
         )
         publish = test_client.post(
             "/api/operator/contents/publish",
-            headers={"Authorization": "Bearer prog_web"},
+            headers=operator_headers("prog_web"),
             json={},
         )
         assert dashboard.status_code == 403
