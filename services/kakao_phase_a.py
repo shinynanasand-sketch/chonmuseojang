@@ -18,7 +18,13 @@ from services.kakao_client import (
     seconds_remaining,
     time_budget_response,
 )
-from services.kakao_params import booking_id_from_params, kakao_photo_url, parse_sys_date, representative
+from services.kakao_params import (
+    booking_id_from_params,
+    kakao_photo_url,
+    param_origin,
+    parse_sys_date,
+    representative,
+)
 from services.operator_assistant import (
     PhotoRejected,
     _kakao_photo_host,
@@ -470,12 +476,13 @@ def _register(user_id: str, payload: KakaoSkillRequest) -> dict:
     code = str(representative(params, "registration_code") or "").strip()
     program = str(representative(params, "program_label") or "").strip()
     utterance = payload.userRequest.utterance or ""
-    if not program:
-        program = _program_after_code(utterance, code)
+    origin = param_origin(payload.action.detailParams, "program_label")
+    if origin and origin not in utterance:
+        utterance = f"{utterance} {origin}".strip()
     if village_id and code:
         if not allow_external():
             return time_budget_response()
-        result = register_operator_with_ids(user_id, village_id, code, program)
+        result = register_operator_with_ids(user_id, village_id, code, program, utterance)
     elif utterance.strip():
         if not allow_external():
             return time_budget_response()
@@ -516,15 +523,6 @@ def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
     if decision == "approve":
         return build_skill_response("승인 완료", "예약이 승인되었습니다.")
     return build_skill_response("거절 완료", "예약이 거절되었습니다.")
-
-
-def _program_after_code(utterance: str, code: str) -> str:
-    text = (utterance or "").strip()
-    if text.startswith("등록 "):
-        text = text[3:].strip()
-    if not code or code not in text:
-        return ""
-    return text.split(code, 1)[1].strip()
 
 
 def _note_body(utterance: str) -> str:

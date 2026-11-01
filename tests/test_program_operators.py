@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import operator_headers
-from services.auth import register_operator
+from services.auth import register_operator, register_operator_with_ids
 from services.booking import create_booking, get_booking_by_id, list_bookings_for_operator
 from services.program_share import (
     list_calendar,
@@ -97,6 +97,68 @@ def test_unknown_program_is_rejected(share_villages):
     register_operator("share_owner", "등록 공유마을 SH-001")
     result = register_operator("shell_owner", "등록 공유마을 SH-001 없는체험")
     assert result == {"ok": False, "reason": "program_not_found"}
+
+
+def test_whole_sentence_in_program_label_registers_that_program(test_client, share_villages):
+    register_operator("share_owner", "공유마을 SH-001")
+    utterance = "공유마을 SH-001 조개잡이"
+    response = test_client.post(
+        "/kakao/ask",
+        json={
+            "intent": {"name": "운영자 등록"},
+            "userRequest": {"utterance": utterance, "user": {"id": "shell_owner"}},
+            "action": {
+                "params": {
+                    "village_id": "VSHARE",
+                    "registration_code": "SH-001",
+                    "program_label": utterance,
+                }
+            },
+        },
+    )
+    assert response.status_code == 200
+    assert "VSHARE 체험 담당으로 등록되었습니다." in response.text
+    row = get_operator_by_kakao_id("shell_owner")
+    assert row["role"] == "program"
+    assert row["program_key"] == program_key("조개잡이")
+
+
+def test_parenthesis_program_matches_the_code_tail(share_villages):
+    _put_village(
+        "VDYE",
+        "염색마을",
+        "DY-001",
+        "천연염색(인견이불)+천연염색(사각스카프감+쪽염색)",
+    )
+    register_operator("share_owner", "염색마을 DY-001")
+    utterance = "염색마을 DY-001 천연염색(사각스카프감+쪽염색)"
+    result = register_operator_with_ids("shell_owner", "VDYE", "DY-001", utterance, utterance)
+    assert result["ok"] is True
+    assert result["role"] == "program"
+    assert get_operator_by_kakao_id("shell_owner")["program_key"] == program_key(
+        "천연염색(사각스카프감+쪽염색)"
+    )
+    plain = register_operator_with_ids(
+        "salt_owner",
+        "VDYE",
+        "DY-001",
+        "천연염색 인견이불",
+        "염색마을 DY-001 천연염색 인견이불",
+    )
+    assert plain["role"] == "program"
+    assert get_operator_by_kakao_id("salt_owner")["program_key"] == program_key("천연염색(인견이불)")
+    delete_operator_by_kakao_id("shell_owner")
+    delete_operator_by_kakao_id("salt_owner")
+    delete_operator_by_kakao_id("share_owner")
+
+
+def test_village_sentence_stays_village_operator_when_name_contains_program():
+    _put_village("VSHELL", "조개잡이마을", "JS-001", "조개잡이")
+    utterance = "조개잡이마을 JS-001"
+    result = register_operator_with_ids("extra_owner", "VSHELL", "JS-001", utterance, utterance)
+    assert result == {"ok": True, "village_id": "VSHELL"}
+    assert get_operator_by_kakao_id("extra_owner")["role"] == "village"
+    delete_operator_by_kakao_id("extra_owner")
 
 
 def _owners() -> dict:

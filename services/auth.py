@@ -1,11 +1,15 @@
 """운영자 인증 및 테넌트 필터 헬퍼 (FR-15)."""
 
+import re
 from datetime import datetime, timezone
 
 from fastapi import Depends, Header, HTTPException
 
 from services import supabase_client
 from services.village_programs import program_key, program_labels
+
+_HYPHENS = str.maketrans({"‐": "-", "‒": "-", "–": "-", "—": "-", "−": "-", "－": "-"})
+_PLAIN = re.compile(r"[^0-9가-힣\-\s]")
 
 
 def get_operator_by_kakao_id(kakao_user_id: str) -> dict | None:
@@ -51,11 +55,15 @@ def register_operator(user_id: str, utterance: str) -> dict:
     parsed = _parse_registration(utterance)
     if not parsed.get("ok"):
         return {"ok": False, "reason": parsed["reason"]}
-    return _register_matches(user_id, parsed["matches"], parsed["program"])
+    return _register_matches(user_id, parsed["matches"], parsed["program"], utterance)
 
 
 def register_operator_with_ids(
-    user_id: str, village_id: str, code: str, program_label: str = ""
+    user_id: str,
+    village_id: str,
+    code: str,
+    program_label: str = "",
+    utterance: str = "",
 ) -> dict:
     """대표값 village_id와 registration_code가 그 행과 맞을 때만 저장한다."""
     row = supabase_client.get_village_by_id(village_id)
@@ -63,10 +71,12 @@ def register_operator_with_ids(
         return {"ok": False, "reason": "village_not_found"}
     if str(row.get("registration_code") or "").strip() != code.strip():
         return {"ok": False, "reason": "code_mismatch"}
-    return _register_matches(user_id, [row], program_label.strip())
+    return _register_matches(user_id, [row], program_label.strip(), utterance)
 
 
-def _register_matches(user_id: str, matches: list[dict], program: str) -> dict:
+def _register_matches(
+    user_id: str, matches: list[dict], program: str, utterance: str = ""
+) -> dict:
     if supabase_client.get_operator_by_kakao_id(user_id):
         return {"ok": False, "reason": "already_registered"}
     village_operator = None
@@ -75,6 +85,12 @@ def _register_matches(user_id: str, matches: list[dict], program: str) -> dict:
         if found:
             village_operator = found
             break
+    target = (
+        next(row for row in matches if row["village_id"] == village_operator["village_id"])
+        if village_operator
+        else _preferred_village(matches)
+    )
+    program = _coerce_program(target, program, utterance)
     if not program:
         if village_operator:
             return {"ok": False, "reason": "already_registered"}
@@ -92,12 +108,7 @@ def _register_matches(user_id: str, matches: list[dict], program: str) -> dict:
         return {"ok": True, "village_id": village["village_id"]}
     if village_operator is None:
         return {"ok": False, "reason": "village_operator_required"}
-    target = next(row for row in matches if row["village_id"] == village_operator["village_id"])
-    normalized = " ".join(program.split())
-    canonical = next(
-        (label for label in program_labels(target) if " ".join(label.split()) == normalized),
-        "",
-    )
+    canonical = _exact_label(program_labels(target), program)
     if not canonical:
         return {"ok": False, "reason": "program_not_found"}
     key = program_key(canonical)
@@ -115,6 +126,98 @@ def _register_matches(user_id: str, matches: list[dict], program: str) -> dict:
         }
     )
     return {"ok": True, "village_id": target["village_id"], "role": "program"}
+
+
+def _spoken(text: str) -> str:
+    source = (text or "").strip()
+    if source.startswith("등록 "):
+        return source[3:].strip()
+    return source
+
+
+def _norm_hyphen(text: str) -> str:
+    return (text or "").translate(_HYPHENS)
+
+
+def _code_at(text: str, code: str) -> int:
+    """정규화한 문장에서 등록 코드의 시작 위치. 없으면 -1."""
+    spoken = _spoken(text)
+    token = _norm_hyphen(code).strip()
+    if not spoken or not token:
+        return -1
+    return _norm_hyphen(spoken).find(token)
+
+
+def _text_after_code(text: str, code: str) -> str:
+    spoken = _spoken(text)
+    index = _code_at(spoken, code)
+    if index < 0:
+        return ""
+    return spoken[index + len(_norm_hyphen(code).strip()) :].strip()
+
+
+def _plain_program(text: str) -> str:
+    """괄호와 +를 뺀 비교용 글. 체험 이름 일치는 이 글과 원문을 함께 본다."""
+    opened = (
+        _norm_hyphen(text)
+        .replace("(", " ")
+        .replace(")", " ")
+        .replace("（", " ")
+        .replace("）", " ")
+        .replace("+", "")
+    )
+    return " ".join(_PLAIN.sub(" ", opened).split())
+
+
+def _exact_label(labels: list[str], text: str) -> str:
+    normalized = " ".join((text or "").split())
+    if not normalized:
+        return ""
+    return next((label for label in labels if " ".join(label.split()) == normalized), "")
+
+
+def _loose_label(labels: list[str], text: str, contained: bool) -> str:
+    wanted = _plain_program(text)
+    if not wanted:
+        return ""
+    same = [label for label in labels if _plain_program(label) == wanted]
+    if len(same) == 1:
+        return same[0]
+    if not contained or len(same) > 1:
+        return ""
+    found = [label for label in labels if _plain_program(label) and _plain_program(label) in wanted]
+    if not found:
+        return ""
+    longest = max(len(_plain_program(label)) for label in found)
+    tied = [label for label in found if len(_plain_program(label)) == longest]
+    if len(tied) != 1:
+        return ""
+    return tied[0]
+
+
+def _coerce_program(village: dict, program: str, utterance: str) -> str:
+    """카카오가 문장 전체를 체험 이름으로 넣어도 코드 뒤 체험을 고른다."""
+    labels = program_labels(village)
+    code = str(village.get("registration_code") or "")
+    tails: list[str] = []
+    for source in (program, utterance):
+        tail = _text_after_code(source, code)
+        if tail and tail not in tails:
+            tails.append(tail)
+    for source in (program, *tails):
+        hit = _exact_label(labels, source)
+        if hit:
+            return hit
+    for tail in tails:
+        hit = _loose_label(labels, tail, True)
+        if hit:
+            return hit
+    if tails:
+        return " ".join(tails[0].split())
+    if _code_at(program, code) >= 0 or _code_at(utterance, code) >= 0:
+        return ""
+    bare = " ".join(program.split())
+    return _loose_label(labels, bare, False) or bare
 
 
 def _parse_registration(utterance: str) -> dict:
