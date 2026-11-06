@@ -6,6 +6,7 @@ import os
 import time
 
 from services.supabase_client import list_villages
+from services.village_name_requests import present_village
 from services.village_programs import program_labels
 
 _TTL_SECONDS = 12 * 60 * 60
@@ -63,7 +64,8 @@ def codes_open(cookie: str, posted: str | None) -> tuple[bool, str]:
 def guide_rows(show_codes: bool) -> list[dict]:
     rows = []
     for village in list_villages():
-        name = str(village.get("village_name") or "").strip()
+        shown = present_village(village)
+        name = str(shown.get("village_name") or "").strip()
         if not name:
             continue
         labels = program_labels(village)

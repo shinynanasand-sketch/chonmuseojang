@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}마을명 변경 요청{% endblock %}
+{% block content %}
+<section class="guide">
+  <h1>마을명 변경 요청</h1>
+  <p>마을 담당자가 요청한 이름과, 그 요청을 어디에 적용했는지 적습니다.</p>
+  {% for name_request in requests %}
+  <h2>{{ name_request.requested_name }}</h2>
+  <p>{{ name_request.requested_by }} 요청입니다. {{ name_request.sigungu }}의 {{ name_request.official_name }}을 {{ name_request.requested_name }}로 바꿉니다. 마을 번호는 {{ name_request.village_id }}입니다.</p>
+  <ul>
+    {% for change in name_request.changes %}
+    <li>
+      {{ change.label }}.
+      {% if change.applied %}결과: 적용함{% else %}결과: 적용하지 않음{% endif %}.
+      {{ change.reason }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  <p><a href="/guide/use">사용 안내</a></p>
+</section>
+{% endblock %}

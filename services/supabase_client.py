@@ -172,8 +172,9 @@ def restore_operators(rows: list[dict]) -> None:
 def list_public_villages(sigungu: str | None = None, program_type: str | None = None) -> list[dict]:
     """관광객 화면용 마을 목록. 실데이터가 있으면 예시 마을을 제외한다."""
     from services.demo_data import public_village_rows
+    from services.village_name_requests import present_villages
 
-    return public_village_rows(list_villages(sigungu=sigungu, program_type=program_type))
+    return present_villages(public_village_rows(list_villages(sigungu=sigungu, program_type=program_type)))
 
 
 def _clear_recommend_cache() -> None:
@@ -192,8 +193,9 @@ def list_recommend_villages() -> list[dict]:
     ):
         return _recommend_cache[1]
     from services.demo_data import public_village_rows
+    from services.village_name_requests import present_villages
 
-    rows = public_village_rows(_recommend_rows())
+    rows = present_villages(public_village_rows(_recommend_rows()))
     if _use_supabase():
         _recommend_cache = (now, rows)
     return rows
@@ -209,13 +211,25 @@ def _recommend_rows() -> list[dict]:
 
 def list_villages_by_name(village_name: str, sigungu: str | None = None) -> list[dict]:
     """마을명과 같거나, 시군과 마을명이 함께 맞는 행만 읽는다."""
+    from services.village_name_requests import present_villages, request_for_spoken_name
+
     name = village_name.strip()
+    request = request_for_spoken_name(name)
+    if request is not None:
+        if sigungu is not None and sigungu.strip() != str(request["sigungu"]):
+            return []
+        row = _stored_village(str(request["village_id"]))
+        if row is None:
+            return []
+        if sigungu is not None and str(row.get("sigungu") or "").strip() != sigungu.strip():
+            return []
+        return present_villages([row])
     client = get_supabase_client()
     if client:
         query = client.table("villages_cache").select("*").eq("village_name", name)
         if sigungu is not None:
             query = query.eq("sigungu", sigungu.strip())
-        return query.execute().data or []
+        return present_villages(query.execute().data or [])
     rows = [
         row
         for row in _villages_cache
@@ -224,7 +238,7 @@ def list_villages_by_name(village_name: str, sigungu: str | None = None) -> list
     if sigungu is not None:
         wanted = sigungu.strip()
         rows = [row for row in rows if str(row.get("sigungu") or "").strip() == wanted]
-    return rows
+    return present_villages(rows)
 
 
 def list_villages(sigungu: str | None = None, program_type: str | None = None) -> list[dict]:
@@ -262,12 +276,15 @@ def list_villages_by_ids(village_ids: list[str]) -> list[dict]:
                 .execute()
             )
             found.extend(result.data or [])
-        return found
+        return _present_villages(found)
     wanted = set(ids)
-    return [row for row in _villages_cache if str(row.get("village_id") or "") in wanted]
+    return _present_villages(
+        [row for row in _villages_cache if str(row.get("village_id") or "") in wanted]
+    )
 
 
-def get_village_by_id(village_id: str) -> dict | None:
+def _stored_village(village_id: str) -> dict | None:
+    """저장소의 마을 행. 보여줄 이름으로 바꾸지 않는다."""
     client = get_supabase_client()
     if client:
         result = (
@@ -283,6 +300,21 @@ def get_village_by_id(village_id: str) -> dict | None:
         if village.get("village_id") == village_id:
             return village
     return None
+
+
+def _present_villages(rows: list[dict]) -> list[dict]:
+    from services.village_name_requests import present_villages
+
+    return present_villages(rows)
+
+
+def get_village_by_id(village_id: str) -> dict | None:
+    from services.village_name_requests import present_village
+
+    row = _stored_village(village_id)
+    if row is None:
+        return None
+    return present_village(row)
 
 
 def insert_sync_log(entry: dict[str, Any]) -> None:

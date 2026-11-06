@@ -51,7 +51,9 @@ def public_village_promo(village_id: str) -> dict | None:
 
 def list_published_villages() -> list[dict]:
     """공개된 소개글·SNS가 있는 마을만. 예시 마을도 공개했으면 포함한다."""
-    by_id = {row.get("village_id"): row for row in list_villages()}
+    from services.village_name_requests import present_village
+
+    by_id = {row.get("village_id"): present_village(row) for row in list_villages()}
     grouped: dict[str, list[dict]] = {}
     for row in list_public_contents():
         village_id = str(row.get("village_id") or "")

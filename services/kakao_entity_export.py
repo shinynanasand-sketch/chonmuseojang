@@ -23,9 +23,12 @@ def expand_synonyms(row: dict) -> list[str]:
 
 
 def build_village_name_rows(villages: list[dict]) -> tuple[list[list[str]], list[str]]:
+    from services.village_name_requests import export_village
+
     rows: list[list[str]] = []
     errors: list[str] = []
     for village in villages:
+        village = export_village(village)
         village_id = str(village.get("village_id") or "").strip()
         if not str(village.get("village_name") or "").strip():
             errors.append(f"마을명이 비어 있음: {village_id}")

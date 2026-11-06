@@ -106,6 +106,7 @@ def _phrase_in(text: str, phrase: str) -> bool:
 
 def _program_matches(utterance: str) -> list[tuple[dict, str]]:
     from services.supabase_client import list_villages
+    from services.village_name_requests import village_names
     from services.village_programs import program_labels
 
     found: list[tuple[dict, str]] = []
@@ -120,7 +121,7 @@ def _program_matches(utterance: str) -> list[tuple[dict, str]]:
     named = [
         (village, label)
         for village, label in found
-        if _phrase_in(utterance, str(village.get("village_name") or ""))
+        if any(_phrase_in(utterance, name) for name in village_names(village))
     ]
     picked = named or found
     by_village: dict[str, tuple[dict, str]] = {}

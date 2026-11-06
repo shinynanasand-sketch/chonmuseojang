@@ -369,6 +369,17 @@ async def guide_use_page(request: Request):
     )
 
 
+@router.get("/guide/name-requests", response_class=HTMLResponse)
+async def name_requests_page(request: Request):
+    from services.village_name_requests import NAME_REQUESTS
+
+    return request.app.state.templates.TemplateResponse(
+        request,
+        "guide_name_requests.html",
+        {"title": "마을명 변경 요청", "requests": NAME_REQUESTS},
+    )
+
+
 def _embed(embed: str) -> bool:
     return embed == "1"
 

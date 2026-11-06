@@ -211,12 +211,11 @@ def _place_name(row: dict) -> str:
 
 
 def _booking_village(spoken: str, rows: list[dict]) -> dict | None:
-    exact = [row for row in rows if str(row.get("village_name") or "").strip() == spoken]
+    from services.village_name_requests import matches_spoken_village
+
+    exact = [row for row in rows if matches_spoken_village(row, spoken)]
     if len(exact) == 1:
         return exact[0]
-    for row in rows:
-        if _place_name(row) == spoken:
-            return row
     return None
 
 
