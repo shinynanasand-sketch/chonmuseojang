@@ -46,6 +46,22 @@ function bySlot(left, right) {
   return (left.booking_id || 0) - (right.booking_id || 0);
 }
 
+function won(amount) {
+  return `${Number(amount).toLocaleString("ko-KR")}원`;
+}
+
+function unitPrice(label) {
+  if (!snapshot || !snapshot.prices) return null;
+  const value = snapshot.prices[label];
+  if (value == null || value === "") return null;
+  return Number(value);
+}
+
+function bookingTotal(row) {
+  if (!row || row.total == null || row.total === "") return "";
+  return ` ${won(row.total)}`;
+}
+
 function fillSelect(select, labels) {
   select.innerHTML = "";
   labels.forEach((label) => {
@@ -54,6 +70,34 @@ function fillSelect(select, labels) {
     option.textContent = label;
     select.appendChild(option);
   });
+}
+
+function fillGuestPrograms() {
+  guestProgram.innerHTML = "";
+  (snapshot.experience_names || []).forEach((label) => {
+    const option = document.createElement("option");
+    option.value = label;
+    const price = unitPrice(label);
+    option.textContent = price == null ? label : `${label} ${won(price)}`;
+    guestProgram.appendChild(option);
+  });
+  showGuestTotal();
+}
+
+function showGuestTotal() {
+  const node = document.getElementById("guest-total");
+  if (!node) return;
+  const price = unitPrice(guestProgram.value);
+  const people = Number(document.getElementById("guest-people").value);
+  if (price == null) {
+    node.textContent = "";
+    return;
+  }
+  if (!people || people < 1) {
+    node.textContent = `1인 ${won(price)}`;
+    return;
+  }
+  node.textContent = `${people}명 ${won(price * people)}`;
 }
 
 function showPrograms() {
@@ -68,7 +112,8 @@ function showPrograms() {
   }
   names.forEach((label) => {
     const item = document.createElement("li");
-    item.textContent = label;
+    const price = unitPrice(label);
+    item.textContent = price == null ? label : `${label} ${won(price)}`;
     programList.appendChild(item);
   });
 }
@@ -157,7 +202,7 @@ function fillBoard(slot, title, rows, emptyText, withActions) {
     const place = row.village_name ? `${row.village_name} ` : "";
     name.textContent = `${place}${row.label}`;
     const meta = document.createElement("p");
-    meta.textContent = `${row.num_people}명 · ${row.booking_id}번`;
+    meta.textContent = `${row.num_people}명${bookingTotal(row)} · ${row.booking_id}번`;
     card.appendChild(name);
     appendSlot(card, row);
     card.appendChild(meta);
@@ -215,6 +260,7 @@ function syncGuestForm() {
   guestForm.hidden = !open;
   const dateLine = document.getElementById("guest-date");
   if (dateLine) dateLine.textContent = open ? `${selected}에 예약합니다.` : "";
+  showGuestTotal();
 }
 
 function snapshotPath() {
@@ -274,7 +320,7 @@ async function load(keepStatus) {
     }
   }
   fillSelect(programSelect, snapshot.programs || []);
-  fillSelect(guestProgram, snapshot.experience_names || []);
+  fillGuestPrograms();
   form.hidden = mode !== "operator" || !snapshot.can_write;
   const proposeForm = document.getElementById("propose-form");
   proposeForm.hidden = !proposing;
@@ -339,11 +385,11 @@ function showDay(key) {
     if (mode === "change") {
       const originalClock = row.original_visit_time ? ` ${row.original_visit_time}` : "";
       const original = row.original_visit_date ? ` 원래 ${row.original_visit_date}${originalClock}` : "";
-      item.textContent = `${row.booking_id}번 ${row.label}${clock} ${row.num_people}명${original}`;
+      item.textContent = `${row.booking_id}번 ${row.label}${clock} ${row.num_people}명${bookingTotal(row)}${original}`;
       if (snapshot.open) addAnswerButtons(item);
     } else {
       const place = row.village_name ? `${row.village_name} ` : "";
-      item.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${row.num_people}명${offerText(row)}`;
+      item.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${row.num_people}명${bookingTotal(row)}${offerText(row)}`;
       addStatusButtons(item, row);
     }
     dayEntries.appendChild(item);
@@ -410,6 +456,9 @@ async function removeEntry(row) {
   if (response.ok) await load(true);
 }
 
+guestProgram.addEventListener("change", showGuestTotal);
+document.getElementById("guest-people").addEventListener("input", showGuestTotal);
+
 guestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!selected) {
@@ -431,12 +480,13 @@ guestForm.addEventListener("submit", async (event) => {
     return;
   }
   const saved = await response.json();
+  const total = saved.total == null || saved.total === "" ? "" : ` ${saved.num_people}명 ${won(saved.total)}.`;
   if (saved.headcount_updated) {
-    statusNode.textContent = `예약번호 ${saved.booking_id}번 인원을 ${saved.num_people}명으로 고쳤습니다.`;
+    statusNode.textContent = `예약번호 ${saved.booking_id}번 인원을 ${saved.num_people}명으로 고쳤습니다.${total}`;
   } else if (saved.already_open) {
-    statusNode.textContent = `예약번호 ${saved.booking_id}번은 이미 ${saved.status_label} 상태입니다.`;
+    statusNode.textContent = `예약번호 ${saved.booking_id}번은 이미 ${saved.status_label} 상태입니다.${total}`;
   } else {
-    statusNode.textContent = `${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다. 승인 결과는 위 목록에서 볼 수 있습니다.`;
+    statusNode.textContent = `${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다.${total} 승인 결과는 위 목록에서 볼 수 있습니다.`;
   }
   await load(true);
 });

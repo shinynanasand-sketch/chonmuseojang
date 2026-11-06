@@ -66,6 +66,17 @@ def operating_names(village: dict) -> list[str]:
     return [item["label"] for item in programs_for(village) if item.get("is_operating")]
 
 
+def bookable_names(village: dict) -> list[str]:
+    """체험객이 고를 수 있는 체험. 가격표가 있는 마을은 1인 금액이 있는 운영 중 체험만."""
+    names = operating_names(village)
+    from services.field_changes import has_price_table, price_of
+
+    village_id = str(village.get("village_id") or "")
+    if not has_price_table(village_id):
+        return names
+    return [name for name in names if price_of(village_id, name) is not None]
+
+
 def _own_bookings(customer_kakao_id: str) -> list[dict]:
     """그 손님의 예약만. 마을 이름과 상태를 넣고 카카오 사용자 ID는 빼 둔다."""
     from services.booking import list_bookings
@@ -89,8 +100,11 @@ def guest_snapshot(token: str) -> dict | None:
     village = get_village_by_id(str(link["village_id"]))
     if not village:
         return None
-    names = operating_names(village)
-    return {
+    names = bookable_names(village)
+    from services.field_changes import has_price_table, price_of
+
+    village_id = str(village.get("village_id") or "")
+    snapshot = {
         "mode": "guest",
         "village_id": village.get("village_id"),
         "village_name": village.get("village_name") or village.get("village_id"),
@@ -101,6 +115,9 @@ def guest_snapshot(token: str) -> dict | None:
         "entries": [],
         "bookings": _own_bookings(str(link["customer_kakao_id"])),
     }
+    if has_price_table(village_id):
+        snapshot["prices"] = {name: price_of(village_id, name) for name in names}
+    return snapshot
 
 
 def _clock(value: str) -> str:
@@ -134,7 +151,7 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
         return {"ok": False, "reason": "bad_format"}
     wanted = program_key(label)
     canonical = next(
-        (name for name in operating_names(village) if program_key(name) == wanted),
+        (name for name in bookable_names(village) if program_key(name) == wanted),
         "",
     )
     if not canonical:
@@ -152,8 +169,9 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
 
         notify_booking_received(saved)
     from services.booking import _STATUS_LABEL
+    from services.field_changes import line_total
 
-    return {
+    payload = {
         "ok": True,
         "booking_id": saved.get("booking_id"),
         "label": canonical,
@@ -165,3 +183,7 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
         "already_open": bool(saved.get("already_open")),
         "headcount_updated": bool(saved.get("headcount_updated")),
     }
+    amount = line_total(village.get("village_id"), canonical, saved.get("num_people"))
+    if amount is not None:
+        payload["total"] = amount
+    return payload

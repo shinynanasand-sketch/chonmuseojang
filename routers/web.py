@@ -371,12 +371,12 @@ async def guide_use_page(request: Request):
 
 @router.get("/guide/name-requests", response_class=HTMLResponse)
 async def name_requests_page(request: Request):
-    from services.village_name_requests import NAME_REQUESTS
+    from services.field_changes import guide_rows
 
     return request.app.state.templates.TemplateResponse(
         request,
         "guide_name_requests.html",
-        {"title": "마을명 변경 요청", "requests": NAME_REQUESTS},
+        {"title": "현장 변경 기록", "rows": guide_rows()},
     )
 
 

@@ -96,8 +96,9 @@ def _tourist_booking(utterance: str, user_id: str) -> dict | None:
 
         title, text = guest_booking_reply(result["booking"])
         return build_skill_response(title, text)
-    if str(result.get("text") or "").startswith("같은 체험 이름이 여러 마을"):
-        return build_error_skill_response(result["text"])
+    text = str(result.get("text") or "")
+    if text.startswith("같은 체험 이름이 여러 마을") or text.startswith("이 체험은 지금은"):
+        return build_error_skill_response(text)
     return None
 
 

@@ -1,0 +1,182 @@
+"""현장에서 요청한 체험 추가, 1인 가격, 운영 중지.
+
+공공데이터 program_name은 동기화가 다시 덮으므로 이 모듈에만 둔다.
+"""
+
+from datetime import datetime, timedelta, timezone
+
+from services.village_name_requests import NAME_REQUESTS
+
+VILLAGE_ID = "PDeac2fe424e02"
+VILLAGE_NAME = "도선국사마을"
+# 이 시각보다 앞선 운영 중 기록은 가격이 없는 체험의 처음 중지로 본다.
+# 그 뒤에 사무장이 운영으로 저장한 값은 그대로 둔다.
+STOP_RECORD_AT = datetime(2026, 11, 7, 6, 0, tzinfo=timezone(timedelta(hours=9)))
+
+_EXTRAS = (
+    {"label": "천연염색(에코백)", "price": 18000, "sheet": "천연염색(에코백)"},
+    {"label": "천연염색(크로스백)", "price": 18000, "sheet": "천연염색(크로스백)"},
+    {"label": "천연염색(삼각스카프-일반)", "price": 18000, "sheet": "천연염색(삼각스카프-일반)"},
+)
+
+_PRICES = (
+    {"label": "감수확", "price": 10000, "sheet": "감수확체험"},
+    {"label": "천연염색(손수건)", "price": 12000, "sheet": "천연염색(손수건)"},
+    {"label": "천연염색(삼각스카프쪽염색)", "price": 25000, "sheet": "천연염색(삼각스카프-쪽염색)"},
+    {"label": "천연염색(삼각스카프감염색)", "price": 20000, "sheet": "천연염색(삼각스카프-강염색)"},
+    {"label": "천연염색(사각스카프감+쪽염색)", "price": 32000, "sheet": "천연염색(사각스카프-감염색,쪽염색)"},
+    {"label": "전통손두부만들기", "price": 12000, "sheet": "전통손두부만들기"},
+    {"label": "인절미떡메치기", "price": 15000, "sheet": "인절미만들기"},
+    {"label": "오색비빔밥", "price": 10000, "sheet": "비빔밥"},
+    {"label": "향토음식(한상)", "price": 15000, "sheet": "향토음식(한상차림)"},
+    {"label": "향토음식(뷔페)", "price": 10000, "sheet": "향토음식(뷔페)"},
+    {"label": "향낭만들기", "price": 17000, "sheet": "향낭만들기"},
+    {"label": "천연염색(파우치)", "price": 15000, "sheet": "천연염색(파우치)"},
+    {"label": "고구마수확", "price": 10000, "sheet": "고구마수확체험"},
+    {"label": "매실쌀강정만들기", "price": 12000, "sheet": "매실쌀강정만들기"},
+    {"label": "부채한국화그리기", "price": 13000, "sheet": "부채한국화그리기"},
+    {"label": "감자수확", "price": 10000, "sheet": "감자수확체험"},
+)
+
+_STOPS = (
+    "양파수확",
+    "천연염색(인견이불)",
+    "천연염색(바지)",
+    "부채한국화그리기(오죽)",
+)
+
+_PRICE_ROWS = _PRICES + _EXTRAS
+_PRICE_BY_LABEL = {item["label"]: item["price"] for item in _PRICE_ROWS}
+
+
+def won(amount: int) -> str:
+    return f"{amount:,}원"
+
+
+def _known(village_id: str) -> bool:
+    return str(village_id or "") == VILLAGE_ID
+
+
+def extra_labels(village_id: str) -> list[str]:
+    if not _known(village_id):
+        return []
+    return [item["label"] for item in _EXTRAS]
+
+
+def has_price_table(village_id: str) -> bool:
+    return _known(village_id)
+
+
+def price_of(village_id: str, label: str) -> int | None:
+    if not _known(village_id):
+        return None
+    return _PRICE_BY_LABEL.get(str(label or "").strip())
+
+
+def stop_labels(village_id: str) -> frozenset[str]:
+    if not _known(village_id):
+        return frozenset()
+    return frozenset(_STOPS)
+
+
+def line_total(village_id: str, label: str, num_people) -> int | None:
+    """예약 한 건의 합계. 1인 금액에 인원을 곱하고, 가격이 없으면 비운다."""
+    price = price_of(village_id, label)
+    if price is None:
+        return None
+    try:
+        count = int(num_people)
+    except (TypeError, ValueError):
+        return None
+    if count < 1:
+        return None
+    return price * count
+
+
+def status_is_before_record(value) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return True
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        return True
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment < STOP_RECORD_AT
+
+
+def _village_cell(name: str, village_id: str) -> str:
+    return f"{name} {village_id}"
+
+
+def _row(village: str, kind: str, request: str, result: str, applied: bool) -> dict:
+    return {
+        "village": village,
+        "kind": kind,
+        "request": request,
+        "result": result,
+        "applied": applied,
+    }
+
+
+def guide_rows() -> list[dict]:
+    """심사자가 보는 현장 변경 기록. 동작과 같은 목록에서 만든다."""
+    rows: list[dict] = []
+    for request in NAME_REQUESTS:
+        village = _village_cell(request["requested_name"], request["village_id"])
+        for change in request["changes"]:
+            rows.append(
+                _row(
+                    village,
+                    "마을명",
+                    change["label"],
+                    change["reason"],
+                    bool(change["applied"]),
+                )
+            )
+    village = _village_cell(VILLAGE_NAME, VILLAGE_ID)
+    for item in _EXTRAS:
+        rows.append(
+            _row(
+                village,
+                "체험 추가",
+                f"가격표의 {item['sheet']}을 체험으로 등록",
+                f"공공데이터 목록 뒤에 {item['label']}을 붙입니다.",
+                True,
+            )
+        )
+    rows.append(
+        _row(
+            village,
+            "공공데이터",
+            "추가한 체험을 공공데이터 프로그램 이름에 넣기",
+            "저장 칸은 바꾸지 않습니다. 다음 동기화 뒤에도 추가 체험은 화면 목록 뒤에 붙습니다.",
+            False,
+        )
+    )
+    for item in _PRICE_ROWS:
+        price = won(item["price"])
+        if item["sheet"] == item["label"]:
+            request = f"{item['sheet']} 1인 {price}"
+            result = f"체험객 화면에는 1인 {price}이 보입니다. 예약 한 건의 합계는 이 금액에 인원을 곱합니다."
+        else:
+            request = f"가격표 이름 {item['sheet']} 1인 {price}"
+            result = (
+                f"등록 이름 {item['label']}에 1인 {price}을 붙입니다. "
+                "체험객 화면에는 단가가 보이고, 예약 한 건의 합계는 이 금액에 인원을 곱합니다."
+            )
+        rows.append(_row(village, "가격", request, result, True))
+    for label in _STOPS:
+        rows.append(
+            _row(
+                village,
+                "운영 중지",
+                f"{label}은 가격표에 금액이 없습니다.",
+                "운영 여부를 중지로 저장합니다. 사무장이 다시 운영으로 바꿀 수 있습니다. 가격이 생기기 전에는 체험객 예약 목록에 넣지 않습니다.",
+                True,
+            )
+        )
+    return rows

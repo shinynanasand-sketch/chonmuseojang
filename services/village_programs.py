@@ -40,19 +40,43 @@ def split_program_text(value: str) -> list[str]:
 def program_labels(village: dict) -> list[str]:
     name = str(village.get("program_name") or "").strip()
     source = name or str(village.get("program_type") or "").strip()
-    return split_program_text(source)
+    labels = split_program_text(source)
+    from services.field_changes import extra_labels
+
+    for extra in extra_labels(str(village.get("village_id") or "")):
+        if extra not in labels:
+            labels.append(extra)
+    return labels
 
 
 def programs_for(village: dict, saved_rows: list[dict] | None = None) -> list[dict]:
     labels = program_labels(village)
+    village_id = str(village.get("village_id") or "")
     if saved_rows is None:
-        saved_rows = list_program_status(str(village.get("village_id") or ""))
+        saved_rows = list_program_status(village_id)
     saved = {row.get("program_key"): row for row in saved_rows}
+    from services.field_changes import status_is_before_record, stop_labels
+
+    stopped = stop_labels(village_id)
     items = []
+    to_stop: list[str] = []
     for label in labels:
         row = saved.get(program_key(label))
-        operating = True if row is None else bool(row.get("is_operating"))
+        if row is None:
+            operating = label not in stopped
+            if label in stopped:
+                to_stop.append(label)
+        else:
+            operating = bool(row.get("is_operating"))
+            if label in stopped and operating and status_is_before_record(row.get("updated_at")):
+                operating = False
+                to_stop.append(label)
         items.append({"label": label, "is_operating": operating})
+    for label in to_stop:
+        try:
+            save_program_status(village_id, program_key(label), label, False)
+        except RuntimeError:
+            break
     return items
 
 

@@ -53,7 +53,7 @@ def _clock(value: str) -> str:
 
 def _booking_view(row: dict) -> dict:
     status = str(row.get("status") or "pending")
-    return {
+    view = {
         "booking_id": row.get("booking_id"),
         "label": row.get("program_label") or "체험 미정",
         "visit_date": str(row.get("visit_date") or "")[:10],
@@ -64,6 +64,12 @@ def _booking_view(row: dict) -> dict:
         "status": status,
         "status_label": _STATUS_LABEL.get(status, status),
     }
+    from services.field_changes import line_total
+
+    amount = line_total(row.get("village_id"), row.get("program_label"), row.get("num_people"))
+    if amount is not None:
+        view["total"] = amount
+    return view
 
 
 def _proposal_matches(row: dict | None, claims: dict) -> bool:

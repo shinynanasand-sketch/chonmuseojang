@@ -90,10 +90,15 @@ def test_name_request_page_records_what_was_applied(test_client):
     assert _REQUESTED in text
     assert _OFFICIAL in text
     assert "PDeac2fe424e02" in text
-    assert "결과: 적용함" in text
-    assert "결과: 적용하지 않음" in text
+    assert "현장 변경 기록" in text
+    assert "현장 요청" in text
+    assert "적용함" in text
+    assert "적용하지 않음" in text
+    assert "천연염색(에코백)" in text
+    assert "양파수확" in text
     assert "RH-616" not in text
     assert "/guide/name-requests" not in test_client.get("/sitemap.xml").text
 
     guide = test_client.get("/guide/use")
     assert 'href="/guide/name-requests"' in guide.text
+    assert "현장 변경 기록" in guide.text

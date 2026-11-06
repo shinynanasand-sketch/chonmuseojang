@@ -161,6 +161,11 @@ def accept_named_booking(user_id: str, utterance: str, params: dict) -> dict:
             "text": "같은 체험 이름이 여러 마을에 있습니다. 마을 이름을 같이 말해 주세요.",
         }
     village, label = matches[0]
+    from services.field_changes import has_price_table
+    from services.guest_book import bookable_names
+
+    if has_price_table(str(village.get("village_id") or "")) and label not in bookable_names(village):
+        return {"ok": False, "text": "이 체험은 지금은 예약할 수 없습니다."}
     from services.kakao_params import parse_spoken_time, parse_sys_time
 
     visit_time = parse_sys_time(params.get("visit_time")) or parse_spoken_time(text)
@@ -274,19 +279,29 @@ def list_my_bookings(user_id: str) -> list[dict]:
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 
 
+def _total_sentence(saved: dict) -> str:
+    from services.field_changes import line_total, won
+
+    amount = line_total(saved.get("village_id"), saved.get("program_label"), saved.get("num_people"))
+    if amount is None:
+        return ""
+    return f" {saved.get('num_people')}명 {won(amount)}."
+
+
 def booking_receipt_text(saved: dict, link: str) -> tuple[str, str]:
     """카카오 답. 새 접수, 인원 수정, 이미 있는 예약을 구분하고 상태 주소를 붙인다."""
     number = saved.get("booking_id")
     label = _STATUS_LABEL.get(saved.get("status"), "대기")
+    total = _total_sentence(saved)
     if saved.get("headcount_updated"):
         title = "예약 인원을 고쳤습니다"
-        body = f"예약번호 {number}번 인원을 {saved.get('num_people')}명으로 고쳤습니다."
+        body = f"예약번호 {number}번 인원을 {saved.get('num_people')}명으로 고쳤습니다.{total}"
     elif saved.get("already_open"):
         title = "이미 접수된 예약입니다"
-        body = f"예약번호 {number}번은 이미 {label} 상태입니다."
+        body = f"예약번호 {number}번은 이미 {label} 상태입니다.{total}"
     else:
         title = "예약이 접수되었습니다"
-        body = f"예약번호 {number}번 대기로 접수되었습니다."
+        body = f"예약번호 {number}번 대기로 접수되었습니다.{total}"
     if link:
         body = f"{body} 진행 상태는 이 주소에서 볼 수 있습니다. {link}"
     return title, body
@@ -314,6 +329,11 @@ def booking_summary(row: dict) -> str:
     if clock:
         when = f"{when} {clock}".strip()
     line = f"{row.get('booking_id')}번 {label} {when} {row.get('num_people')}명"
+    from services.field_changes import line_total, won
+
+    amount = line_total(row.get("village_id"), row.get("program_label"), row.get("num_people"))
+    if amount is not None:
+        line = f"{line} {won(amount)}"
     offered = str(row.get("proposed_visit_date") or "")[:10]
     if offered:
         offered_clock = str(row.get("proposed_visit_time") or "").strip()[:5]
