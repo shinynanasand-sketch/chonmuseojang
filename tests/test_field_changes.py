@@ -96,6 +96,7 @@ def test_guest_sees_unit_price_and_operator_sees_booking_total(test_client):
             "visit_date": "2026-11-20",
             "visit_time": "10:00",
             "num_people": 2,
+            "group_name": "염색반",
         },
     )
     assert saved.status_code == 200
@@ -188,6 +189,8 @@ def test_guide_table_lists_each_price_and_stop():
     assert screens[0]["applied"] is True
     assert screens[1]["applied"] is True
     assert "일요일부터 토요일" in screens[0]["result"]
+    assert "이번 주" in screens[0]["result"]
+    assert "이번 주" in screens[2]["result"]
     assert "열린 달만" in screens[1]["result"]
     assert screens[2]["applied"] is False
     assert any("인절미떡메치기" in row["result"] and "15,000원" in row["request"] for row in prices)

@@ -124,10 +124,22 @@ def test_guest_calendar_saves_pending_booking_on_operator_calendar(test_client):
     assert "customer_kakao_id" not in snapshot
     saved = test_client.post(
         f"/api/book/{token}",
-        json={"label": "조개잡이", "visit_date": "2026-11-02", "visit_time": "10:30", "num_people": 12},
+        json={
+            "label": "조개잡이",
+            "visit_date": "2026-11-02",
+            "visit_time": "10:30",
+            "num_people": 12,
+            "group_name": "  광주  초등학교  ",
+        },
     )
     assert saved.status_code == 200
     assert saved.json()["visit_time"] == "10:30"
+    assert saved.json()["group_name"] == "광주 초등학교"
+    blank = test_client.post(
+        f"/api/book/{token}",
+        json={"label": "소금체험", "visit_date": "2026-11-02", "visit_time": "11:00", "num_people": 4, "group_name": "  "},
+    )
+    assert blank.status_code == 400
     operator = issue_calendar_token(get_operator_by_kakao_id("book-owner"))
     rows = test_client.get(f"/api/calendar/{operator}").json()
     assert rows["experience_names"] == ["조개잡이", "소금체험"]
@@ -135,6 +147,15 @@ def test_guest_calendar_saves_pending_booking_on_operator_calendar(test_client):
     assert matched[0]["status"] == "pending"
     assert matched[0]["visit_time"] == "10:30"
     assert matched[0]["num_people"] == 12
+    assert matched[0]["group_name"] == "광주 초등학교"
+    status = test_client.post(
+        "/kakao/ask",
+        json={
+            "userRequest": {"utterance": "예약 현황 2026-11-02", "user": {"id": "book-owner"}},
+            "action": {"params": {}},
+        },
+    )
+    assert "광주 초등학교 12명" in status.text
     assert list_my_bookings("book-guest")[0]["booking_id"] == saved.json()["booking_id"]
     create_booking(
         "VBOOK",
@@ -152,6 +173,7 @@ def test_guest_calendar_saves_pending_booking_on_operator_calendar(test_client):
     assert own["status_label"] == "대기"
     assert own["visit_time"] == "10:30"
     assert own["label"] == "조개잡이"
+    assert own["group_name"] == "광주 초등학교"
     assert "customer_kakao_id" not in own
     assert "other-guest" not in test_client.get(f"/api/book/{token}").text
 

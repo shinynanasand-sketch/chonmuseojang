@@ -23,7 +23,6 @@ from services.kakao_params import (
     booking_id_from_params,
     kakao_photo_url,
     param_origin,
-    parse_sys_date,
     representative,
 )
 from services.operator_assistant import (
@@ -33,10 +32,9 @@ from services.operator_assistant import (
     save_operator_photo_draft,
 )
 from services.program_register_link import program_register_url
-from services.program_share import list_calendar, list_program_notes, save_calendar_entry, save_program_note
+from services.program_share import list_program_notes, save_program_note
 from services.recommend import recommendation_lines, recommend_for_kakao
 from services.supabase_client import get_village_by_id, list_recommend_villages
-from services.village_programs import program_labels
 
 _BLOCKS = {
     "마을 추천": "recommend",
@@ -68,12 +66,9 @@ _PHOTO_FAILED = "홍보문구를 만들지 못했습니다."
 _PHOTO_PUBLISH = "웹에서 관광객에게 공개를 누르면 마을 화면에 나갑니다."
 _VILLAGE_ONLY = "예약·홍보는 마을 운영자만 할 수 있습니다."
 _NOTE_ONLY = "체험 글은 체험 담당만 저장할 수 있습니다."
-_CALENDAR_ONLY = "체험 달력은 마을 운영자만 등록할 수 있습니다."
 _SHARE_ONLY = "등록된 운영자만 체험 글과 달력을 볼 수 있습니다."
 _NOTE_NEED = "체험 글 뒤에 내용을 말해 주세요."
-_CALENDAR_NEED = (
-    "체험 이름, 날짜, 단체, 인원을 한 문장에 넣어 주세요. 예: 조개잡이 2026-11-01 광주소등학교 30명"
-)
+_GUEST_GROUP = "단체 이름은 체험객이 예약 달력에 입력합니다."
 _STATUS_LABEL = {"pending": "대기", "confirmed": "승인", "rejected": "거절"}
 _ASK_PROMPT = "체험 종류나 시군 이름을 넣어 질문해 주세요."
 _REVIEW_LEAD = "후기를 보려면 후기 보기 뒤에 마을 이름을 말해 주세요."
@@ -190,7 +185,7 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
         operator = get_operator_by_kakao_id(user_id)
         if not operator:
             return attach_guide_card(build_error_skill_response(_STATUS_HINT))
-        return reply_week_status(str(role["village_id"]), utterance)
+        return reply_week_status(str(role["village_id"]), utterance, user_id)
     return _decide(kind, str(role["village_id"]), payload)
 
 
@@ -436,10 +431,11 @@ def _review_lines(village_id: str, village_name: str, start: int) -> dict:
     )
 
 
-def reply_week_status(village_id: str, utterance: str) -> dict:
+def reply_week_status(village_id: str, utterance: str, user_id: str = "") -> dict:
     """방문일이 속한 일요일부터 토요일까지. 달력 카드는 붙이지 않는다."""
     rows = booking.list_bookings_for_village(village_id)
-    anchor = booking.status_week_anchor(utterance)
+    anchor = booking.status_week_anchor(utterance, user_id=user_id)
+    booking.remember_shown_week(user_id, anchor)
     body = build_skill_response("예약 현황", booking.week_status_text(rows, anchor))
     return _prepend_replies(body, booking.week_nav_replies(anchor))
 
@@ -539,14 +535,6 @@ def _note_body(utterance: str) -> str:
     return text
 
 
-def _label_in_text(village_id: str, text: str) -> str:
-    village = get_village_by_id(village_id) or {}
-    found = [label for label in program_labels(village) if label and label in text]
-    if not found:
-        return ""
-    return max(found, key=len)
-
-
 def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
     operator = get_operator_by_kakao_id(user_id)
     if not operator:
@@ -572,45 +560,4 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
         if result.get("reason") == "program_not_found":
             return build_error_skill_response("이 마을 체험이 아닙니다.")
         return build_error_skill_response(_NOTE_NEED)
-    label, visit_date, group_name, num_people = _calendar_fields(operator, payload)
-    if not label or not visit_date or not group_name or num_people is None:
-        return build_error_skill_response(_CALENDAR_NEED)
-    result = save_calendar_entry(operator, label, visit_date, group_name, num_people)
-    if result.get("ok"):
-        line = f"{result['label']} {result['visit_date']} {result['group_name']} {result['num_people']}명"
-        return build_skill_response("체험 달력", f"{line} 일정을 등록했습니다.")
-    if result.get("reason") == "forbidden":
-        return build_error_skill_response(_CALENDAR_ONLY)
-    if result.get("reason") == "program_not_found":
-        return build_error_skill_response("이 마을 체험이 아닙니다.")
-    return build_error_skill_response(_CALENDAR_NEED)
-
-
-def _group_and_count(text: str) -> tuple[str, int | None]:
-    found = re.search(r"(\d+)\s*명", text or "")
-    if not found:
-        return "", None
-    count = int(found.group(1))
-    group = " ".join(text[: found.start()].split())
-    if count < 1 or not group:
-        return "", None
-    return group, count
-
-
-def _calendar_fields(operator: dict, payload: KakaoSkillRequest) -> tuple[str, str, str, int | None]:
-    params = payload.action.params
-    utterance = payload.userRequest.utterance or ""
-    visit_date = parse_sys_date(representative(params, "visit_date")) or ""
-    if not visit_date:
-        found = re.search(r"\d{4}-\d{2}-\d{2}", utterance)
-        visit_date = found.group(0) if found else ""
-    label = str(representative(params, "program_label") or "").strip()
-    if not label:
-        label = _label_in_text(str(operator.get("village_id") or ""), utterance)
-    remainder = utterance
-    for piece in ("체험 달력 등록", "체험 달력", label, visit_date):
-        remainder = remainder.replace(piece, " ")
-    group_name, num_people = _group_and_count(" ".join(remainder.split()))
-    if num_people is None:
-        group_name, num_people = _group_and_count(str(representative(params, "note") or ""))
-    return label, visit_date, group_name, num_people
+    return build_error_skill_response(_GUEST_GROUP)

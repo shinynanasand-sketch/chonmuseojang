@@ -400,9 +400,8 @@ def test_booking_status_uses_simple_text(test_client, monkeypatch):
     assert not any("basicCard" in item for item in body["template"]["outputs"])
     assert "/calendar/" not in str(body)
     labels = [item["label"] for item in body["template"]["quickReplies"]]
-    assert labels[:2] == ["이전 주", "다음 주"]
-    assert body["template"]["quickReplies"][0]["messageText"] == "예약 현황 2026-10-25"
-    assert body["template"]["quickReplies"][1]["messageText"] == "예약 현황 2026-11-08"
+    assert labels[:3] == ["이전 주", "이번 주", "다음 주"]
+    assert [item["messageText"] for item in body["template"]["quickReplies"][:3]] == labels[:3]
     assert "owner_test" not in str(body)
     assert "start_date" not in payload["action"]["params"]
     assert "context" not in body
@@ -427,7 +426,34 @@ def test_booking_status_week_sentence_moves_the_window(test_client, monkeypatch)
         assert f"{kept['booking_id']}번" in text
         assert "2026-11-01" not in text.split("까지", 1)[-1]
         assert "/calendar/" not in str(body)
-        assert body["template"]["quickReplies"][1]["messageText"] == "예약 현황 2026-11-15"
+        assert [item["messageText"] for item in body["template"]["quickReplies"][:3]] == [
+            "이전 주",
+            "이번 주",
+            "다음 주",
+        ]
+
+
+def test_week_words_move_from_the_shown_week(test_client, monkeypatch):
+    from datetime import date
+
+    _freeze_seoul_today(monkeypatch, date(2026, 11, 4))
+
+    def ask(utterance: str) -> str:
+        payload = {
+            "intent": {"name": "예약 현황 조회"},
+            "userRequest": {"utterance": utterance, "user": {"id": "owner_test"}},
+            "action": {"params": {}},
+        }
+        body = test_client.post("/kakao/ask", json=payload).json()
+        return body["template"]["outputs"][0]["simpleText"]["text"]
+
+    assert "2026-11-01부터 2026-11-07까지" in ask("이번 주")
+    assert "2026-10-25부터 2026-10-31까지" in ask("이전 주")
+    assert "2026-10-18부터 2026-10-24까지" in ask("이전주")
+    assert "2026-10-25부터 2026-10-31까지" in ask("다음 주")
+    assert "2026-11-01부터 2026-11-07까지" in ask("이번주")
+    assert "2026-11-08부터 2026-11-14까지" in ask("다음주")
+    assert "2026-10-25부터 2026-10-31까지" in ask("이전 주 2026-10-25")
 
 
 def test_booking_status_without_rows_names_the_week(test_client, monkeypatch):

@@ -566,7 +566,7 @@ def test_presentation_board_uses_the_connected_village(test_client, monkeypatch)
     assert 'class="kakao-ask"' in text
     assert 'class="kakao-reply"' in text
     assert 'data-copy="조개잡이 2026-11-01 10:00 30명"' in text
-    assert 'data-copy="조개잡이 2026-11-01 광주소등학교 30명"' in text
+    assert "광주소등학교 30명" not in text
     assert 'data-copy="1번 승인"' in text
     assert 'data-copy="1번 거절"' in text
     assert "1번 대기 2026-12-01 10:00 4명" in text
@@ -681,7 +681,9 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert 'data-mode="operator"' in approve_page.text
     assert 'id="pending-list"' in approve_page.text
     assert 'id="approved-list"' in approve_page.text
-    assert "단체 일정" in approve_page.text
+    assert "단체 일정" not in approve_page.text
+    assert 'id="entry-form"' not in approve_page.text
+    assert 'id="group-name"' in book_page.text
     assert "분홍은 대기, 연두는 승인입니다." in approve_page.text
     assert _PRESENTATION_GUEST_ID not in book_page.text
     script = test_client.get("/static/js/calendar.js").text

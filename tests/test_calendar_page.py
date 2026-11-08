@@ -67,7 +67,7 @@ def test_other_village_token_hides_entries(test_client, calendar_villages):
             "num_people": 30,
         },
     )
-    assert posted.status_code == 400
+    assert posted.status_code == 403
     again = test_client.get(f"/api/calendar/{token_b}")
     assert "광주소등학교" not in again.text
 
@@ -104,29 +104,26 @@ def test_program_operator_cannot_save_or_delete(test_client, calendar_villages):
     assert "광주소등학교" in test_client.get(f"/api/calendar/{token}").text
 
 
-def test_village_operator_saves_and_deletes(test_client, calendar_villages):
+def test_village_operator_rejects_new_entry_and_deletes_old(test_client, calendar_villages):
     register_operator("cal_owner_a", "달력마을 CA-001")
-    token = issue_calendar_token(get_operator_by_kakao_id("cal_owner_a"))
-    body = {
-        "village_id": "VCALB",
-        "label": "조개잡이",
-        "visit_date": "2026-11-01",
-        "group_name": "광주소등학교",
-        "num_people": 30,
-    }
-    saved = test_client.post(f"/api/calendar/{token}", json=body)
-    assert saved.status_code == 200
-    assert saved.json()["village_id"] == "VCALA"
-    updated = test_client.post(f"/api/calendar/{token}", json={**body, "num_people": 40})
-    assert updated.status_code == 200
-    other = test_client.post(
+    owner = get_operator_by_kakao_id("cal_owner_a")
+    save_calendar_entry(owner, "조개잡이", "2026-11-01", "광주소등학교", 30)
+    save_calendar_entry(owner, "조개잡이", "2026-11-01", "무안유치원", 20)
+    token = issue_calendar_token(owner)
+    refused = test_client.post(
         f"/api/calendar/{token}",
-        json={**body, "group_name": "무안유치원", "num_people": 20},
+        json={
+            "village_id": "VCALB",
+            "label": "조개잡이",
+            "visit_date": "2026-11-02",
+            "group_name": "목포중학교",
+            "num_people": 15,
+        },
     )
-    assert other.status_code == 200
+    assert refused.status_code == 403
     listed = test_client.get(f"/api/calendar/{token}").json()["entries"]
     assert len(listed) == 2
-    assert any(row["num_people"] == 40 and row["group_name"] == "광주소등학교" for row in listed)
+    assert "목포중학교" not in test_client.get(f"/api/calendar/{token}").text
 
     removed = test_client.request(
         "DELETE",

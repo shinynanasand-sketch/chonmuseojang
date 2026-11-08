@@ -356,7 +356,7 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
             {"program_label": "조개잡이", "visit_date": "2026-11-01", "note": "오전"},
         ),
     )
-    assert "광주소등학교 30명" in missing.text
+    assert "체험객" in missing.text
     assert list_calendar(get_operator_by_kakao_id("share_owner"))["entries"] == []
 
     calendar = test_client.post(
@@ -368,7 +368,8 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
             {"program_label": "조개잡이", "visit_date": "2026-11-01"},
         ),
     )
-    assert "조개잡이 2026-11-01 광주소등학교 30명" in calendar.text
+    assert "체험객이 예약 달력에 입력합니다" in calendar.text
+    assert list_calendar(get_operator_by_kakao_id("share_owner"))["entries"] == []
 
     seen = test_client.post(
         "/kakao/ask",
@@ -393,7 +394,7 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
             {"program_label": "조개잡이", "visit_date": "2026-11-02"},
         ),
     )
-    assert "마을 운영자" in blocked.text
+    assert "체험객이 예약 달력에 입력합니다" in blocked.text
 
     tourist = test_client.post(
         "/kakao/ask",

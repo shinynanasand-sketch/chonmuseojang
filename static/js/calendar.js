@@ -6,9 +6,7 @@ const monthLabel = document.getElementById("month-label");
 const grid = document.getElementById("month-grid");
 const dayTitle = document.getElementById("day-title");
 const dayEntries = document.getElementById("day-entries");
-const form = document.getElementById("entry-form");
 const guestForm = document.getElementById("guest-form");
-const programSelect = document.getElementById("program-label");
 const guestProgram = document.getElementById("guest-program");
 const programList = document.getElementById("program-list");
 const legend = document.getElementById("calendar-legend");
@@ -74,14 +72,10 @@ function bookingTotal(row) {
   return ` ${won(row.total)}`;
 }
 
-function fillSelect(select, labels) {
-  select.innerHTML = "";
-  labels.forEach((label) => {
-    const option = document.createElement("option");
-    option.value = label;
-    option.textContent = label;
-    select.appendChild(option);
-  });
+function partyText(row) {
+  const group = String(row.group_name || "").trim();
+  const people = `${row.num_people}명`;
+  return group ? `${group} ${people}` : people;
 }
 
 function fillGuestPrograms() {
@@ -214,7 +208,7 @@ function fillBoard(slot, title, rows, emptyText, withActions) {
     const place = row.village_name ? `${row.village_name} ` : "";
     name.textContent = `${place}${row.label}`;
     const meta = document.createElement("p");
-    meta.textContent = `${row.num_people}명${bookingTotal(row)} · ${row.booking_id}번`;
+    meta.textContent = `${partyText(row)}${bookingTotal(row)} · ${row.booking_id}번`;
     card.appendChild(name);
     appendSlot(card, row);
     card.appendChild(meta);
@@ -336,9 +330,7 @@ async function load(keepStatus) {
         : "자기 체험 일정만 봅니다.";
     }
   }
-  fillSelect(programSelect, snapshot.programs || []);
   fillGuestPrograms();
-  form.hidden = mode !== "operator" || !snapshot.can_write;
   const proposeForm = document.getElementById("propose-form");
   proposeForm.hidden = !proposing;
   if (proposing) {
@@ -402,11 +394,11 @@ function showDay(key) {
     if (mode === "change") {
       const originalClock = row.original_visit_time ? ` ${row.original_visit_time}` : "";
       const original = row.original_visit_date ? ` 원래 ${row.original_visit_date}${originalClock}` : "";
-      item.textContent = `${row.booking_id}번 ${row.label}${clock} ${row.num_people}명${bookingTotal(row)}${original}`;
+      item.textContent = `${row.booking_id}번 ${row.label}${clock} ${partyText(row)}${bookingTotal(row)}${original}`;
       if (snapshot.open) addAnswerButtons(item);
     } else {
       const place = row.village_name ? `${row.village_name} ` : "";
-      item.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${row.num_people}명${bookingTotal(row)}${offerText(row)}`;
+      item.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${partyText(row)}${bookingTotal(row)}${offerText(row)}`;
       addStatusButtons(item, row);
     }
     dayEntries.appendChild(item);
@@ -490,6 +482,7 @@ guestForm.addEventListener("submit", async (event) => {
       visit_date: selected,
       visit_time: document.getElementById("visit-time").value,
       num_people: Number(document.getElementById("guest-people").value),
+      group_name: document.getElementById("group-name").value,
     }),
   });
   if (!response.ok) {
@@ -498,12 +491,13 @@ guestForm.addEventListener("submit", async (event) => {
   }
   const saved = await response.json();
   const total = saved.total == null || saved.total === "" ? "" : ` ${saved.num_people}명 ${won(saved.total)}.`;
-  if (saved.headcount_updated) {
-    statusNode.textContent = `예약번호 ${saved.booking_id}번 인원을 ${saved.num_people}명으로 고쳤습니다.${total}`;
+  const party = saved.group_name ? `${saved.group_name} ` : "";
+  if (saved.headcount_updated || saved.group_updated) {
+    statusNode.textContent = `예약번호 ${saved.booking_id}번 ${party}${saved.num_people}명으로 고쳤습니다.${total}`;
   } else if (saved.already_open) {
     statusNode.textContent = `예약번호 ${saved.booking_id}번은 이미 ${saved.status_label} 상태입니다.${total}`;
   } else {
-    statusNode.textContent = `${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다.${total} 승인 결과는 위 목록에서 볼 수 있습니다.`;
+    statusNode.textContent = `${party}${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다.${total} 승인 결과는 위 목록에서 볼 수 있습니다.`;
   }
   await load(true);
 });
@@ -529,26 +523,6 @@ document.getElementById("propose-form").addEventListener("submit", async (event)
     document.getElementById("propose-form").hidden = true;
     await load(true);
   }
-});
-
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!selected) {
-    statusNode.textContent = "날짜를 먼저 눌러 주세요.";
-    return;
-  }
-  const response = await fetch(`/api/calendar/${token}`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      label: programSelect.value,
-      visit_date: selected,
-      group_name: document.getElementById("group-name").value,
-      num_people: Number(document.getElementById("num-people").value),
-    }),
-  });
-  statusNode.textContent = response.ok ? "일정을 저장했습니다." : "저장하지 못했습니다.";
-  if (response.ok) await load(true);
 });
 
 function moveMonth(offset) {

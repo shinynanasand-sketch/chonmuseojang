@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     customer_name TEXT,
     visit_date DATE,
     num_people INTEGER,
+    group_name TEXT,
     program_key TEXT,
     program_label TEXT,
     visit_time TEXT,

@@ -127,7 +127,7 @@ def _inquiry_response(utterance: str, user_id: str):
             return kakao_client.attach_guide_card(
                 kakao_client.build_error_skill_response(_REGISTER_HINT)
             )
-        return reply_week_status(str(operator["village_id"]), utterance)
+        return reply_week_status(str(operator["village_id"]), utterance, user_id)
 
     if utterance == "내 예약":
         lines = booking.format_booking_lines(booking.list_my_bookings(user_id))

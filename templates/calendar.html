@@ -21,23 +21,13 @@
   <div id="month-grid" class="month-grid"></div>
   <h2 id="day-title">날짜를 눌러 주세요</h2>
   <div id="day-entries"></div>
-  <form id="entry-form" hidden>
-    <h2>단체 일정</h2>
-    <label>체험
-      <select id="program-label"></select>
-    </label>
-    <label>단체 이름
-      <input type="text" id="group-name" placeholder="광주소등학교">
-    </label>
-    <label>인원
-      <input type="number" id="num-people" min="1" inputmode="numeric">
-    </label>
-    <button type="submit">이 날짜에 저장</button>
-  </form>
   <form id="guest-form" hidden>
     <p id="guest-date"></p>
     <label>체험
       <select id="guest-program"></select>
+    </label>
+    <label>단체 이름
+      <input type="text" id="group-name" required placeholder="광주소등학교">
     </label>
     <label>시간
       <input type="time" id="visit-time" required>
@@ -58,5 +48,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261108b"></script>
+<script src="/static/js/calendar.js?v=20261108c"></script>
 {% endblock %}

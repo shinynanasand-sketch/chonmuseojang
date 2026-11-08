@@ -27,7 +27,6 @@ from services.calendar_board import (
     change_snapshot,
     delete_calendar_from_token,
     propose_booking_from_token,
-    save_calendar_from_token,
     set_booking_status_from_token,
 )
 from services.guest_book import guest_snapshot, save_guest_booking
@@ -202,6 +201,8 @@ def _calendar_result(result: dict):
         raise HTTPException(status_code=404, detail="달력 링크가 없거나 오래되었습니다.")
     if reason == "forbidden":
         raise HTTPException(status_code=403, detail="체험 달력은 마을 운영자만 등록할 수 있습니다.")
+    if reason == "guest_group":
+        raise HTTPException(status_code=403, detail="단체 이름은 체험객이 예약 달력에 입력합니다.")
     if reason == "program_not_found":
         raise HTTPException(status_code=400, detail="이 마을에서 운영 중인 체험이 아닙니다.")
     if reason == "bad_slot":
@@ -443,6 +444,7 @@ async def guest_book_save(token: str, request: Request):
         str(body.get("visit_date") or ""),
         str(body.get("visit_time") or ""),
         body.get("num_people"),
+        str(body.get("group_name") or ""),
     )
     return _calendar_result(result)
 
@@ -456,16 +458,10 @@ async def calendar_api(token: str, view: str = ""):
 
 
 @router.post("/api/calendar/{token}")
-async def calendar_save(token: str, request: Request):
-    body = await request.json()
-    result = save_calendar_from_token(
-        token,
-        str(body.get("label") or ""),
-        str(body.get("visit_date") or ""),
-        str(body.get("group_name") or ""),
-        body.get("num_people"),
-    )
-    return _calendar_result(result)
+async def calendar_save(token: str):
+    if calendar_snapshot(token) is None:
+        return _calendar_result({"ok": False, "reason": "not_found"})
+    return _calendar_result({"ok": False, "reason": "guest_group"})
 
 
 @router.post("/api/calendar/{token}/bookings/{booking_id}")

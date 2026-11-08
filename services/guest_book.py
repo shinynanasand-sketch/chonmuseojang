@@ -133,8 +133,10 @@ def _clock(value: str) -> str:
     return normalize_clock(hour, minute)
 
 
-def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str, num_people) -> dict:
-    """대기 예약만 만든다. 승인이나 단체 일정은 바꾸지 않는다."""
+def save_guest_booking(
+    token: str, label: str, visit_date: str, visit_time: str, num_people, group_name: str = ""
+) -> dict:
+    """대기 예약만 만든다. 단체 이름은 예약에 두고, 운영자 단체 일정 표는 바꾸지 않는다."""
     link = guest_from_token(token)
     if not link:
         return {"ok": False, "reason": "not_found"}
@@ -147,7 +149,8 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
     except (TypeError, ValueError):
         return {"ok": False, "reason": "bad_format"}
     clock = _clock(visit_time)
-    if count < 1 or not clock:
+    group = " ".join(str(group_name or "").split())
+    if count < 1 or not clock or not group:
         return {"ok": False, "reason": "bad_format"}
     wanted = program_key(label)
     canonical = next(
@@ -163,6 +166,7 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
         num_people=count,
         program_label=canonical,
         visit_time=clock,
+        group_name=group,
     )
     if not saved.get("already_open"):
         from services.kakao_client import notify_booking_received
@@ -178,6 +182,8 @@ def save_guest_booking(token: str, label: str, visit_date: str, visit_time: str,
         "visit_date": str(saved.get("visit_date") or parsed.isoformat())[:10],
         "visit_time": str(saved.get("visit_time") or clock)[:5],
         "num_people": saved.get("num_people"),
+        "group_name": saved.get("group_name") or group,
+        "group_updated": bool(saved.get("group_updated")),
         "status": saved.get("status"),
         "status_label": _STATUS_LABEL.get(saved.get("status"), "대기"),
         "already_open": bool(saved.get("already_open")),

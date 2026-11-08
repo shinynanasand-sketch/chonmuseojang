@@ -21,7 +21,7 @@ from services.calendar_link import (
     operator_from_calendar_token,
 )
 from services.kakao_params import normalize_clock
-from services.program_share import delete_calendar_entry, list_calendar, save_calendar_entry
+from services.program_share import delete_calendar_entry, list_calendar
 from services.supabase_client import get_village_by_id
 from services.guest_book import operating_names
 from services.village_programs import program_key, program_labels
@@ -61,6 +61,7 @@ def _booking_view(row: dict) -> dict:
         "proposed_visit_date": str(row.get("proposed_visit_date") or "")[:10],
         "proposed_visit_time": str(row.get("proposed_visit_time") or "")[:5],
         "num_people": row.get("num_people") or 0,
+        "group_name": " ".join(str(row.get("group_name") or "").split()),
         "status": status,
         "status_label": _STATUS_LABEL.get(status, status),
     }
@@ -132,18 +133,6 @@ def calendar_snapshot(token: str, view: str = "") -> dict | None:
         "entries": entries,
         "bookings": bookings,
     }
-
-
-def save_calendar_from_token(
-    token: str, label: str, visit_date: str, group_name: str, num_people
-) -> dict:
-    operator = operator_from_calendar_token(token)
-    if not operator:
-        return {"ok": False, "reason": "not_found"}
-    result = save_calendar_entry(operator, label, visit_date, group_name, num_people)
-    if result.get("ok"):
-        result["village_id"] = operator["village_id"]
-    return result
 
 
 def set_booking_status_from_token(token: str, booking_id, status: str) -> dict:

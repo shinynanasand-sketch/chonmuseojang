@@ -15,8 +15,12 @@ _DATE_IN_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}")
 _COUNT_IN_TEXT = re.compile(r"(\d+)\s*명")
 
 
+_shown_week: dict[str, date] = {}
+
+
 def reset_bookings() -> None:
     reset_booking_store()
+    _shown_week.clear()
 
 
 def _slot_key(row: dict) -> tuple[str, str, str, str, str]:
@@ -44,6 +48,10 @@ def _open_booking(row: dict) -> dict | None:
     return chosen[-1] if chosen else None
 
 
+def _clean_group(value) -> str:
+    return " ".join(str(value or "").split())
+
+
 def create_booking(
     village_id: str,
     customer_kakao_id: str,
@@ -52,7 +60,9 @@ def create_booking(
     customer_name: str | None = None,
     program_label: str | None = None,
     visit_time: str | None = None,
+    group_name: str | None = None,
 ) -> dict:
+    group = _clean_group(group_name)
     row = {
         "village_id": village_id,
         "customer_kakao_id": customer_kakao_id,
@@ -61,6 +71,8 @@ def create_booking(
         "num_people": num_people,
         "status": "pending",
     }
+    if group:
+        row["group_name"] = group
     clock = (visit_time or "").strip()[:5]
     if clock:
         row["visit_time"] = clock
@@ -74,18 +86,26 @@ def create_booking(
     if existing:
         found = dict(existing)
         found["already_open"] = True
-        same_people = int(existing.get("num_people") or 0) == int(num_people)
-        if existing.get("status") == "pending" and not same_people:
-            updated = update_booking(int(existing["booking_id"]), {"num_people": num_people}) or found
-            updated = dict(updated)
-            updated["already_open"] = True
-            updated["headcount_updated"] = True
-            return updated
         found["headcount_updated"] = False
+        found["group_updated"] = False
+        if existing.get("status") == "pending":
+            changes = {}
+            if int(existing.get("num_people") or 0) != int(num_people):
+                changes["num_people"] = num_people
+            if group and group != _clean_group(existing.get("group_name")):
+                changes["group_name"] = group
+            if changes:
+                updated = update_booking(int(existing["booking_id"]), changes) or found
+                updated = dict(updated)
+                updated["already_open"] = True
+                updated["headcount_updated"] = "num_people" in changes
+                updated["group_updated"] = "group_name" in changes
+                return updated
         return found
     saved = dict(insert_booking(row))
     saved["already_open"] = False
     saved["headcount_updated"] = False
+    saved["group_updated"] = False
     return saved
 
 
@@ -329,7 +349,10 @@ def booking_summary(row: dict) -> str:
     clock = str(row.get("visit_time") or "").strip()[:5]
     if clock:
         when = f"{when} {clock}".strip()
-    line = f"{row.get('booking_id')}번 {label} {when} {row.get('num_people')}명"
+    people = f"{row.get('num_people')}명"
+    group = _clean_group(row.get("group_name"))
+    party = f"{group} {people}" if group else people
+    line = f"{row.get('booking_id')}번 {label} {when} {party}"
     from services.field_changes import line_total, won
 
     amount = line_total(row.get("village_id"), row.get("program_label"), row.get("num_people"))
@@ -352,30 +375,85 @@ def format_booking_lines(rows: list[dict]) -> str:
 
 _SEOUL = timezone(timedelta(hours=9))
 _WEEK_STATUS = re.compile(r"예약 현황(?: (\d{4}-\d{2}-\d{2}))?")
+_WEEK_SHIFT = {"이번주": 0, "이전주": -1, "다음주": 1}
 
 
 def seoul_today() -> date:
     return datetime.now(_SEOUL).date()
 
 
-def is_week_status_utterance(utterance: str) -> bool:
-    """`예약 현황` 또는 `예약 현황 YYYY-MM-DD`만 주간 조회로 받는다."""
+def _flat_week_text(utterance: str) -> str:
+    return "".join((utterance or "").split())
+
+
+def _week_phrase(utterance: str) -> tuple[int, str] | None:
+    """이번·이전·다음 주. 뒤에 날짜가 있으면 그 문자열을 돌려준다."""
     text = " ".join((utterance or "").split())
-    if text == "예약 현황":
+    flat = _flat_week_text(text)
+    for word, shift in _WEEK_SHIFT.items():
+        if flat == word:
+            return shift, ""
+        spaced = f"{word[:-1]} 주"
+        if text.startswith(spaced + " "):
+            return shift, text[len(spaced) + 1 :]
+        if flat.startswith(word) and len(flat) > len(word):
+            return shift, flat[len(word) :]
+    return None
+
+
+def is_week_status_utterance(utterance: str) -> bool:
+    """예약 현황, 날짜가 붙은 예약 현황, 이번 주·이전 주·다음 주."""
+    text = " ".join((utterance or "").split())
+    flat = _flat_week_text(text)
+    if flat in {"예약현황", "예약현황조회"}:
         return True
     found = _WEEK_STATUS.fullmatch(text)
-    return bool(found and found.group(1))
-
-
-def status_week_anchor(utterance: str, today: date | None = None) -> date:
-    """발화의 날짜. 없거나 날짜가 아니면 서울 오늘."""
-    found = _DATE_IN_TEXT.search(utterance or "")
     if found:
+        return True
+    phrase = _week_phrase(text)
+    if phrase is None:
+        return False
+    _shift, rest = phrase
+    if not rest:
+        return True
+    try:
+        date.fromisoformat(rest)
+    except ValueError:
+        return False
+    return True
+
+
+def status_week_anchor(utterance: str, today: date | None = None, user_id: str = "") -> date:
+    """보여 줄 주의 하루. 이번 주와 예약 현황은 서울 오늘, 이전·다음은 방금 본 주에서 이동한다."""
+    day = today or seoul_today()
+    text = " ".join((utterance or "").split())
+    flat = _flat_week_text(text)
+    if flat in {"예약현황", "예약현황조회"}:
+        return day
+    dated = _WEEK_STATUS.fullmatch(text)
+    if dated and dated.group(1):
         try:
-            return date.fromisoformat(found.group(0))
+            return date.fromisoformat(dated.group(1))
         except ValueError:
-            pass
-    return today or seoul_today()
+            return day
+    phrase = _week_phrase(text)
+    if phrase is None:
+        return day
+    shift, rest = phrase
+    if rest:
+        try:
+            return date.fromisoformat(rest)
+        except ValueError:
+            return day
+    if shift == 0:
+        return day
+    start, _end = week_bounds(_shown_week.get(user_id, day))
+    return start + timedelta(days=7 * shift)
+
+
+def remember_shown_week(user_id: str, anchor: date) -> None:
+    if user_id:
+        _shown_week[user_id] = week_bounds(anchor)[0]
 
 
 def week_bounds(day: date) -> tuple[date, date]:
@@ -414,12 +492,11 @@ def week_status_text(rows: list[dict], anchor: date) -> str:
 
 
 def week_nav_replies(anchor: date) -> list[dict]:
-    start, _end = week_bounds(anchor)
-    previous = (start - timedelta(days=7)).isoformat()
-    following = (start + timedelta(days=7)).isoformat()
+    """버튼 문장은 오픈빌더에 그대로 넣을 수 있는 이번 주, 이전 주, 다음 주다."""
     return [
-        {"label": "이전 주", "action": "message", "messageText": f"예약 현황 {previous}"},
-        {"label": "다음 주", "action": "message", "messageText": f"예약 현황 {following}"},
+        {"label": "이전 주", "action": "message", "messageText": "이전 주"},
+        {"label": "이번 주", "action": "message", "messageText": "이번 주"},
+        {"label": "다음 주", "action": "message", "messageText": "다음 주"},
     ]
 
 
