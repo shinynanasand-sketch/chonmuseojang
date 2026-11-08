@@ -193,4 +193,9 @@ def test_guide_table_lists_each_price_and_stop():
     assert "이번 주" in screens[2]["result"]
     assert "열린 달만" in screens[1]["result"]
     assert screens[2]["applied"] is False
+    calendar_rows = [row for row in rows if row["village"] == "체험 달력"]
+    assert [row["kind"] for row in calendar_rows] == ["단체 이름"]
+    assert calendar_rows[0]["applied"] is True
+    assert "없음을 입력합니다" in calendar_rows[0]["request"]
+    assert "없음도 예약으로 남습니다" in calendar_rows[0]["result"]
     assert any("인절미떡메치기" in row["result"] and "15,000원" in row["request"] for row in prices)
