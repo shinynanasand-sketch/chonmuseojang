@@ -183,4 +183,11 @@ def test_guide_table_lists_each_price_and_stop():
     assert all(row["applied"] for row in prices + stops + added)
     assert any(row["kind"] == "공공데이터" and row["applied"] is False for row in rows)
     assert any(row["kind"] == "마을명" and row["applied"] is False for row in rows)
+    screens = [row for row in rows if row["village"] == "카카오 사무장"]
+    assert [row["kind"] for row in screens] == ["예약 현황", "체험 달력", "오픈빌더"]
+    assert screens[0]["applied"] is True
+    assert screens[1]["applied"] is True
+    assert "일요일부터 토요일" in screens[0]["result"]
+    assert "열린 달만" in screens[1]["result"]
+    assert screens[2]["applied"] is False
     assert any("인절미떡메치기" in row["result"] and "15,000원" in row["request"] for row in prices)

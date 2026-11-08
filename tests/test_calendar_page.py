@@ -139,6 +139,22 @@ def test_village_operator_saves_and_deletes(test_client, calendar_villages):
     assert left[0]["group_name"] == "무안유치원"
 
 
+def test_calendar_lookup_counts_this_month(test_client, calendar_villages, monkeypatch):
+    from datetime import date
+
+    from services.booking import create_booking
+
+    monkeypatch.setattr("services.booking.seoul_today", lambda: date(2026, 11, 8))
+    register_operator("cal_owner_a", "달력마을 CA-001")
+    create_booking("VCALA", "month-guest", "2026-11-03", 4, program_label="조개잡이", visit_time="10:00")
+    create_booking("VCALA", "later-guest", "2026-12-01", 2, program_label="조개잡이", visit_time="09:00")
+    owner = test_client.post("/kakao/ask", json=_ask("체험 달력 조회", "cal_owner_a"))
+    text = owner.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "2026년 11월 예약 대기 1건 승인 0건 거절 0건" in text
+    button = next(item["basicCard"] for item in owner.json()["template"]["outputs"] if "basicCard" in item)
+    assert button["buttons"][0]["label"] == "달력 열기"
+
+
 def test_calendar_lookup_has_open_button_for_operators_only(test_client, calendar_villages):
     register_operator("cal_owner_a", "달력마을 CA-001")
     owner = test_client.post("/kakao/ask", json=_ask("체험 달력 조회", "cal_owner_a"))

@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from models.kakao_schemas import KakaoSkillRequest
 from services import booking, review
 from services.auth import get_operator_by_kakao_id, register_operator, register_operator_with_ids, resolve_kakao_role
-from services.calendar_link import attach_approval_calendar, attach_calendar_card
+from services.calendar_link import attach_calendar_card
 from services.kakao_client import (
     allow_external,
     attach_guide_card,
@@ -149,6 +149,8 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     if menu is not None:
         return menu
     kind = _BLOCKS.get(name)
+    if kind is None and booking.is_week_status_utterance(utterance):
+        kind = "status"
     if kind is None:
         return None
     if kind == "recommend":
@@ -188,7 +190,7 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
         operator = get_operator_by_kakao_id(user_id)
         if not operator:
             return attach_guide_card(build_error_skill_response(_STATUS_HINT))
-        return _status(str(role["village_id"]), operator)
+        return reply_week_status(str(role["village_id"]), utterance)
     return _decide(kind, str(role["village_id"]), payload)
 
 
@@ -434,16 +436,12 @@ def _review_lines(village_id: str, village_name: str, start: int) -> dict:
     )
 
 
-def _status(village_id: str, operator: dict) -> dict:
-    if not allow_external():
-        return time_budget_response()
+def reply_week_status(village_id: str, utterance: str) -> dict:
+    """방문일이 속한 일요일부터 토요일까지. 달력 카드는 붙이지 않는다."""
     rows = booking.list_bookings_for_village(village_id)
-    if not rows:
-        body = build_error_skill_response("예약이 없습니다.")
-    else:
-        lines = [booking.booking_summary(row) for row in rows]
-        body = _skill_lines("예약 현황", lines, len(rows))
-    return attach_approval_calendar(body, operator)
+    anchor = booking.status_week_anchor(utterance)
+    body = build_skill_response("예약 현황", booking.week_status_text(rows, anchor))
+    return _prepend_replies(body, booking.week_nav_replies(anchor))
 
 
 def _promo_photo(user_id: str, role: dict, payload: KakaoSkillRequest) -> dict:
@@ -560,19 +558,8 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
         lines = [f"{row.get('label')} {row.get('body')}".strip() for row in rows]
         return _skill_lines("체험 글", lines, len(rows))
     if kind == "calendar_list":
-        rows = list_calendar(operator).get("entries") or []
-        if not rows:
-            body = build_error_skill_response("등록된 체험 일정이 없습니다.")
-        else:
-            lines = [
-                (
-                    f"{row.get('label')} {row.get('visit_date')} {row.get('group_name')} "
-                    f"{row.get('num_people')}명"
-                )
-                for row in rows
-            ]
-            body = _skill_lines("체험 달력", lines, len(rows))
-        return attach_calendar_card(body, operator)
+        text = booking.month_booking_summary(booking.bookings_for_operator_view(operator))
+        return attach_calendar_card(build_skill_response("체험 달력", text), operator)
     if kind == "note_save":
         body = _note_body(payload.userRequest.utterance or "")
         if not body:

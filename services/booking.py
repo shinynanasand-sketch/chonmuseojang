@@ -1,6 +1,7 @@
 """예약 생성/조회/상태변경."""
 
 import re
+from datetime import date, datetime, timedelta, timezone
 
 from services.supabase_client import (
     insert_booking,
@@ -347,6 +348,105 @@ def format_booking_lines(rows: list[dict]) -> str:
     if not rows:
         return "예약이 없습니다."
     return " ".join(booking_summary(row) for row in rows)
+
+
+_SEOUL = timezone(timedelta(hours=9))
+_WEEK_STATUS = re.compile(r"예약 현황(?: (\d{4}-\d{2}-\d{2}))?")
+
+
+def seoul_today() -> date:
+    return datetime.now(_SEOUL).date()
+
+
+def is_week_status_utterance(utterance: str) -> bool:
+    """`예약 현황` 또는 `예약 현황 YYYY-MM-DD`만 주간 조회로 받는다."""
+    text = " ".join((utterance or "").split())
+    if text == "예약 현황":
+        return True
+    found = _WEEK_STATUS.fullmatch(text)
+    return bool(found and found.group(1))
+
+
+def status_week_anchor(utterance: str, today: date | None = None) -> date:
+    """발화의 날짜. 없거나 날짜가 아니면 서울 오늘."""
+    found = _DATE_IN_TEXT.search(utterance or "")
+    if found:
+        try:
+            return date.fromisoformat(found.group(0))
+        except ValueError:
+            pass
+    return today or seoul_today()
+
+
+def week_bounds(day: date) -> tuple[date, date]:
+    """달력 머리글과 같이 일요일부터 토요일까지."""
+    start = day - timedelta(days=(day.weekday() + 1) % 7)
+    return start, start + timedelta(days=6)
+
+
+def _visit_day(row: dict) -> date | None:
+    try:
+        return date.fromisoformat(str(row.get("visit_date") or "")[:10])
+    except ValueError:
+        return None
+
+
+def _booking_sort_key(row: dict) -> tuple:
+    try:
+        number = int(row.get("booking_id") or 0)
+    except (TypeError, ValueError):
+        number = 0
+    return (str(row.get("visit_date") or "")[:10], str(row.get("visit_time") or "").strip()[:5], number)
+
+
+def bookings_in_week(rows: list[dict], anchor: date) -> tuple[date, date, list[dict]]:
+    start, end = week_bounds(anchor)
+    chosen = [row for row in rows if (day := _visit_day(row)) is not None and start <= day <= end]
+    return start, end, sorted(chosen, key=_booking_sort_key)
+
+
+def week_status_text(rows: list[dict], anchor: date) -> str:
+    start, end, chosen = bookings_in_week(rows, anchor)
+    span = f"{start.isoformat()}부터 {end.isoformat()}까지"
+    if not chosen:
+        return f"{span} 예약이 없습니다."
+    return f"{span}. " + " ".join(booking_summary(row) for row in chosen)
+
+
+def week_nav_replies(anchor: date) -> list[dict]:
+    start, _end = week_bounds(anchor)
+    previous = (start - timedelta(days=7)).isoformat()
+    following = (start + timedelta(days=7)).isoformat()
+    return [
+        {"label": "이전 주", "action": "message", "messageText": f"예약 현황 {previous}"},
+        {"label": "다음 주", "action": "message", "messageText": f"예약 현황 {following}"},
+    ]
+
+
+def bookings_for_operator_view(operator: dict) -> list[dict]:
+    """마을 운영자는 마을 예약, 체험 담당은 자기 체험 예약만."""
+    rows = list_bookings_for_village(str(operator.get("village_id") or ""))
+    if str(operator.get("role") or "village") == "program":
+        key = str(operator.get("program_key") or "")
+        return [row for row in rows if row.get("program_key") and row.get("program_key") == key]
+    return rows
+
+
+def month_booking_summary(rows: list[dict], today: date | None = None) -> str:
+    """서울 오늘이 들어 있는 달의 대기·승인·거절 건수."""
+    day = today or seoul_today()
+    counts = {"pending": 0, "confirmed": 0, "rejected": 0}
+    for row in rows:
+        visit = _visit_day(row)
+        if visit is None or (visit.year, visit.month) != (day.year, day.month):
+            continue
+        status = str(row.get("status") or "")
+        if status in counts:
+            counts[status] += 1
+    return (
+        f"{day.year}년 {day.month}월 예약 "
+        f"대기 {counts['pending']}건 승인 {counts['confirmed']}건 거절 {counts['rejected']}건"
+    )
 
 
 def _display_trust_score(village: dict) -> float:

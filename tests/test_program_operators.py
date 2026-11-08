@@ -374,7 +374,9 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
         "/kakao/ask",
         json=_skill("체험 달력 조회", "shell_owner", "체험 달력 조회"),
     )
-    assert "조개잡이 2026-11-01 광주소등학교 30명" in seen.text
+    assert "대기 0건 승인 0건 거절 0건" in seen.text
+    assert "달력 열기" in seen.text
+    assert "광주소등학교" not in seen.text
 
     hidden = test_client.post(
         "/kakao/ask",
@@ -398,3 +400,21 @@ def test_kakao_blocks_share_notes_and_calendar(test_client, share_villages):
         json=_skill("체험 달력 조회", "tourist-share", "체험 달력 조회"),
     )
     assert "운영자" in tourist.text
+
+
+def test_calendar_lookup_counts_only_own_program(test_client, share_villages, monkeypatch):
+    from datetime import date
+
+    monkeypatch.setattr("services.booking.seoul_today", lambda: date(2026, 11, 8))
+    register_operator("share_owner", "등록 공유마을 SH-001")
+    register_operator("shell_owner", "등록 공유마을 SH-001 조개잡이")
+    register_operator("salt_owner", "등록 공유마을 SH-001 소금체험")
+    create_booking("VSHARE", "guest-shell", "2026-11-03", 4, program_label="조개잡이", visit_time="10:00")
+    create_booking("VSHARE", "guest-salt", "2026-11-04", 2, program_label="소금체험", visit_time="11:00")
+    create_booking("VSHARE", "guest-later", "2026-12-01", 8, program_label="조개잡이", visit_time="09:00")
+    shell = test_client.post("/kakao/ask", json=_skill("체험 달력 조회", "shell_owner", "체험 달력 조회"))
+    salt = test_client.post("/kakao/ask", json=_skill("체험 달력 조회", "salt_owner", "체험 달력 조회"))
+    assert "2026년 11월 예약 대기 1건 승인 0건 거절 0건" in shell.text
+    assert "2026년 11월 예약 대기 1건 승인 0건 거절 0건" in salt.text
+    village = test_client.post("/kakao/ask", json=_skill("체험 달력 조회", "share_owner", "체험 달력 조회"))
+    assert "2026년 11월 예약 대기 2건 승인 0건 거절 0건" in village.text

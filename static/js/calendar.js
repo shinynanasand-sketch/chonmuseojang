@@ -34,6 +34,18 @@ function bookingsOn(day) {
   return (snapshot.bookings || []).filter((row) => row.visit_date === day);
 }
 
+function inShownMonth(day) {
+  if (!day || String(day).length < 7) return false;
+  const year = Number(String(day).slice(0, 4));
+  const month = Number(String(day).slice(5, 7));
+  return year === shown.getFullYear() && month === shown.getMonth() + 1;
+}
+
+function setOtherMonthNote(show) {
+  const note = document.getElementById("other-month-pending");
+  if (note) note.hidden = !show;
+}
+
 function proposalsOn(day) {
   return (snapshot.bookings || []).filter((row) => row.proposed_visit_date === day);
 }
@@ -221,13 +233,18 @@ function showBoards() {
     pendingSlot.hidden = true;
     approvedSlot.hidden = true;
     if (rejectedSlot) rejectedSlot.hidden = true;
+    setOtherMonthNote(false);
     return;
   }
   if (operator) {
     programList.hidden = true;
     programList.innerHTML = "";
   }
-  const bookings = snapshot.bookings || [];
+  const bookings = (snapshot.bookings || []).filter((row) => inShownMonth(row.visit_date));
+  const otherPending = (snapshot.bookings || []).some(
+    (row) => row.status === "pending" && row.visit_date && !inShownMonth(row.visit_date),
+  );
+  setOtherMonthNote(operator && snapshot.can_write && otherPending);
   const withActions = operator;
   fillBoard(
     pendingSlot,
@@ -534,13 +551,19 @@ form.addEventListener("submit", async (event) => {
   if (response.ok) await load(true);
 });
 
-document.getElementById("prev-month").addEventListener("click", () => {
-  shown = new Date(shown.getFullYear(), shown.getMonth() - 1, 1);
+function moveMonth(offset) {
+  shown = new Date(shown.getFullYear(), shown.getMonth() + offset, 1);
+  if (selected && !inShownMonth(selected)) {
+    selected = "";
+    dayTitle.textContent = "날짜를 눌러 주세요";
+    dayEntries.innerHTML = "";
+    syncGuestForm();
+  }
+  showBoards();
   draw();
-});
-document.getElementById("next-month").addEventListener("click", () => {
-  shown = new Date(shown.getFullYear(), shown.getMonth() + 1, 1);
-  draw();
-});
+}
+
+document.getElementById("prev-month").addEventListener("click", () => moveMonth(-1));
+document.getElementById("next-month").addEventListener("click", () => moveMonth(1));
 
 load();

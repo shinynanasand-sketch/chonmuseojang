@@ -4,10 +4,14 @@ from fastapi import APIRouter, BackgroundTasks
 
 from models.kakao_schemas import KakaoSkillRequest
 from services import auth, booking, kakao_client, review
-from services.calendar_link import attach_approval_calendar
 from services.kakao_ask import answer_kakao_question
 from services.kakao_client import skill_http_response
-from services.kakao_phase_a import finish_promo_photo, handle_phase_a, promo_photo_should_defer
+from services.kakao_phase_a import (
+    finish_promo_photo,
+    handle_phase_a,
+    promo_photo_should_defer,
+    reply_week_status,
+)
 
 router = APIRouter(prefix="/kakao", tags=["kakao"])
 
@@ -108,7 +112,7 @@ def _inquiry_response(utterance: str, user_id: str):
             return kakao_client.build_skill_response("등록 완료", text)
         return kakao_client.attach_guide_card(kakao_client.build_error_skill_response(_REGISTER_HINT))
 
-    if utterance == "예약 현황":
+    if booking.is_week_status_utterance(utterance):
         if not kakao_client.allow_external():
             return kakao_client.time_budget_response()
         role = auth.resolve_kakao_role(user_id)
@@ -123,8 +127,7 @@ def _inquiry_response(utterance: str, user_id: str):
             return kakao_client.attach_guide_card(
                 kakao_client.build_error_skill_response(_REGISTER_HINT)
             )
-        lines = booking.format_booking_lines(booking.list_bookings_for_operator(user_id))
-        return attach_approval_calendar(kakao_client.build_skill_response("예약 현황", lines), operator)
+        return reply_week_status(str(operator["village_id"]), utterance)
 
     if utterance == "내 예약":
         lines = booking.format_booking_lines(booking.list_my_bookings(user_id))

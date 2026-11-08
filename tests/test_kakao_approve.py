@@ -371,9 +371,18 @@ def test_review_lookup_on_review_route_does_not_save(test_client):
     assert list_reviews_for_village("V001") == []
 
 
-def test_booking_status_uses_simple_text(test_client):
-    """예약 현황 성공 응답은 simpleText다. start_date와 end_date는 없다"""
-    create_booking("V001", "customer_test", "2026-11-01", 4)
+def _freeze_seoul_today(monkeypatch, day):
+    monkeypatch.setattr("services.booking.seoul_today", lambda: day)
+
+
+def test_booking_status_uses_simple_text(test_client, monkeypatch):
+    """예약 현황은 그 주 방문만 simpleText로 보여 준다. 달력 카드는 없다"""
+    from datetime import date
+
+    _freeze_seoul_today(monkeypatch, date(2026, 11, 4))
+    inside = create_booking("V001", "customer_test", "2026-11-01", 4, visit_time="15:00")
+    earlier = create_booking("V001", "customer_test", "2026-11-03", 2, visit_time="09:00")
+    create_booking("V001", "customer_test", "2026-11-08", 9, visit_time="10:00")
     payload = {
         "intent": {"name": "예약 현황 조회"},
         "userRequest": {"utterance": "예약 현황", "user": {"id": "owner_test"}},
@@ -381,30 +390,61 @@ def test_booking_status_uses_simple_text(test_client):
     }
     body = test_client.post("/kakao/booking", json=payload).json()
     text = body["template"]["outputs"][0]["simpleText"]["text"]
+    assert "2026-11-01부터 2026-11-07까지" in text
     assert "대기" in text
-    assert "2026-11-01" in text
+    assert "2026-11-01 15:00" in text
     assert "4명" in text
-    card = next(item["basicCard"] for item in body["template"]["outputs"] if "basicCard" in item)
-    button = card["buttons"][0]
-    assert button["label"] == "달력에서 승인"
-    assert card["description"] == "대기인 날짜를 눌러 승인하거나 거절합니다."
-    assert "/calendar/" in button["webLinkUrl"]
-    assert "owner_test" not in button["webLinkUrl"]
+    assert "2026-11-08" not in text
+    assert "최근 5건" not in text
+    assert text.index(f"{inside['booking_id']}번") < text.index(f"{earlier['booking_id']}번")
+    assert not any("basicCard" in item for item in body["template"]["outputs"])
+    assert "/calendar/" not in str(body)
+    labels = [item["label"] for item in body["template"]["quickReplies"]]
+    assert labels[:2] == ["이전 주", "다음 주"]
+    assert body["template"]["quickReplies"][0]["messageText"] == "예약 현황 2026-10-25"
+    assert body["template"]["quickReplies"][1]["messageText"] == "예약 현황 2026-11-08"
+    assert "owner_test" not in str(body)
     assert "start_date" not in payload["action"]["params"]
     assert "context" not in body
 
 
-def test_booking_status_without_rows_still_opens_the_calendar(test_client):
+def test_booking_status_week_sentence_moves_the_window(test_client, monkeypatch):
+    from datetime import date
+
+    _freeze_seoul_today(monkeypatch, date(2026, 11, 4))
+    create_booking("V001", "customer_test", "2026-11-01", 4)
+    kept = create_booking("V001", "customer_test", "2026-11-10", 3, visit_time="11:00")
+    payload = {
+        "userRequest": {"utterance": "예약 현황 2026-11-10", "user": {"id": "owner_test"}},
+        "action": {"params": {}},
+    }
+    booked = test_client.post("/kakao/booking", json=payload).json()
+    asked = test_client.post("/kakao/ask", json=payload).json()
+    for body in (booked, asked):
+        text = body["template"]["outputs"][0]["simpleText"]["text"]
+        assert "2026-11-08부터 2026-11-14까지" in text
+        assert "2026-11-10 11:00" in text
+        assert f"{kept['booking_id']}번" in text
+        assert "2026-11-01" not in text.split("까지", 1)[-1]
+        assert "/calendar/" not in str(body)
+        assert body["template"]["quickReplies"][1]["messageText"] == "예약 현황 2026-11-15"
+
+
+def test_booking_status_without_rows_names_the_week(test_client, monkeypatch):
+    from datetime import date
+
+    _freeze_seoul_today(monkeypatch, date(2026, 11, 4))
     payload = {
         "intent": {"name": "예약 현황 조회"},
         "userRequest": {"utterance": "예약 현황", "user": {"id": "owner_test"}},
         "action": {"params": {}},
     }
     body = test_client.post("/kakao/booking", json=payload).json()
-    assert "예약이 없습니다." in body["template"]["outputs"][0]["simpleText"]["text"]
-    card = next(item["basicCard"] for item in body["template"]["outputs"] if "basicCard" in item)
-    assert card["buttons"][0]["label"] == "달력에서 승인"
-    assert "owner_test" not in card["buttons"][0]["webLinkUrl"]
+    text = body["template"]["outputs"][0]["simpleText"]["text"]
+    assert "2026-11-01부터 2026-11-07까지 예약이 없습니다." in text
+    assert not any("basicCard" in item for item in body["template"]["outputs"])
+    assert "/calendar/" not in str(body)
+    assert "owner_test" not in str(body)
 
 
 def test_operator_register_block_uses_representative_values(test_client):
