@@ -166,6 +166,11 @@ async def dashboard_page(request: Request):
     return _html(request, "dashboard.html", {"title": "운영 현황"}, _PAGE_CDN)
 
 
+@router.get("/find", response_class=HTMLResponse)
+async def find_page(request: Request):
+    return _html(request, "find.html", {"title": "마을 찾기"}, _VILLAGE_CDN)
+
+
 @router.get("/villages", response_class=HTMLResponse)
 async def villages_page(request: Request):
     return _html(

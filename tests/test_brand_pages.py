@@ -129,8 +129,19 @@ def test_home_stays_on_its_own_stylesheet(test_client, monkeypatch):
     assert 'href="/guide/use"' in home.text
     assert 'href="/brand"' in home.text
     assert 'href="/story"' in home.text
+    assert 'href="/find"' in home.text
+    assert 'id="village-finder"' not in home.text
+    assert 'id="sigungu-filter"' not in home.text
+    assert "<h2>체험객</h2>" in home.text
+    assert "<h2>사무장</h2>" in home.text
+    find = test_client.get("/find")
+    assert find.status_code == 200
+    assert 'id="village-finder"' in find.text
+    assert 'id="sigungu-filter"' in find.text
+    assert "광주·전남 농촌체험마을" in find.text
     sitemap = test_client.get("/sitemap.xml").text
     assert "https://chonmuseojang.vercel.app/home" in sitemap
+    assert "https://chonmuseojang.vercel.app/find" in sitemap
     assert "https://chonmuseojang.vercel.app/brand" in sitemap
     assert "https://chonmuseojang.vercel.app/story" in sitemap
     assert "/operator" not in sitemap

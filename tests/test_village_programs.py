@@ -118,7 +118,7 @@ def test_home_lists_operating_programs(test_client):
     village = next(item for item in villages if item["village_id"] == "V001")
     operating = [item["label"] for item in village["programs"] if item["is_operating"]]
     assert operating == ["기타(영농체험+먹거리체험)"]
-    assert "is_operating" in test_client.get("/home").text
+    assert "is_operating" in test_client.get("/find").text
 
 
 def test_operator_page_can_toggle_programs(test_client):

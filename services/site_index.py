@@ -3,6 +3,7 @@
 SITE_ORIGIN = "https://chonmuseojang.vercel.app"
 PUBLIC_PATHS = (
     "/home",
+    "/find",
     "/brand",
     "/story",
     "/recommend",
