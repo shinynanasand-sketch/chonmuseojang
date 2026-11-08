@@ -413,49 +413,104 @@ h3 {
 }
 
 .usage {
+  min-height: calc(100svh - 12px);
   padding: 28px;
+  scroll-margin-top: 12px;
   background: #eef2e8;
   border: 1px solid var(--line);
   border-radius: 18px;
 }
 
-.usage-grid {
+.usage-choices {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 12px;
   margin-top: 22px;
 }
 
-.usage-item h3 { font-size: 18px; }
-
-.usage-item p {
-  color: var(--muted);
-  font-size: 14px;
+.usage-choice {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-height: 96px;
+  padding: 18px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--ink);
 }
 
-.steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 14px 0 0;
+.usage-choice strong {
+  color: var(--dark);
+  font-size: 18px;
+}
+
+.usage-choice span {
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.usage-choice[aria-current="true"],
+.usage:has(#usage-guest:target) .usage-choice[href="#usage-guest"],
+.usage:has(#usage-operator:target) .usage-choice[href="#usage-operator"] {
+  border-color: var(--green);
+  box-shadow: inset 0 0 0 1px var(--green);
+  background: #f7faf6;
+}
+
+.usage-path {
+  display: none;
+  margin-top: 8px;
+}
+
+.usage-path:target,
+.usage-path.is-open {
+  display: block;
+}
+
+.usage-steps {
+  margin: 8px 0 0;
   padding: 0;
   list-style: none;
-  counter-reset: step;
+  counter-reset: usage-step;
 }
 
-.steps li {
-  counter-increment: step;
-  padding: 6px 10px;
-  background: white;
-  border: 1px solid #c8d8ca;
-  border-radius: 7px;
-  font-size: 12px;
+.usage-steps li {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 14px 0 0 36px;
+  border-top: 1px solid #d5e0d4;
+  counter-increment: usage-step;
+  position: relative;
 }
 
-.steps li::before {
-  content: counter(step) ". ";
+.usage-steps li::before {
+  content: counter(usage-step);
+  position: absolute;
+  left: 0;
   color: var(--green);
+  font-size: 16px;
   font-weight: 800;
+}
+
+.usage-steps strong {
+  font-size: 16px;
+}
+
+.usage-steps span {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.usage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin-top: 22px;
 }
 
 .validation-note {
@@ -546,9 +601,16 @@ footer {
 
   .direction, .usage { padding: 24px; }
 
+  .usage-steps li {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  .usage-actions { margin-top: 16px; }
+
   .reason-list,
   .role-grid,
-  .usage-grid,
+  .usage-choices,
   .bottom-grid {
     grid-template-columns: 1fr;
   }

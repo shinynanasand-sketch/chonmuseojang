@@ -71,6 +71,14 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     ):
         assert f'href="{href}"' in roles
     assert "체험 담당은 같은 마을 일정을 보고" in roles
+    usage = text[text.index('id="usage"'):text.index('id="start"')]
+    assert "체험을 찾는다" in usage
+    assert "마을을 운영한다" in usage
+    assert "예약하기" in usage
+    assert "체험 달력 조회" in usage
+    assert "홍보 사진" in usage
+    assert 'href="/home#demo-step-1"' in usage
+    assert 'href="/home#demo-step-4"' in usage
     assert 'href="/guide/register"' not in text
     assert 'href="/guide/dev"' not in text
     for token in _FORBIDDEN:
