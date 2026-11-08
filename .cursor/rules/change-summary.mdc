@@ -1,0 +1,25 @@
+---
+description: 이용자가 보는 주요 변경은 현장 기록과 요약 페이지를 함께 갱신한다
+alwaysApply: true
+---
+
+# 주요 변경 이력
+
+이용자가 보는 동작이 바뀌면 줄 단위 기록과 요약을 같은 작업에서 고친다. 사진 용량, 콜백 시간, 응답 형식 같은 작은 고침은 요약에 넣지 않는다.
+
+## 줄 단위 기록
+
+현장 요청과 화면 동작은 [services/field_changes.py](services/field_changes.py)의 `guide_rows()`에 한 줄로 남긴다. 적용하지 않은 것도 `applied: False`로 적는다. 이 목록이 `/guide/name-requests` 표다. 검색 수집 주소에는 넣지 않는다.
+
+## 요약
+
+[services/change_summary.py](services/change_summary.py)가 그 줄을 구분해 건수를 센다. 새 구분이 생기면 묶음 문장을 추가한다. 구분이 빠지거나 미적용 구성이 바뀌면 함수가 멈추므로, 문장과 테스트를 함께 고친다.
+
+- 같은 구분은 한 장으로 묶는다. 가격처럼 품목이 많아도 금액 목록은 적지 않는다.
+- 문장은 스토리와 같이 한다. 버전 번호와 기능 번호는 적지 않는다.
+- 서비스에서 커진 변경은 `MAJOR_CHANGES`에 한 장만 추가한다.
+- `/story`의 주요 변경 장면은 전체·적용·미적용 건수와 링크만 둔다. 묶음 설명은 `/story/changes`에만 둔다.
+
+건수가 바뀌면 [tests/test_brand_pages.py](tests/test_brand_pages.py)의 전체·적용·미적용 건수와 묶음 제목을 맞춘다.
+
+화면 사진을 주요 변경 요약에 넣는 작업은 보류다. 같은 내용은 저장소 루트 [AGENTS.md](AGENTS.md)에도 있다.
