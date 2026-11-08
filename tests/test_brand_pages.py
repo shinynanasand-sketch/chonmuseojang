@@ -54,6 +54,7 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "사무장이 없거나, 고령화로" in text
     assert "익숙한 카카오로 운영을 도울 수 있을까?" in text
     assert "검토한 방향을 이렇게 구현했다." in text
+    assert "현장의 요청을 반영해 바꿨다." in text
     assert "구현한 대응과 실제 효과는 구분한다." in text
     assert "기존 권한과 진입 경로에 따라" in text
     roles = text[text.index('id="roles"'):text.index('id="usage"')]
@@ -84,6 +85,9 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "다음 · 주요 변경" in text
     assert "다음 · 누가 사용하는가" in text
     changes = text[text.index('id="changes"'):text.index('id="roles"')]
+    assert "현장의 요청을 반영해 바꿨다." in changes
+    assert "마을에서 요청한 변경 가운데 적용한 것과 적용하지 않은 것을 건수로 보여 준다." in changes
+    assert "주요 변경을 건수와 함께 본다." not in changes
     assert "전체 38건" in changes
     assert "적용 33건" in changes
     assert "적용하지 않음 5건" in changes
