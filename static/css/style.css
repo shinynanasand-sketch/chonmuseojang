@@ -2,6 +2,7 @@ body { font-family: sans-serif; margin: 0; padding: 0; color: #1b1b1b; backgroun
 header { background: #2d6a4f; padding: 0.75rem 1rem; display: grid; gap: 0.35rem; }
 header nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: center; }
 header a { color: white; text-decoration: none; }
+.nav-home { color: white; font-weight: 700; }
 .nav-role { color: #d8f3dc; font-weight: 700; }
 .audience { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0; }
 .audience article { border: 1px solid #ddd; border-radius: 4px; padding: 1rem; background: #fff; }

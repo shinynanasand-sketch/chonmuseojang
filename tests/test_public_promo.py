@@ -391,6 +391,11 @@ def test_presentation_flag_is_off_only_for_zero():
 def _assert_role_menus(text: str) -> None:
     assert 'aria-label="체험객"' in text
     assert 'aria-label="사무장"' in text
+    guest = text.split('aria-label="체험객"', 1)[1].split('aria-label="사무장"', 1)[0]
+    assert 'class="nav-home"' in text
+    assert text.index('class="nav-home"') < text.index('aria-label="체험객"')
+    assert 'href="/home"' not in guest
+    assert 'href="/find"' in guest
     assert 'href="/find"' in text
     assert 'href="/recommend"' in text
     assert 'href="/map"' in text
