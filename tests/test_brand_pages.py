@@ -79,6 +79,11 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "홍보 사진" in usage
     assert 'href="/home#demo-step-1"' in usage
     assert 'href="/home#demo-step-4"' in usage
+    assert "다음 · 어떤 방향을 검토했는가" in text
+    assert "다음 · 무엇을 구현했는가" in text
+    assert "다음 · 누가 사용하는가" in text
+    assert "다음 · 어떻게 사용하는가" in text
+    assert "다음 · 이용·시연 안내" in text
     assert 'href="/guide/register"' not in text
     assert 'href="/guide/dev"' not in text
     for token in _FORBIDDEN:

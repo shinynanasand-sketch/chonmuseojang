@@ -226,12 +226,16 @@ h3 {
 .back-link { margin-bottom: 22px; }
 
 .section-links {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 30px;
-  padding: 0;
+  margin: 0 0 18px;
+  padding: 8px 0 12px;
   list-style: none;
+  background: var(--ivory);
 }
 
 .section-links a {
@@ -242,13 +246,70 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--green);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 
-.section {
-  margin-top: 44px;
+.section-links a[aria-current="true"],
+.guide-screen:has(#why:target) .section-links a[href="#why"],
+.guide-screen:has(#direction:target) .section-links a[href="#direction"],
+.guide-screen:has(#response:target) .section-links a[href="#response"],
+.guide-screen:has(#roles:target) .section-links a[href="#roles"],
+.guide-screen:has(#usage:target) .section-links a[href="#usage"],
+.guide-screen:has(#usage-guest:target) .section-links a[href="#usage"],
+.guide-screen:has(#usage-operator:target) .section-links a[href="#usage"],
+.guide-screen:has(#start:target) .section-links a[href="#start"],
+.guide-screen:not(:has(.section:target)):not(:has(#usage-guest:target)):not(:has(#usage-operator:target)) .section-links a[href="#why"] {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+
+.guide-screen .section {
+  display: none;
+  margin-top: 12px;
   scroll-margin-top: 24px;
+}
+
+.guide-screen .section.is-current,
+.guide-screen .section:target,
+.guide-screen #usage:has(:target) {
+  display: block;
+}
+
+.guide-screen:not(:has(.section:target)):not(:has(#usage-guest:target)):not(:has(#usage-operator:target)):not(:has(.section.is-current)) #why {
+  display: block;
+}
+
+.step-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.step-prev,
+.step-next {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.step-prev {
+  background: white;
+  border: 1px solid var(--line);
+  color: var(--green);
+}
+
+.step-next {
+  margin-left: auto;
+  background: var(--green);
+  color: white;
 }
 
 .guide-heading {
@@ -514,12 +575,18 @@ h3 {
 }
 
 .validation-note {
+  display: none;
   margin-top: 22px;
   padding: 18px 20px;
   border-left: 3px solid var(--green);
   background: var(--mint);
   color: var(--muted);
   font-size: 13px;
+}
+
+.guide-screen:has(#start.is-current) .validation-note,
+.guide-screen:has(#start:target) .validation-note {
+  display: block;
 }
 
 .validation-note strong {

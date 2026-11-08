@@ -29,6 +29,9 @@
         어려움이 있었고, 홍보 문구 작성에도 부담이 있었다.
       </p>
       <span class="evidence">인터뷰에서 확인한 사례 · 모든 체험마을에 대한 일반화가 아니다</span>
+      <nav class="step-pager" aria-label="다음 안내">
+        <a class="step-next" href="#direction">다음 · 어떤 방향을 검토했는가</a>
+      </nav>
     </section>
 
     <section id="direction" class="section direction" aria-labelledby="direction-title">
@@ -54,6 +57,10 @@
           <span>예약·관리·공유와 홍보 도움을 기존 이용 흐름으로 이어가도록 했다.</span>
         </li>
       </ul>
+      <nav class="step-pager" aria-label="이전과 다음 안내">
+        <a class="step-prev" href="#why">이전</a>
+        <a class="step-next" href="#response">다음 · 무엇을 구현했는가</a>
+      </nav>
     </section>
 
     <section id="response" class="section" aria-labelledby="response-title">
@@ -91,6 +98,10 @@
           <p class="solution">카카오에 사진을 올리면 AI가 그 마을 소개와 SNS 초안을 쓴다. 공개는 운영자가 내용을 확인한 뒤에 한다.</p>
         </article>
       </div>
+      <nav class="step-pager" aria-label="이전과 다음 안내">
+        <a class="step-prev" href="#direction">이전</a>
+        <a class="step-next" href="#roles">다음 · 누가 사용하는가</a>
+      </nav>
     </section>
 
     <section id="roles" class="section" aria-labelledby="roles-title">
@@ -132,6 +143,10 @@
           </nav>
         </article>
       </div>
+      <nav class="step-pager" aria-label="이전과 다음 안내">
+        <a class="step-prev" href="#response">이전</a>
+        <a class="step-next" href="#usage">다음 · 어떻게 사용하는가</a>
+      </nav>
     </section>
 
     <section id="usage" class="section usage" aria-labelledby="usage-title">
@@ -199,6 +214,10 @@
           {% endif %}
         </div>
       </article>
+      <nav class="step-pager" aria-label="이전과 다음 안내">
+        <a class="step-prev" href="#roles">이전</a>
+        <a class="step-next" href="#start">다음 · 이용·시연 안내</a>
+      </nav>
     </section>
 
     <aside class="validation-note">
@@ -227,6 +246,9 @@
           {% endif %}
         </article>
       </div>
+      <nav class="step-pager" aria-label="이전 안내">
+        <a class="step-prev" href="#usage">이전</a>
+      </nav>
     </section>
   </div>
 </section>
@@ -239,6 +261,13 @@
 
   function hashId() {
     return location.hash.slice(1);
+  }
+
+  function currentSectionId() {
+    var id = hashId();
+    if (pathIds.indexOf(id) !== -1) return "usage";
+    if (ids.indexOf(id) !== -1) return id;
+    return "why";
   }
 
   function syncChoices() {
@@ -255,20 +284,37 @@
     });
   }
 
-  function focusFromHash() {
+  function syncSection() {
+    var current = currentSectionId();
+    ids.forEach(function (sectionId) {
+      var section = document.getElementById(sectionId);
+      if (section) section.classList.toggle("is-current", sectionId === current);
+    });
+    document.querySelectorAll(".section-links a").forEach(function (link) {
+      if (link.getAttribute("href") === "#" + current) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
+    });
     syncChoices();
+  }
+
+  function focusFromHash() {
+    syncSection();
     var id = hashId();
+    var menu = document.querySelector(".section-links");
+    if (!id) {
+      if (menu) menu.scrollIntoView({ block: "start" });
+      return;
+    }
     var path = pathIds.indexOf(id) !== -1;
-    var sectionId = path ? "usage" : id;
     if (!path && ids.indexOf(id) === -1) return;
-    var section = document.getElementById(sectionId);
+    var section = document.getElementById(path ? "usage" : id);
     if (!section) return;
     var heading = path ? document.getElementById(id) : section.querySelector("h1, h2");
     if (heading) {
       if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
       heading.focus({ preventScroll: true });
     }
-    section.scrollIntoView({ block: "start" });
+    if (menu) menu.scrollIntoView({ block: "start" });
   }
 
   document.querySelectorAll(".usage-choice").forEach(function (choice) {
@@ -288,7 +334,7 @@
     requestAnimationFrame(focusFromHash);
   });
   if (location.hash) requestAnimationFrame(focusFromHash);
-  else syncChoices();
+  else syncSection();
 })();
 </script>
 {% endblock %}
