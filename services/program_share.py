@@ -10,6 +10,7 @@ from services.supabase_client import (
     upsert_calendar_entry,
     upsert_program_note,
 )
+from services.program_groups import assigned_program_keys
 from services.village_programs import program_key, program_labels
 
 
@@ -26,34 +27,49 @@ def _canonical_label(village_id: str, label: str) -> str:
     return ""
 
 
-def _owned_label(operator: dict) -> str:
+def _owned_labels(operator: dict) -> list[str]:
     village = get_village_by_id(str(operator.get("village_id") or "")) or {}
-    key = str(operator.get("program_key") or "")
-    for item in program_labels(village):
-        if program_key(item) == key:
-            return item
-    return ""
+    keys = assigned_program_keys(operator)
+    return [item for item in program_labels(village) if program_key(item) in keys]
+
+
+def _split_owned_label(labels: list[str], body: str) -> tuple[str, str] | None:
+    """여러 체험을 맡으면 본문 앞의 체험 이름으로 고른다."""
+    for label in sorted(labels, key=len, reverse=True):
+        if body == label or body.startswith(label + " "):
+            return label, body[len(label) :].strip()
+    return None
 
 
 def save_program_note(operator: dict, body: str, label: str = "") -> dict:
-    """체험 담당만 자기 체험 글을 저장한다."""
+    """체험 담당만 맡은 체험 글을 저장한다."""
     if not operator or not operator.get("village_id"):
         return {"ok": False, "reason": "forbidden"}
     if _role(operator) != "program":
         return {"ok": False, "reason": "read_only"}
-    canonical = _owned_label(operator)
-    if not canonical:
+    owned = _owned_labels(operator)
+    if not owned:
         return {"ok": False, "reason": "program_not_found"}
-    if label and program_key(" ".join(label.split())) != operator.get("program_key"):
-        return {"ok": False, "reason": "forbidden"}
     text = body.strip()
+    if label:
+        wanted = program_key(" ".join(label.split()))
+        canonical = next((item for item in owned if program_key(item) == wanted), "")
+        if not canonical:
+            return {"ok": False, "reason": "forbidden"}
+    elif len(owned) == 1:
+        canonical = owned[0]
+    else:
+        chosen = _split_owned_label(owned, text)
+        if not chosen:
+            return {"ok": False, "reason": "which_program"}
+        canonical, text = chosen
     if not text:
         return {"ok": False, "reason": "bad_format"}
     try:
         upsert_program_note(
             {
                 "village_id": operator["village_id"],
-                "program_key": operator["program_key"],
+                "program_key": program_key(canonical),
                 "label": canonical,
                 "body": text,
                 "updated_by": operator.get("operator_id"),
@@ -153,6 +169,6 @@ def list_calendar(operator: dict) -> dict:
         return {"ok": False, "reason": "forbidden", "entries": []}
     entries = list_calendar_for_village(str(operator["village_id"]))
     if _role(operator) == "program":
-        key = str(operator.get("program_key") or "")
-        entries = [row for row in entries if row.get("program_key") == key]
+        keys = assigned_program_keys(operator)
+        entries = [row for row in entries if row.get("program_key") in keys]
     return {"ok": True, "entries": entries}

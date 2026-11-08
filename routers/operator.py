@@ -4,6 +4,7 @@ from models.schemas import (
     OperatorContentEditRequest,
     OperatorContentRequest,
     OperatorLoginRequest,
+    ProgramGroupsRequest,
     ProgramStatusRequest,
 )
 from services.auth import require_village_access, require_village_operator
@@ -18,6 +19,7 @@ from services.operator_assistant import (
 )
 from services.village_promo import publish_operator_contents
 from services.supabase_client import get_village_by_id, list_contents
+from services.program_groups import GroupRejected, program_group_snapshot, save_program_groups
 from services.village_programs import UnknownProgram, programs_for, set_program_operating
 
 router = APIRouter(prefix="/api/operator", tags=["operator"])
@@ -179,3 +181,27 @@ async def update_program_status(
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"programs": programs}
+
+
+@router.get("/program-groups")
+async def read_program_groups(
+    village_id: str | None = None,
+    current_operator: dict = Depends(require_village_operator),
+):
+    _reject_other_village(village_id, current_operator)
+    return program_group_snapshot(current_operator["village_id"])
+
+
+@router.post("/program-groups")
+async def write_program_groups(
+    body: ProgramGroupsRequest,
+    current_operator: dict = Depends(require_village_operator),
+):
+    _reject_other_village(body.village_id, current_operator)
+    try:
+        return save_program_groups(
+            current_operator["village_id"],
+            [item.model_dump() for item in body.assignments],
+        )
+    except GroupRejected as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc

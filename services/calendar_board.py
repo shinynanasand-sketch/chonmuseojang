@@ -85,10 +85,12 @@ def _proposal_matches(row: dict | None, claims: dict) -> bool:
 
 
 def _bookings_for(operator: dict) -> list[dict]:
+    from services.program_groups import assigned_program_keys
+
     rows = list_bookings_for_village(str(operator["village_id"]))
     if str(operator.get("role") or "village") == "program":
-        key = str(operator.get("program_key") or "")
-        rows = [row for row in rows if row.get("program_key") and row.get("program_key") == key]
+        keys = assigned_program_keys(operator)
+        rows = [row for row in rows if row.get("program_key") and row.get("program_key") in keys]
     return [_booking_view(row) for row in rows]
 
 
@@ -111,10 +113,14 @@ def calendar_snapshot(token: str, view: str = "") -> dict | None:
     names = operating_names(village)
     role = str(operator.get("role") or "village")
     program_view = view == "program" and role == "village"
-    focus = str(operator.get("program_key") or "") if role == "program" else ""
+    if role == "program":
+        from services.program_groups import assigned_program_keys
+
+        keys = assigned_program_keys(operator)
+        labels = [label for label in labels if program_key(label) in keys]
+        names = [label for label in names if program_key(label) in keys]
+    focus = _first_program_key(village) if program_view else ""
     if program_view:
-        focus = _first_program_key(village)
-    if role == "program" or program_view:
         labels = [label for label in labels if program_key(label) == focus]
         names = [label for label in names if program_key(label) == focus]
     listed = list_calendar(operator)

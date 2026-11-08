@@ -25,6 +25,16 @@ class ProgramStatusRequest(BaseModel):
     village_id: str | None = None
 
 
+class ProgramGroupAssignment(BaseModel):
+    program_key: str = ""
+    operator_id: int | None = None
+
+
+class ProgramGroupsRequest(BaseModel):
+    assignments: list[ProgramGroupAssignment] = Field(default_factory=list)
+    village_id: str | None = None
+
+
 class RecommendResult(BaseModel):
     village_id: str
     village_name: str

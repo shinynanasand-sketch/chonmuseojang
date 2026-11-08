@@ -84,8 +84,8 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "다음 · 주요 변경" in text
     assert "다음 · 누가 사용하는가" in text
     changes = text[text.index('id="changes"'):text.index('id="roles"')]
-    assert "전체 37건" in changes
-    assert "적용 32건" in changes
+    assert "전체 38건" in changes
+    assert "적용 33건" in changes
     assert "적용하지 않음 5건" in changes
     assert 'href="/story/changes"' in changes
     assert 'href="/guide/name-requests"' in changes
@@ -117,16 +117,16 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
 
     rows = guide_rows()
     summary = change_summary()
-    assert summary["total"] == len(rows) == 37
-    assert summary["applied"] == sum(1 for row in rows if row["applied"]) == 32
+    assert summary["total"] == len(rows) == 38
+    assert summary["applied"] == sum(1 for row in rows if row["applied"]) == 33
     assert summary["not_applied"] == 5
-    assert sum(group["count"] for group in summary["groups"]) == 37
+    assert sum(group["count"] for group in summary["groups"]) == 38
 
     page = test_client.get("/story/changes")
     assert page.status_code == 200
     text = page.text
     assert "<title>주요 변경 - 체험마을 AI사무장</title>" in text
-    assert "전체 37건 가운데 적용 32건, 적용하지 않음 5건이다." in text
+    assert "전체 38건 가운데 적용 33건, 적용하지 않음 5건이다." in text
     for label in (
         "마을명 · 6건",
         "체험 추가 · 3건",
@@ -135,6 +135,7 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
         "예약 현황 · 1건",
         "체험 달력 · 1건",
         "단체 이름 · 1건",
+        "체험 묶음 · 1건",
         "적용하지 않은 나머지 · 2건",
     ):
         assert label in text
@@ -150,6 +151,8 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
         "사무장이 확인한 뒤에 마을 화면에 공개한다.",
         "지금 하지 않는 체험만 사무장이 중지한다.",
         "체험 달력은 단체와 인원이고, 승인은 사무장만 한다.",
+        "한 담당이 여러 체험을 맡는다.",
+        "사무장이 내 마을에서 체험을 묶어 옮긴다.",
         "채널 QR을 보여 준다.",
         "전국 농촌여행 포털을 대신하지 않는다.",
         "광주·전남 마을의 예약과 홍보를 맡는다.",

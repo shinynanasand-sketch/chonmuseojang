@@ -559,5 +559,7 @@ def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
             return build_error_skill_response(_NOTE_ONLY)
         if result.get("reason") == "program_not_found":
             return build_error_skill_response("이 마을 체험이 아닙니다.")
+        if result.get("reason") == "which_program":
+            return build_error_skill_response("어느 체험인지 체험 이름을 앞에 말해 주세요.")
         return build_error_skill_response(_NOTE_NEED)
     return build_error_skill_response(_GUEST_GROUP)

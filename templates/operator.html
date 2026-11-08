@@ -50,6 +50,13 @@
 <h2 id="programs">프로그램</h2>
 <p id="program-status" class="muted">로그인하면 이 마을 프로그램의 운영 여부를 바꿉니다.</p>
 <div id="program-list"></div>
+<section id="program-groups">
+  <h2>체험 담당</h2>
+  <p id="group-status" class="muted">로그인하면 체험을 담당에게 묶습니다.</p>
+  <p id="group-counts"></p>
+  <div id="group-board" class="group-board"></div>
+  <p><button type="button" id="save-groups" hidden>저장</button></p>
+</section>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -68,6 +75,10 @@ function clearOps() {
   document.getElementById("review-list").replaceChildren();
   document.getElementById("program-list").replaceChildren();
   document.getElementById("program-status").textContent = "로그인하면 이 마을 프로그램의 운영 여부를 바꿉니다.";
+  document.getElementById("group-counts").textContent = "";
+  document.getElementById("group-board").replaceChildren();
+  document.getElementById("group-status").textContent = "로그인하면 체험을 담당에게 묶습니다.";
+  document.getElementById("save-groups").hidden = true;
   const canvas = document.getElementById("booking-chart");
   if (bookingChart) {
     bookingChart.destroy();
@@ -218,6 +229,7 @@ async function openDashboard(token) {
   showCards(reviews, data.recent_reviews || [], "후기가 없습니다.", reviewCard);
   loadContents(token);
   loadPrograms(token);
+  loadProgramGroups(token);
 }
 
 async function loadOperator(event) {
@@ -521,6 +533,151 @@ async function toggleProgram(label, isOperating) {
   renderPrograms(data.programs || []);
 }
 
+let groupState = null;
+
+function groupsChanged(data) {
+  const programs = data.programs || [];
+  const unassigned = programs.filter((program) => program.operator_id == null).length;
+  return (data.stale || []).length > 0 || (unassigned > 0 && unassigned < programs.length);
+}
+
+function moveProgram(programKey, operatorId) {
+  if (!groupState) return;
+  groupState.programs = (groupState.programs || []).map((program) => {
+    if (program.program_key !== programKey) return program;
+    return Object.assign({}, program, { operator_id: operatorId ? Number(operatorId) : null });
+  });
+  const unassigned = groupState.programs.filter((program) => program.operator_id == null).length;
+  groupState.counts = Object.assign({}, groupState.counts, { unassigned });
+  renderGroups(groupState);
+}
+
+function groupCard(title, programs, operators) {
+  const card = document.createElement("article");
+  card.className = "village-card";
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  const count = document.createElement("p");
+  count.className = "muted";
+  count.textContent = `체험 ${programs.length}개`;
+  card.append(heading, count);
+  if (!programs.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted";
+    empty.textContent = title === "아직 담당 없음" ? "모든 체험에 담당이 있습니다." : "맡은 체험이 없습니다.";
+    card.append(empty);
+    return card;
+  }
+  programs.forEach((program) => {
+    const row = document.createElement("div");
+    row.className = "group-row";
+    const name = document.createElement("span");
+    name.textContent = program.label || "";
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", `${program.label || "체험"} 담당`);
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "담당 없음";
+    select.append(none);
+    operators.forEach((operator) => {
+      const option = document.createElement("option");
+      option.value = String(operator.operator_id);
+      option.textContent = operator.operator_name || "담당";
+      select.append(option);
+    });
+    select.value = program.operator_id == null ? "" : String(program.operator_id);
+    select.addEventListener("change", () => moveProgram(program.program_key, select.value));
+    row.append(name, select);
+    card.append(row);
+  });
+  return card;
+}
+
+function renderGroups(data) {
+  groupState = data;
+  const status = document.getElementById("group-status");
+  const counts = document.getElementById("group-counts");
+  const board = document.getElementById("group-board");
+  const save = document.getElementById("save-groups");
+  const operators = data.operators || [];
+  const programs = data.programs || [];
+  const summary = data.counts || {};
+  board.replaceChildren();
+  counts.textContent = `체험 ${summary.programs || 0}개 · 담당 ${summary.operators || 0}명 · 미배정 ${summary.unassigned || 0}개`;
+  if (!operators.length) {
+    status.textContent = "비어 있는 체험으로 카카오에서 담당을 등록한 뒤 여기서 옮기세요.";
+    save.hidden = true;
+    return;
+  }
+  status.textContent = groupsChanged(data)
+    ? "체험 목록이 바뀌었습니다. 담당을 다시 묶고 저장하세요."
+    : "체험을 담당에게 붙이고 저장하세요. 한 체험은 한 명만 맡습니다.";
+  save.hidden = false;
+  const buckets = new Map();
+  buckets.set("", []);
+  operators.forEach((operator) => buckets.set(String(operator.operator_id), []));
+  programs.forEach((program) => {
+    const key = program.operator_id == null ? "" : String(program.operator_id);
+    (buckets.get(buckets.has(key) ? key : "") || []).push(program);
+  });
+  board.append(groupCard("아직 담당 없음", buckets.get("") || [], operators));
+  operators.forEach((operator) => {
+    board.append(groupCard(operator.operator_name || "담당", buckets.get(String(operator.operator_id)) || [], operators));
+  });
+  const stale = data.stale || [];
+  if (stale.length) {
+    const note = document.createElement("p");
+    note.className = "muted";
+    const names = stale.map((row) => row.label).filter(Boolean).join(", ");
+    note.textContent = names
+      ? `목록에서 빠진 체험: ${names}. 저장하면 지워집니다.`
+      : "목록에서 빠진 체험은 저장하면 지워집니다.";
+    note.style.gridColumn = "1 / -1";
+    board.append(note);
+  }
+}
+
+async function loadProgramGroups(token) {
+  const response = await fetch("/api/operator/program-groups", {
+    headers: { Authorization: "Bearer " + token },
+  });
+  if (!response.ok) {
+    document.getElementById("group-board").replaceChildren();
+    document.getElementById("save-groups").hidden = true;
+    return;
+  }
+  renderGroups(await response.json());
+}
+
+async function saveGroups() {
+  const token = sessionToken();
+  const status = document.getElementById("group-status");
+  if (!token || !groupState) {
+    status.textContent = "먼저 로그인해 주세요.";
+    return;
+  }
+  const assignments = (groupState.programs || []).map((program) => ({
+    program_key: program.program_key,
+    operator_id: program.operator_id,
+  }));
+  const response = await fetch("/api/operator/program-groups", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ assignments }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    status.textContent = data.detail || "담당 묶음을 저장하지 못했습니다.";
+    return;
+  }
+  renderGroups(data);
+  if (!groupsChanged(data)) status.textContent = "체험 담당을 저장했습니다.";
+}
+
+document.getElementById("save-groups").addEventListener("click", saveGroups);
 document.getElementById("operator-login").addEventListener("submit", loadOperator);
 document.getElementById("content-form").addEventListener("submit", createContent);
 document.getElementById("publish-content").addEventListener("click", publishContent);

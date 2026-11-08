@@ -39,16 +39,25 @@ CREATE TABLE IF NOT EXISTS operators (
     program_key TEXT,
     CONSTRAINT operators_role_program_key CHECK (
         (role = 'village' AND program_key IS NULL)
-        OR (role = 'program' AND program_key IS NOT NULL)
+        OR role = 'program'
     )
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS operators_one_village_role
     ON operators (village_id) WHERE role = 'village';
-CREATE UNIQUE INDEX IF NOT EXISTS operators_one_program_role
-    ON operators (village_id, program_key) WHERE role = 'program';
 
 CREATE INDEX IF NOT EXISTS idx_operators_kakao ON operators(kakao_user_id);
+
+CREATE TABLE IF NOT EXISTS operator_programs (
+    village_id TEXT NOT NULL REFERENCES villages_cache(village_id),
+    program_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    operator_id INTEGER NOT NULL REFERENCES operators(operator_id) ON DELETE CASCADE,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (village_id, program_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_operator_programs_operator ON operator_programs(operator_id);
 
 CREATE TABLE IF NOT EXISTS bookings (
     booking_id SERIAL PRIMARY KEY,
@@ -153,6 +162,7 @@ CREATE TABLE IF NOT EXISTS sync_logs (
 -- RLS: anon/authenticated 기본 거부. FastAPI는 service_role로 우회 접근.
 ALTER TABLE public.villages_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.operators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operator_programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contents ENABLE ROW LEVEL SECURITY;

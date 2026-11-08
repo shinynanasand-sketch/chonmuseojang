@@ -24,6 +24,7 @@ _HIDDEN = {
     "registration_code",
 }
 _CHILD_TABLES = (
+    "operator_programs",
     "village_program_status",
     "program_notes",
     "experience_calendar",
@@ -47,6 +48,7 @@ def _rows(table: str, village_id: str) -> list[dict]:
         "contents": store._contents,
         "village_program_status": store._program_status,
         "program_notes": store._program_notes,
+        "operator_programs": store._operator_programs,
         "experience_calendar": store._calendar,
         "villages_cache": store._villages_cache,
     }[table]
@@ -85,6 +87,7 @@ def _memory_table(table: str) -> list[dict]:
         "contents": store._contents,
         "village_program_status": store._program_status,
         "program_notes": store._program_notes,
+        "operator_programs": store._operator_programs,
         "experience_calendar": store._calendar,
         "villages_cache": store._villages_cache,
     }[table]
@@ -112,6 +115,7 @@ def _clear_operator_links(operator_id: int) -> None:
 
 def _delete_operator(operator_id: int) -> None:
     _clear_operator_links(operator_id)
+    store.delete_operator_programs_for_operator(operator_id)
     client = get_supabase_client()
     if client:
         client.table("operators").delete().eq("operator_id", operator_id).execute()

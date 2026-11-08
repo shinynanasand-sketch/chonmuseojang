@@ -501,11 +501,13 @@ def week_nav_replies(anchor: date) -> list[dict]:
 
 
 def bookings_for_operator_view(operator: dict) -> list[dict]:
-    """마을 운영자는 마을 예약, 체험 담당은 자기 체험 예약만."""
+    """마을 운영자는 마을 예약, 체험 담당은 맡은 체험 예약만."""
+    from services.program_groups import assigned_program_keys
+
     rows = list_bookings_for_village(str(operator.get("village_id") or ""))
     if str(operator.get("role") or "village") == "program":
-        key = str(operator.get("program_key") or "")
-        return [row for row in rows if row.get("program_key") and row.get("program_key") == key]
+        keys = assigned_program_keys(operator)
+        return [row for row in rows if row.get("program_key") and row.get("program_key") in keys]
     return rows
 
 

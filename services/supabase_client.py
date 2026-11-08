@@ -14,6 +14,7 @@ _contents: list[dict] = []
 _content_id_counter = 1
 _program_status: list[dict] = []
 _program_notes: list[dict] = []
+_operator_programs: list[dict] = []
 _calendar: list[dict] = []
 _calendar_id_counter = 1
 _guest_links: list[dict] = []
@@ -452,10 +453,118 @@ def get_village_operator(village_id: str) -> dict | None:
     return None
 
 
+def list_operator_programs(village_id: str) -> list[dict]:
+    if not village_id:
+        return []
+    client = get_supabase_client()
+    if client:
+        result = client.table("operator_programs").select("*").eq("village_id", village_id).execute()
+        return result.data or []
+    return [dict(row) for row in _operator_programs if row.get("village_id") == village_id]
+
+
+def upsert_operator_program(row: dict) -> dict:
+    global _operator_programs
+    client = get_supabase_client()
+    if client:
+        result = (
+            client.table("operator_programs")
+            .upsert(row, on_conflict="village_id,program_key")
+            .execute()
+        )
+        return result.data[0] if result.data else row
+    for existing in _operator_programs:
+        if existing.get("village_id") == row["village_id"] and existing.get("program_key") == row["program_key"]:
+            existing.update(row)
+            return dict(existing)
+    _operator_programs.append(dict(row))
+    return dict(row)
+
+
+def replace_operator_programs(village_id: str, rows: list[dict]) -> None:
+    """마을 배정을 넘긴 줄로 다시 쓴다. 목록에 없는 옛 배정은 지운다."""
+    global _operator_programs
+    client = get_supabase_client()
+    if client:
+        client.table("operator_programs").delete().eq("village_id", village_id).execute()
+        if rows:
+            client.table("operator_programs").insert(rows).execute()
+        return
+    _operator_programs = [row for row in _operator_programs if row.get("village_id") != village_id]
+    _operator_programs.extend(dict(row) for row in rows)
+
+
+def delete_operator_programs_for_operator(operator_id: int) -> None:
+    global _operator_programs
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("operator_programs").delete().eq("operator_id", operator_id).execute()
+        except Exception as exc:
+            if _missing_share_table(exc):
+                return
+            raise
+        return
+    _operator_programs = [row for row in _operator_programs if row.get("operator_id") != operator_id]
+
+
+def delete_operator_programs_for_village(village_id: str) -> None:
+    global _operator_programs
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("operator_programs").delete().eq("village_id", village_id).execute()
+        except Exception as exc:
+            if _missing_share_table(exc):
+                return
+            raise
+        return
+    _operator_programs = [row for row in _operator_programs if row.get("village_id") != village_id]
+
+
+def _assign_registered_program(stored: dict) -> None:
+    """체험 담당 등록은 그 체험 하나를 배정 표에 넣는다."""
+    if (stored.get("role") or "village") != "program":
+        return
+    key = str(stored.get("program_key") or "").strip()
+    village_id = str(stored.get("village_id") or "")
+    operator_id = stored.get("operator_id")
+    if not key or not village_id or operator_id is None:
+        return
+    from datetime import datetime, timezone
+
+    from services.village_programs import program_key, program_labels
+
+    label = key
+    village = _stored_village(village_id) or {}
+    for item in program_labels(village):
+        if program_key(item) == key:
+            label = item
+            break
+    upsert_operator_program(
+        {
+            "village_id": village_id,
+            "program_key": key,
+            "label": label,
+            "operator_id": int(operator_id),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
 def get_program_operator(village_id: str, program_key: str) -> dict | None:
-    for operator in list_operators_for_village(village_id):
-        if operator.get("role") == "program" and operator.get("program_key") == program_key:
+    """체험을 맡은 담당. 배정 표를 보고, 담당 칸의 program_key는 보지 않는다."""
+    for row in list_operator_programs(village_id):
+        if row.get("program_key") != program_key:
+            continue
+        try:
+            operator_id = int(row.get("operator_id"))
+        except (TypeError, ValueError):
+            return None
+        operator = get_operator_by_id(operator_id)
+        if operator and operator.get("role") == "program":
             return operator
+        return None
     return None
 
 
@@ -490,19 +599,37 @@ def insert_operator(row: dict) -> dict:
     saved.setdefault("role", "village")
     if client:
         result = client.table("operators").insert(saved).execute()
-        return result.data[0] if result.data else saved
-    if "operator_id" not in saved:
-        saved["operator_id"] = max((op.get("operator_id") or 0) for op in _operators) + 1
-    _operators.append(saved)
-    return saved
+        stored = result.data[0] if result.data else saved
+    else:
+        if "operator_id" not in saved:
+            saved["operator_id"] = max((op.get("operator_id") or 0) for op in _operators) + 1
+        _operators.append(saved)
+        stored = saved
+    _assign_registered_program(stored)
+    return stored
 
 
 def delete_operator_by_kakao_id(kakao_user_id: str) -> None:
     global _operators
     client = get_supabase_client()
     if client:
+        found = (
+            client.table("operators")
+            .select("operator_id")
+            .eq("kakao_user_id", kakao_user_id)
+            .limit(1)
+            .execute()
+        )
+        if found.data:
+            delete_operator_programs_for_operator(found.data[0]["operator_id"])
         client.table("operators").delete().eq("kakao_user_id", kakao_user_id).execute()
         return
+    operator_id = next(
+        (op.get("operator_id") for op in _operators if op.get("kakao_user_id") == kakao_user_id),
+        None,
+    )
+    if operator_id is not None:
+        delete_operator_programs_for_operator(operator_id)
     _operators = [op for op in _operators if op.get("kakao_user_id") != kakao_user_id]
 
 
@@ -557,11 +684,12 @@ def reset_share_store() -> None:
 
 def reset_memory_store() -> None:
     """테스트용 인메모리 저장소 초기화."""
-    global _client, _villages_cache, _sync_logs
+    global _client, _villages_cache, _sync_logs, _operator_programs
     _client = None
     _clear_recommend_cache()
     _villages_cache = []
     _sync_logs = []
+    _operator_programs = []
     reset_booking_store()
     reset_content_store()
     reset_program_store()
@@ -589,6 +717,7 @@ def _clear_operator_link(client, table: str, column: str, village_id: str) -> No
 def delete_operators_for_village(village_id: str) -> None:
     global _operators
     client = get_supabase_client()
+    delete_operator_programs_for_village(village_id)
     if client:
         client.table("contents").update({"operator_id": None}).eq("village_id", village_id).execute()
         _clear_operator_link(client, "program_notes", "updated_by", village_id)
