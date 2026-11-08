@@ -6,6 +6,7 @@ PUBLIC_PATHS = (
     "/find",
     "/brand",
     "/story",
+    "/story/changes",
     "/recommend",
     "/map",
     "/nearby",

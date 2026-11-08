@@ -21,6 +21,7 @@ from services.auth import register_operator_with_ids
 from services.guide_access import codes_open, guide_rows, issue_unlock_cookie
 from services.program_register_link import claims_from_program_register_token
 from services.village_programs import program_labels, programs_for
+from services.change_summary import change_summary
 from services.calendar_board import (
     answer_booking_change,
     calendar_snapshot,
@@ -127,6 +128,21 @@ async def story_page(request: Request):
             "title": "서비스 이야기·이용 안내",
             "page": "story",
             "kakao_channel_url": KAKAO_CHANNEL_URL,
+            "summary": change_summary(),
+        },
+        _PAGE_CDN,
+    )
+
+
+@router.get("/story/changes", response_class=HTMLResponse)
+async def story_changes_page(request: Request):
+    return _html(
+        request,
+        "story_changes.html",
+        {
+            "title": "주요 변경",
+            "page": "story",
+            "summary": change_summary(),
         },
         _PAGE_CDN,
     )

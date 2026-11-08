@@ -10,6 +10,7 @@
         <li><a href="#why">왜 만들었는가</a></li>
         <li><a href="#direction">어떤 방향을 검토했는가</a></li>
         <li><a href="#response">무엇을 구현했는가</a></li>
+        <li><a href="#changes">주요 변경</a></li>
         <li><a href="#roles">누가 사용하는가</a></li>
         <li><a href="#usage">어떻게 사용하는가</a></li>
         <li><a href="#start">이용·시연 안내</a></li>
@@ -100,6 +101,25 @@
       </div>
       <nav class="step-pager" aria-label="이전과 다음 안내">
         <a class="step-prev" href="#direction">이전</a>
+        <a class="step-next" href="#changes">다음 · 주요 변경</a>
+      </nav>
+    </section>
+
+    <section id="changes" class="section" aria-labelledby="changes-title">
+      <p class="eyebrow">현장에서 요청한 변경과 서비스의 큰 변경</p>
+      <h2 id="changes-title">주요 변경을 건수와 함께 본다.</h2>
+      <p class="section-description">같은 변경은 묶어 건수만 보여 주고, 줄마다의 기록은 따로 연다.</p>
+      <ul class="change-counts">
+        <li>전체 {{ summary.total }}건</li>
+        <li>적용 {{ summary.applied }}건</li>
+        <li>적용하지 않음 {{ summary.not_applied }}건</li>
+      </ul>
+      <div class="usage-actions">
+        <a class="text-link" href="/story/changes">주요 변경 요약</a>
+        <a class="text-link" href="/guide/name-requests">현장 변경 기록</a>
+      </div>
+      <nav class="step-pager" aria-label="이전과 다음 안내">
+        <a class="step-prev" href="#response">이전</a>
         <a class="step-next" href="#roles">다음 · 누가 사용하는가</a>
       </nav>
     </section>
@@ -144,7 +164,7 @@
         </article>
       </div>
       <nav class="step-pager" aria-label="이전과 다음 안내">
-        <a class="step-prev" href="#response">이전</a>
+        <a class="step-prev" href="#changes">이전</a>
         <a class="step-next" href="#usage">다음 · 어떻게 사용하는가</a>
       </nav>
     </section>
@@ -256,7 +276,7 @@
 {% block scripts %}
 <script>
 (function () {
-  var ids = ["why", "direction", "response", "roles", "usage", "start"];
+  var ids = ["why", "direction", "response", "changes", "roles", "usage", "start"];
   var pathIds = ["usage-guest", "usage-operator"];
 
   function hashId() {

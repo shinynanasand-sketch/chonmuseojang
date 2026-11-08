@@ -254,6 +254,7 @@ h3 {
 .guide-screen:has(#why:target) .section-links a[href="#why"],
 .guide-screen:has(#direction:target) .section-links a[href="#direction"],
 .guide-screen:has(#response:target) .section-links a[href="#response"],
+.guide-screen:has(#changes:target) .section-links a[href="#changes"],
 .guide-screen:has(#roles:target) .section-links a[href="#roles"],
 .guide-screen:has(#usage:target) .section-links a[href="#usage"],
 .guide-screen:has(#usage-guest:target) .section-links a[href="#usage"],
@@ -592,6 +593,56 @@ h3 {
 .validation-note strong {
   color: var(--green);
 }
+
+.change-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change-counts li {
+  min-height: 42px;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.change-screen { padding: 28px 0 64px; }
+
+.change-screen h2 { margin-top: 36px; }
+
+.change-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.change-card {
+  padding: 22px 24px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+}
+
+.change-card .number {
+  margin: 0;
+  color: var(--green);
+}
+
+.change-card p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.change-card .text-link { margin-top: 8px; }
 
 .bottom-grid {
   display: grid;
