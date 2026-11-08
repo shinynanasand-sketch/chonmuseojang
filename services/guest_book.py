@@ -150,8 +150,10 @@ def save_guest_booking(
         return {"ok": False, "reason": "bad_format"}
     clock = _clock(visit_time)
     group = " ".join(str(group_name or "").split())
-    if count < 1 or not clock or not group:
+    if count < 1 or not clock:
         return {"ok": False, "reason": "bad_format"}
+    if not group:
+        return {"ok": False, "reason": "group_missing"}
     wanted = program_key(label)
     canonical = next(
         (name for name in bookable_names(village) if program_key(name) == wanted),

@@ -213,6 +213,8 @@ def _calendar_result(result: dict):
         raise HTTPException(status_code=400, detail="이 일정 변경은 이미 끝났습니다.")
     if reason == "bad_decision":
         raise HTTPException(status_code=400, detail="변경 승인 또는 변경 거부를 선택해 주세요.")
+    if reason == "group_missing":
+        raise HTTPException(status_code=400, detail="단체 이름이 없으면 없음을 입력해 주세요.")
     raise HTTPException(status_code=400, detail="체험 이름, 날짜, 단체, 인원을 확인해 주세요.")
 
 

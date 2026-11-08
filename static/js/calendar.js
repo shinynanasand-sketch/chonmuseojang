@@ -467,11 +467,20 @@ async function removeEntry(row) {
 
 guestProgram.addEventListener("change", showGuestTotal);
 document.getElementById("guest-people").addEventListener("input", showGuestTotal);
+document.getElementById("group-name").addEventListener("invalid", (event) => {
+  event.preventDefault();
+  statusNode.textContent = "단체 이름이 없으면 없음을 입력해 주세요.";
+});
 
 guestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!selected) {
     statusNode.textContent = "날짜를 먼저 눌러 주세요.";
+    return;
+  }
+  const groupName = document.getElementById("group-name").value.trim();
+  if (!groupName) {
+    statusNode.textContent = "단체 이름이 없으면 없음을 입력해 주세요.";
     return;
   }
   const response = await fetch(`/api/book/${token}`, {
@@ -482,11 +491,12 @@ guestForm.addEventListener("submit", async (event) => {
       visit_date: selected,
       visit_time: document.getElementById("visit-time").value,
       num_people: Number(document.getElementById("guest-people").value),
-      group_name: document.getElementById("group-name").value,
+      group_name: groupName,
     }),
   });
   if (!response.ok) {
-    statusNode.textContent = "예약하지 못했습니다.";
+    const failed = await response.json().catch(() => ({}));
+    statusNode.textContent = failed.detail || "예약하지 못했습니다.";
     return;
   }
   const saved = await response.json();
