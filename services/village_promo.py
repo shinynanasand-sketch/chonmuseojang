@@ -49,9 +49,17 @@ def public_village_promo(village_id: str) -> dict | None:
     }
 
 
+def _menu_item(village_id: str, village: dict) -> dict:
+    return {
+        "village_id": village_id,
+        "village_name": village.get("village_name") or village_id,
+        "sigungu": village.get("sigungu") or "",
+    }
+
+
 def list_published_villages() -> list[dict]:
-    """공개된 소개글·SNS가 있는 마을만. 예시 마을도 공개했으면 포함한다."""
-    from services.village_name_requests import present_village
+    """공개된 소개글·SNS가 있는 마을. 화면 이름을 요청한 마을은 소개글이 없어도 포함한다."""
+    from services.village_name_requests import NAME_REQUESTS, present_village
 
     by_id = {row.get("village_id"): present_village(row) for row in list_villages()}
     grouped: dict[str, list[dict]] = {}
@@ -60,6 +68,7 @@ def list_published_villages() -> list[dict]:
         if village_id:
             grouped.setdefault(village_id, []).append(row)
     items = []
+    seen: set[str] = set()
     for village_id, rows in grouped.items():
         village = by_id.get(village_id)
         if not village:
@@ -69,13 +78,16 @@ def list_published_villages() -> list[dict]:
         sns = str(latest.get(_SNS, {}).get("body") or "").strip()
         if not intro and not sns:
             continue
-        items.append(
-            {
-                "village_id": village_id,
-                "village_name": village.get("village_name") or village_id,
-                "sigungu": village.get("sigungu") or "",
-            }
-        )
+        seen.add(village_id)
+        items.append(_menu_item(village_id, village))
+    for request in NAME_REQUESTS:
+        village_id = str(request.get("village_id") or "")
+        if not village_id or village_id in seen:
+            continue
+        village = by_id.get(village_id)
+        if not village:
+            continue
+        items.append(_menu_item(village_id, village))
     items.sort(key=lambda item: item["village_name"])
     return items
 

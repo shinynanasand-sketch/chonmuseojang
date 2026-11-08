@@ -28,6 +28,37 @@ def _store_doseon() -> None:
     )
 
 
+def test_villages_menu_lists_requested_name_without_public_copy(test_client):
+    _store_doseon()
+
+    page = test_client.get("/villages")
+    assert page.status_code == 200
+    assert page.text.count(f'href="/village/{_VILLAGE_ID}"') == 1
+    assert _REQUESTED in page.text
+    assert "광양시" in page.text
+    assert _OFFICIAL not in page.text
+
+
+def test_villages_menu_lists_requested_name_once_when_copy_is_public(test_client):
+    from services.supabase_client import insert_content
+
+    _store_doseon()
+    insert_content(
+        {
+            "village_id": _VILLAGE_ID,
+            "content_type": "소개글",
+            "body": "이미 쓴 도선국사 소개",
+            "is_public": True,
+        }
+    )
+
+    page = test_client.get("/villages")
+    assert page.text.count(f'href="/village/{_VILLAGE_ID}"') == 1
+    assert _REQUESTED in page.text
+    detail = test_client.get(f"/village/{_VILLAGE_ID}")
+    assert "이미 쓴 도선국사 소개" in detail.text
+
+
 def test_public_surfaces_show_requested_name_and_keep_stored_name(test_client):
     _store_doseon()
 
