@@ -78,4 +78,4 @@ def test_privacy_page_explains_kakao_id_storage(test_client):
     assert "카카오 사용자 ID" in page.text
     assert "https://pf.kakao.com/_RgZaX" in page.text
     assert "customer_kakao_id" not in page.text
-    assert 'href="/privacy"' in test_client.get("/").text
+    assert 'href="/privacy"' in test_client.get("/home").text

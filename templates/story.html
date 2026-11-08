@@ -104,13 +104,13 @@
           <p>추천, 지도, 주변정보, 마을 소개에서 마을을 찾는다. 예약 달력은 카카오 말풍선 메뉴로 이어진다.{% if presentation_mode %} 화면에서 보려면 시연 1번을 연다.{% endif %}</p>
           <nav aria-label="체험객 메뉴">
             <ul class="role-links">
-              <li><a href="/">홈</a></li>
+              <li><a href="/home">홈</a></li>
               <li><a href="/recommend">AI 추천</a></li>
               <li><a href="/map">지도</a></li>
               <li><a href="/nearby">주변정보</a></li>
               <li><a href="/villages">마을 소개</a></li>
               {% if presentation_mode %}
-              <li><a href="/#demo-step-1">예약 달력 시연</a></li>
+              <li><a href="/home#demo-step-1">예약 달력 시연</a></li>
               {% endif %}
             </ul>
           </nav>
@@ -125,8 +125,8 @@
               <li><a href="/operator">내 마을</a></li>
               <li><a href="/guide/use">사용 안내</a></li>
               {% if presentation_mode %}
-              <li><a href="/#demo-step-4">승인 달력 시연</a></li>
-              <li><a href="/#demo-step-5">체험 담당 시연</a></li>
+              <li><a href="/home#demo-step-4">승인 달력 시연</a></li>
+              <li><a href="/home#demo-step-5">체험 담당 시연</a></li>
               {% endif %}
             </ul>
           </nav>
@@ -181,7 +181,7 @@
           <h2>실제 이용 과정은 시연에서.</h2>
           <p>말풍선 메뉴, 기존 달력, 예약 관리와 사진 홍보의 상세한 흐름은 기존 시연으로 안내한다.</p>
           {% if presentation_mode %}
-          <a class="text-link" href="/#demo">시연에서 이용 과정 보기</a>
+          <a class="text-link" href="/home#demo">시연에서 이용 과정 보기</a>
           {% endif %}
         </article>
       </div>

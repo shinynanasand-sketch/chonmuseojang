@@ -2,7 +2,7 @@ import time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
 from config import CRON_SECRET, KAKAO_CHANNEL_URL
 from models.schemas import RecommendRequest
@@ -73,7 +73,16 @@ def robots():
     return PlainTextResponse(robots_txt(), headers=_PAGE_CDN)
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/")
+async def root():
+    return RedirectResponse(
+        "/brand",
+        status_code=302,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/home", response_class=HTMLResponse)
 async def home(request: Request):
     context = {"title": "체험마을 AI사무장", "kakao_guide": home_kakao_guide()}
     if request.app.state.templates.env.globals.get("presentation_mode"):

@@ -2,7 +2,7 @@
 
 SITE_ORIGIN = "https://chonmuseojang.vercel.app"
 PUBLIC_PATHS = (
-    "/",
+    "/home",
     "/brand",
     "/story",
     "/recommend",
@@ -20,7 +20,7 @@ def sitemap_xml() -> str:
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for path in PUBLIC_PATHS:
-        loc = SITE_ORIGIN if path == "/" else f"{SITE_ORIGIN}{path}"
+        loc = f"{SITE_ORIGIN}{path}"
         lines.append(f"  <url><loc>{loc}</loc></url>")
     lines.append("</urlset>")
     return "\n".join(lines) + "\n"

@@ -179,7 +179,7 @@ def test_operator_dashboard_counts_own_status_and_rating(test_client):
 
 
 def test_home_nav_omits_operations_link(test_client):
-    html = test_client.get("/").text
+    html = test_client.get("/home").text
     assert "운영현황" not in html
     assert 'href="/dashboard"' not in html
 

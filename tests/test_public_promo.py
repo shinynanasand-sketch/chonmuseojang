@@ -148,7 +148,7 @@ def test_recommend_and_map_link_to_village_page(test_client):
 
 
 def test_home_exposes_naver_verification_and_public_sitemap(test_client):
-    page = test_client.get("/")
+    page = test_client.get("/home")
     assert page.status_code == 200
     assert 'name="naver-site-verification"' in page.text
     assert "bf6009ea39af06737f3b4647a7e8a848b21a4bf0" in page.text
@@ -169,7 +169,7 @@ def test_home_exposes_naver_verification_and_public_sitemap(test_client):
 
 
 def test_home_links_to_village_page(test_client):
-    page = test_client.get("/")
+    page = test_client.get("/home")
     assert page.status_code == 200
     assert page.headers["cache-control"].startswith("public, max-age=0, s-maxage=15")
     assert "/village/" in page.text
@@ -218,7 +218,7 @@ def test_home_kakao_guide_lists_only_village_operators(test_client):
         }
     )
 
-    page = test_client.get("/")
+    page = test_client.get("/home")
     assert page.status_code == 200
     text = page.text
     assert "돌담마을" in text
@@ -255,7 +255,7 @@ def test_home_kakao_guide_omits_demo_villages(test_client):
             "is_active": True,
         }
     )
-    page = test_client.get("/")
+    page = test_client.get("/home")
     assert page.status_code == 200
     assert "도선국사체험마을영농조합법인" in page.text
     assert "광양시" in page.text
@@ -400,10 +400,10 @@ def _assert_role_menus(text: str) -> None:
 
 def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch):
     _presentation(monkeypatch, True)
-    text = test_client.get("/").text
+    text = test_client.get("/home").text
     _assert_role_menus(text)
     assert 'id="demo"' in text
-    assert 'href="/#demo"' in text
+    assert 'href="/home#demo"' in text
     assert "시연 순서" in text
     assert "카카오에서 하고, 웹에서 확인합니다." in text
     assert "카카오에 넣는 문장" in text
@@ -476,10 +476,10 @@ def test_home_shows_demo_tracks_when_presentation_is_on(test_client, monkeypatch
 
 def test_home_hides_demo_tracks_when_presentation_is_off(test_client, monkeypatch):
     _presentation(monkeypatch, False)
-    text = test_client.get("/").text
+    text = test_client.get("/home").text
     _assert_role_menus(text)
     assert 'id="demo"' not in text
-    assert 'href="/#demo"' not in text
+    assert 'href="/home#demo"' not in text
     assert "시연 순서" not in text
     assert "체험객 예약" not in text
     assert "demo-num" not in text
@@ -548,7 +548,7 @@ def test_presentation_board_uses_the_connected_village(test_client, monkeypatch)
     _content("VK-BOARD", "소개글", "비밀 소개 초안", photo_url="https://example.test/board.jpg")
 
     _presentation(monkeypatch, True)
-    text = test_client.get("/").text
+    text = test_client.get("/home").text
     assert 'data-copy="예약하기 돌담시연마을"' in text
     assert "돌담시연마을 해남군. 달력에서 체험, 날짜, 시간을 고릅니다." in text
     assert "달력으로 예약" in text
@@ -576,7 +576,7 @@ def test_presentation_board_uses_the_connected_village(test_client, monkeypatch)
         assert secret not in text
 
     _presentation(monkeypatch, False)
-    hidden = test_client.get("/").text
+    hidden = test_client.get("/home").text
     assert 'data-copy="예약하기 돌담시연마을"' not in hidden
     assert "달력에서 체험, 날짜, 시간을 고릅니다." not in hidden
     assert "카카오에 넣는 문장" not in hidden
@@ -609,7 +609,7 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     )
     monkeypatch.setenv("PRESENTATION_CALENDAR_PASSWORD", "demo-pass")
     _presentation(monkeypatch, True)
-    page = test_client.get("/").text
+    page = test_client.get("/home").text
     assert 'id="demo-calendar"' in page
     assert 'id="demo-book"' in page
     assert 'id="demo-book-frame"' in page
@@ -697,4 +697,4 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert hidden.status_code == 404
     assert "/book/" not in hidden.text
     assert "/calendar/" not in hidden.text
-    assert 'id="demo-calendar"' not in test_client.get("/").text
+    assert 'id="demo-calendar"' not in test_client.get("/home").text

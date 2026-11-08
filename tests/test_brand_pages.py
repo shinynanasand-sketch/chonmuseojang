@@ -27,7 +27,7 @@ def test_brand_page_keeps_copy_image_and_channel(test_client):
     assert "익숙한 카카오에서" in text
     assert "왜 만들었는지 알아보기" in text
     assert 'href="/story"' in text
-    assert 'href="/"' in text
+    assert 'href="/home"' in text
     assert _KAKAO in text
     assert 'target="_blank"' in text
     assert 'rel="noopener noreferrer"' in text
@@ -47,7 +47,7 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "<title>서비스 이야기·이용 안내 - 체험마을 AI사무장</title>" in text
     assert 'href="/brand"' in text
     assert _KAKAO in text
-    assert 'href="/#demo"' in text
+    assert 'href="/home#demo"' in text
     order = ["why", "direction", "response", "roles", "usage", "start"]
     positions = [text.index(f'id="{section}"') for section in order]
     assert positions == sorted(positions)
@@ -58,16 +58,16 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "기존 권한과 진입 경로에 따라" in text
     roles = text[text.index('id="roles"'):text.index('id="usage"')]
     for href in (
-        "/",
+        "/home",
         "/recommend",
         "/map",
         "/nearby",
         "/villages",
         "/operator",
         "/guide/use",
-        "/#demo-step-1",
-        "/#demo-step-4",
-        "/#demo-step-5",
+        "/home#demo-step-1",
+        "/home#demo-step-4",
+        "/home#demo-step-5",
     ):
         assert f'href="{href}"' in roles
     assert "체험 담당은 같은 마을 일정을 보고" in roles
@@ -80,19 +80,28 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
 def test_story_hides_demo_link_when_presentation_is_off(test_client, monkeypatch):
     _presentation(monkeypatch, False)
     text = test_client.get("/story").text
-    assert 'href="/#demo"' not in text
-    assert 'href="/#demo-step-1"' not in text
-    assert 'href="/#demo-step-4"' not in text
-    assert 'href="/#demo-step-5"' not in text
+    assert 'href="/home#demo"' not in text
+    assert 'href="/home#demo-step-1"' not in text
+    assert 'href="/home#demo-step-4"' not in text
+    assert 'href="/home#demo-step-5"' not in text
     assert 'href="/operator"' in text
     assert 'href="/guide/use"' in text
     assert "실제 이용 과정은 시연에서." in text
     assert _KAKAO in text
 
 
+def test_root_opens_brand_page(test_client):
+    redirect = test_client.get("/", follow_redirects=False)
+    assert redirect.status_code == 302
+    assert redirect.headers["location"] == "/brand"
+    page = test_client.get("/")
+    assert page.status_code == 200
+    assert "익숙한 카카오에서" in page.text
+
+
 def test_home_stays_on_its_own_stylesheet(test_client, monkeypatch):
     _presentation(monkeypatch, True)
-    home = test_client.get("/")
+    home = test_client.get("/home")
     assert home.status_code == 200
     assert "/static/css/style.css" in home.text
     assert "/static/css/brand.css" not in home.text
@@ -108,6 +117,7 @@ def test_home_stays_on_its_own_stylesheet(test_client, monkeypatch):
     assert 'href="/brand"' in home.text
     assert 'href="/story"' in home.text
     sitemap = test_client.get("/sitemap.xml").text
+    assert "https://chonmuseojang.vercel.app/home" in sitemap
     assert "https://chonmuseojang.vercel.app/brand" in sitemap
     assert "https://chonmuseojang.vercel.app/story" in sitemap
     assert "/operator" not in sitemap

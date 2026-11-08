@@ -32,8 +32,14 @@ def main() -> int:
     sync_village_data(use_demo_fallback=True)
     all_ok = True
 
-    r = client.get("/")
-    all_ok &= check("홈 화면 GET /", r.status_code == 200)
+    r = client.get("/", follow_redirects=False)
+    all_ok &= check(
+        "시작 화면 GET /",
+        r.status_code == 302 and r.headers.get("location") == "/brand",
+    )
+
+    r = client.get("/home")
+    all_ok &= check("홈 화면 GET /home", r.status_code == 200)
 
     r = client.get("/api/villages")
     all_ok &= check("마을 목록 GET /api/villages", r.status_code == 200 and "villages" in r.json())
