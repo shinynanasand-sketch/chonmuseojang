@@ -6,6 +6,7 @@
 from datetime import datetime, timezone
 
 from services.supabase_client import (
+    _stored_village,
     get_village_by_id,
     list_operator_programs,
     list_operators_for_village,
@@ -51,6 +52,22 @@ def _program_operators(village_id: str) -> list[dict]:
     ]
 
 
+def choice_label(operator_name: str, village_name: str) -> str:
+    """선택 상자용 이름. 마을 저장 이름이 앞에 있을 때만 뺀다."""
+    name = " ".join(str(operator_name or "").split())
+    prefix = " ".join(str(village_name or "").split())
+    if prefix and name.startswith(prefix + " "):
+        short = name[len(prefix) :].strip()
+        if short:
+            return short
+    return name or "담당"
+
+
+def _stored_name(village_id: str) -> str:
+    row = _stored_village(village_id) or {}
+    return str(row.get("village_name") or "").strip()
+
+
 def program_group_snapshot(village_id: str) -> dict:
     """현재 체험 목록과 담당 배정. 목록에서 빠진 체험은 stale에 둔다."""
     village = get_village_by_id(village_id) or {}
@@ -87,12 +104,14 @@ def program_group_snapshot(village_id: str) -> dict:
         )
     unassigned = sum(1 for row in programs if row["operator_id"] is None)
     assigned_count = len(programs) - unassigned
+    stored_name = _stored_name(village_id)
     return {
         "programs": programs,
         "operators": [
             {
                 "operator_id": _operator_id(operator.get("operator_id")),
                 "operator_name": operator.get("operator_name") or "",
+                "option_label": choice_label(operator.get("operator_name") or "", stored_name),
             }
             for operator in operators
         ],

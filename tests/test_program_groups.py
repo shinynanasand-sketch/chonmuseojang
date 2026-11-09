@@ -240,5 +240,72 @@ def test_operator_page_offers_the_group_board(test_client):
     page = test_client.get("/operator").text
     assert "<h2>체험 담당</h2>" in page
     assert "아직 담당 없음" in page
+    assert "option_label" in page
+    assert 'board.append(groupCard("아직 담당 없음"' in page
     assert "비어 있는 체험으로 카카오에서 담당을 등록한 뒤 여기서 옮기세요." in page
     assert "체험 목록이 바뀌었습니다. 담당을 다시 묶고 저장하세요." in page
+    css = test_client.get("/static/css/style.css").text
+    assert ".group-board { display: grid; grid-template-columns: minmax(0, 1fr);" in css
+    assert ".group-row select { max-width: 11rem; }" not in css
+
+
+def test_group_board_lists_every_program_in_one_village(test_client):
+    village_id = "PDeac2fe424e02"
+    stored = "도선국사체험마을영농조합법인"
+    program_name = (
+        "감수확+전통손두부만들기+천연염색(손수건)"
+        "+천연염색(사각스카프감+쪽염색)+감자수확"
+    )
+    _put_village(village_id, stored, "DS-001", program_name)
+    assert register_operator("doseon_owner", f"등록 {stored} DS-001")["ok"] is True
+    insert_operator(
+        {
+            "kakao_user_id": "tofu_owner",
+            "village_id": village_id,
+            "role": "program",
+            "program_key": program_key("전통손두부만들기"),
+            "operator_name": f"{stored} 전통손두부만들기 담당",
+            "is_active": True,
+        }
+    )
+    insert_operator(
+        {
+            "kakao_user_id": "dye_owner",
+            "village_id": village_id,
+            "role": "program",
+            "program_key": program_key("천연염색(손수건)"),
+            "operator_name": "손수건 담당",
+            "is_active": True,
+        }
+    )
+    set_operator_login_id(village_id, "doseon_web")
+    try:
+        opened = test_client.get(
+            "/api/operator/program-groups",
+            headers=operator_headers("doseon_web"),
+        )
+        assert opened.status_code == 200
+        body = opened.json()
+        labels = [row["label"] for row in body["programs"]]
+        assert labels == [
+            "감수확",
+            "전통손두부만들기",
+            "천연염색(손수건)",
+            "천연염색(사각스카프감+쪽염색)",
+            "감자수확",
+            "천연염색(에코백)",
+            "천연염색(크로스백)",
+            "천연염색(삼각스카프-일반)",
+        ]
+        unassigned = [row["label"] for row in body["programs"] if row["operator_id"] is None]
+        assert "감자수확" in unassigned
+        assert "천연염색(에코백)" in unassigned
+        assert "전통손두부만들기" not in unassigned
+        assert body["counts"]["programs"] == len(labels)
+        assert body["counts"]["unassigned"] == len(unassigned)
+        by_name = {row["operator_name"]: row["option_label"] for row in body["operators"]}
+        assert by_name[f"{stored} 전통손두부만들기 담당"] == "전통손두부만들기 담당"
+        assert by_name["손수건 담당"] == "손수건 담당"
+    finally:
+        for user_id in ("doseon_owner", "tofu_owner", "dye_owner"):
+            delete_operator_by_kakao_id(user_id)

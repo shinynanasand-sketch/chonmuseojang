@@ -582,7 +582,7 @@ function groupCard(title, programs, operators) {
     operators.forEach((operator) => {
       const option = document.createElement("option");
       option.value = String(operator.operator_id);
-      option.textContent = operator.operator_name || "담당";
+      option.textContent = operator.option_label || operator.operator_name || "담당";
       select.append(option);
     });
     select.value = program.operator_id == null ? "" : String(program.operator_id);

@@ -65,9 +65,11 @@ select, input[type="search"], input[type="text"], input[type="password"] { paddi
 #booking-list, #review-list, #content-list { display: grid; gap: 0.75rem; }
 .place-body h3, .village-card h3 { margin: 0.35rem 0; font-size: 1rem; }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; margin: 0.75rem 0 1rem; }
-.group-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; align-items: start; }
-.group-row { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; margin: 0.4rem 0; }
-.group-row select { max-width: 11rem; }
+.group-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+.group-board > .village-card { min-width: 0; }
+.group-board h3, .group-row span { overflow-wrap: anywhere; }
+.group-row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; margin: 0.4rem 0; }
+.group-row select { flex: 0 1 16rem; width: 16rem; max-width: 100%; }
 .stat-card { border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem; background: #fff; }
 .stat-card strong { display: block; font-size: 1.4rem; }
 .popup-meta { margin: 0.35rem 0; }
