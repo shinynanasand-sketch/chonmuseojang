@@ -167,6 +167,45 @@ def role_quick_reply(user_id: str) -> dict | None:
     return {"label": "시연 역할", "action": "webLink", "webLinkUrl": role_page_url(user_id)}
 
 
+_ROLE_LABELS = {"guest": "체험객", "village": "사무장", "program": "체험 담당"}
+_OPERATOR_BUTTONS = {"예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진", "체험 글 저장"}
+
+
+def role_card_description(user_id: str) -> str:
+    """고른 역할이 있으면 카드에 그 이름을 적는다."""
+    label = _ROLE_LABELS.get(persona_of(user_id) or "")
+    if not label:
+        return "체험객, 사무장, 체험 담당을 바꿉니다."
+    return f"지금 역할은 {label}입니다."
+
+
+def chosen_role_reply(user_id: str, utterance: str) -> str | None:
+    """다른 역할의 버튼이면 고른 역할 문장. 고르지 않았으면 기존 답을 둔다."""
+    persona = persona_of(user_id)
+    if persona not in _PERSONAS:
+        return None
+    text = " ".join((utterance or "").split())
+    if persona in {"village", "program"} and _tourist_button(text):
+        return persona_message(user_id, persona)
+    if persona == "guest" and _operator_button(text):
+        return "지금은 체험객입니다. 예약하기와 내 예약을 씁니다."
+    return None
+
+
+def _tourist_button(text: str) -> bool:
+    if text in {"예약하기", "내 예약", "후기 보기"}:
+        return True
+    return text.startswith("예약하기 ") or text.startswith("후기 보기 ")
+
+
+def _operator_button(text: str) -> bool:
+    if text in _OPERATOR_BUTTONS:
+        return True
+    from services.booking import is_week_status_utterance
+
+    return is_week_status_utterance(text)
+
+
 def session_from_token(token: str) -> dict | None:
     if not _presentation_on():
         return None

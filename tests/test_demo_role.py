@@ -85,6 +85,38 @@ def test_role_switch_changes_buttons_without_replacing_the_operator(test_client)
     assert _labels(manager)[0] == "이전 주" or _labels(manager)[0] == "예약 현황 조회"
 
 
+def _role_card(response) -> dict:
+    for output in response.json()["template"]["outputs"]:
+        card = output.get("basicCard") or {}
+        if card.get("title") == "시연 역할":
+            return card
+    return {}
+
+
+def test_chosen_manager_my_bookings_keeps_manager_buttons(test_client):
+    assert set_demo_persona("kakao_owner_v001", "village") is True
+    response = test_client.post(
+        "/kakao/ask",
+        json=_ask("kakao_owner_v001", "내 예약", "내 예약"),
+    )
+    assert "사무장으로 바꿨습니다. 예약 현황, 달력, 홍보 사진을 씁니다." in response.text
+    assert "내 예약" not in response.text
+    assert _labels(response)[:4] == ["예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진"]
+    assert _role_card(response)["description"] == "지금 역할은 사무장입니다."
+
+
+def test_chosen_guest_status_names_the_current_role(test_client):
+    assert set_demo_persona("kakao_owner_v001", "guest") is True
+    response = test_client.post(
+        "/kakao/ask",
+        json=_ask("kakao_owner_v001", "예약 현황 조회", "예약 현황 조회"),
+    )
+    assert "지금은 체험객입니다. 예약하기와 내 예약을 씁니다." in response.text
+    assert "운영자는 등록" not in response.text
+    assert _labels(response)[:4] == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert _role_card(response)["description"] == "지금 역할은 체험객입니다."
+
+
 def test_demo_staff_can_take_several_programs_and_one_can_stop():
     upsert_villages(
         [

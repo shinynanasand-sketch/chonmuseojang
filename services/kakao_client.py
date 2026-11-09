@@ -258,11 +258,13 @@ def post_skill_callback(url: str, body: dict) -> None:
 
 def attach_role_card(body: dict) -> dict:
     """시연 역할은 말풍선 버튼으로 둔다. 바로연결의 웹 주소는 칩 전체를 지운다."""
-    from services.demo_role import role_quick_reply
+    from services.demo_role import role_card_description, role_quick_reply
 
-    button = role_quick_reply(_reply_user_id.get())
+    user_id = _reply_user_id.get()
+    button = role_quick_reply(user_id)
     if not button:
         return body
+    description = role_card_description(user_id)
     template = body.get("template")
     if not isinstance(template, dict):
         return body
@@ -276,7 +278,7 @@ def attach_role_card(body: dict) -> dict:
             {
                 "basicCard": {
                     "title": "시연 역할",
-                    "description": "체험객, 사무장, 체험 담당을 바꿉니다.",
+                    "description": description,
                     "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
                     "buttons": [button],
                 }

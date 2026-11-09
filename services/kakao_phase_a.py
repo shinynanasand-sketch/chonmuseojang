@@ -140,6 +140,11 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     name = (payload.intent.name or "").strip()
     if utterance in {"등록 안내", "사용 안내"} or name in {"등록 안내", "사용 안내"}:
         return guide_skill_response(utterance if utterance in {"등록 안내", "사용 안내"} else name)
+    from services.demo_role import chosen_role_reply
+
+    notice = chosen_role_reply(user_id, utterance or name)
+    if notice:
+        return build_skill_response("시연 역할", notice)
     menu = _tourist_menu(user_id, utterance)
     if menu is not None:
         return menu
