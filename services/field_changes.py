@@ -234,4 +234,13 @@ def guide_rows() -> list[dict]:
             True,
         )
     )
+    rows.append(
+        _row(
+            "내 마을",
+            "체험 묶음",
+            "담당 카드에서 체험을 찾아 더한다.",
+            "입력한 이름과 맞는 담당 없는 체험을 그 담당에게 붙입니다. 빼면 담당 없음으로 돌아갑니다.",
+            True,
+        )
+    )
     return rows

@@ -67,9 +67,13 @@ select, input[type="search"], input[type="text"], input[type="password"] { paddi
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; margin: 0.75rem 0 1rem; }
 .group-board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; align-items: start; }
 .group-board > .village-card { min-width: 0; }
-.group-board h3, .group-row span { overflow-wrap: anywhere; }
+.group-board h3, .group-row span, .group-names li, .group-matches button { overflow-wrap: anywhere; }
 .group-row { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; margin: 0.4rem 0; }
-.group-row select { flex: 0 1 16rem; width: 16rem; max-width: 100%; }
+.group-names { margin: 0.4rem 0 0; padding: 0; list-style: none; }
+.group-names li { margin: 0.25rem 0; }
+.group-find, .group-add label { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.75rem; }
+.group-find input, .group-add input { width: 100%; max-width: 20rem; box-sizing: border-box; }
+.group-matches { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: 0.4rem; }
 .stat-card { border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem; background: #fff; }
 .stat-card strong { display: block; font-size: 1.4rem; }
 .popup-meta { margin: 0.35rem 0; }

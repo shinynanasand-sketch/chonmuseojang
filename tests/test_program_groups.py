@@ -240,13 +240,17 @@ def test_operator_page_offers_the_group_board(test_client):
     page = test_client.get("/operator").text
     assert "<h2>체험 담당</h2>" in page
     assert "아직 담당 없음" in page
-    assert "option_label" in page
-    assert 'board.append(groupCard("아직 담당 없음"' in page
+    assert "체험 추가" in page
+    assert "빼기" in page
+    assert "체험 찾기" in page
+    assert "담당 없음" not in page.split("아직 담당 없음", 1)[-1]
+    assert "option_label" not in page
     assert "비어 있는 체험으로 카카오에서 담당을 등록한 뒤 여기서 옮기세요." in page
     assert "체험 목록이 바뀌었습니다. 담당을 다시 묶고 저장하세요." in page
     css = test_client.get("/static/css/style.css").text
     assert ".group-board { display: grid; grid-template-columns: minmax(0, 1fr);" in css
-    assert ".group-row select { max-width: 11rem; }" not in css
+    assert ".group-add label" in css
+    assert ".group-row select" not in css
 
 
 def test_group_board_lists_every_program_in_one_village(test_client):

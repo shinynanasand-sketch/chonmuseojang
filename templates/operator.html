@@ -536,9 +536,7 @@ async function toggleProgram(label, isOperating) {
 let groupState = null;
 
 function groupsChanged(data) {
-  const programs = data.programs || [];
-  const unassigned = programs.filter((program) => program.operator_id == null).length;
-  return (data.stale || []).length > 0 || (unassigned > 0 && unassigned < programs.length);
+  return (data.stale || []).length > 0;
 }
 
 function moveProgram(programKey, operatorId) {
@@ -552,44 +550,120 @@ function moveProgram(programKey, operatorId) {
   renderGroups(groupState);
 }
 
-function groupCard(title, programs, operators) {
-  const card = document.createElement("article");
-  card.className = "village-card";
+function programName(program) {
+  return program.label || "";
+}
+
+function cardHeading(card, title, total) {
   const heading = document.createElement("h3");
   heading.textContent = title;
   const count = document.createElement("p");
   count.className = "muted";
-  count.textContent = `체험 ${programs.length}개`;
+  count.textContent = `체험 ${total}개`;
   card.append(heading, count);
+}
+
+function mutedLine(text) {
+  const line = document.createElement("p");
+  line.className = "muted";
+  line.textContent = text;
+  return line;
+}
+
+function nameList(programs, query) {
+  const list = document.createElement("ul");
+  list.className = "group-names";
+  const needle = query.trim();
+  const shown = programs.filter((program) => !needle || programName(program).includes(needle));
+  if (!shown.length) {
+    return mutedLine("맞는 체험이 없습니다.");
+  }
+  shown.forEach((program) => {
+    const item = document.createElement("li");
+    item.textContent = programName(program);
+    list.append(item);
+  });
+  return list;
+}
+
+function unassignedCard(programs) {
+  const card = document.createElement("article");
+  card.className = "village-card";
+  cardHeading(card, "아직 담당 없음", programs.length);
   if (!programs.length) {
-    const empty = document.createElement("p");
-    empty.className = "muted";
-    empty.textContent = title === "아직 담당 없음" ? "모든 체험에 담당이 있습니다." : "맡은 체험이 없습니다.";
-    card.append(empty);
+    card.append(mutedLine("모든 체험에 담당이 있습니다."));
     return card;
   }
-  programs.forEach((program) => {
-    const row = document.createElement("div");
-    row.className = "group-row";
-    const name = document.createElement("span");
-    name.textContent = program.label || "";
-    const select = document.createElement("select");
-    select.setAttribute("aria-label", `${program.label || "체험"} 담당`);
-    const none = document.createElement("option");
-    none.value = "";
-    none.textContent = "담당 없음";
-    select.append(none);
-    operators.forEach((operator) => {
-      const option = document.createElement("option");
-      option.value = String(operator.operator_id);
-      option.textContent = operator.option_label || operator.operator_name || "담당";
-      select.append(option);
-    });
-    select.value = program.operator_id == null ? "" : String(program.operator_id);
-    select.addEventListener("change", () => moveProgram(program.program_key, select.value));
-    row.append(name, select);
-    card.append(row);
+  const label = document.createElement("label");
+  label.className = "group-find";
+  label.append("체험 찾기");
+  const input = document.createElement("input");
+  input.type = "search";
+  input.placeholder = "체험 이름";
+  input.setAttribute("aria-label", "담당 없는 체험 찾기");
+  label.append(input);
+  const holder = document.createElement("div");
+  holder.append(nameList(programs, ""));
+  input.addEventListener("input", () => {
+    holder.replaceChildren(nameList(programs, input.value));
   });
+  card.append(label, holder);
+  return card;
+}
+
+function assignedRow(program) {
+  const row = document.createElement("div");
+  row.className = "group-row";
+  const name = document.createElement("span");
+  name.textContent = programName(program);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "빼기";
+  button.setAttribute("aria-label", `${programName(program)} 빼기`);
+  button.addEventListener("click", () => moveProgram(program.program_key, ""));
+  row.append(name, button);
+  return row;
+}
+
+function addMatches(unassigned, query, operatorId) {
+  const needle = query.trim();
+  if (!needle) return document.createElement("div");
+  const found = unassigned.filter((program) => programName(program).includes(needle));
+  if (!found.length) return mutedLine("맞는 체험이 없습니다.");
+  const list = document.createElement("div");
+  list.className = "group-matches";
+  found.forEach((program) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = programName(program);
+    button.addEventListener("click", () => moveProgram(program.program_key, operatorId));
+    list.append(button);
+  });
+  return list;
+}
+
+function operatorCard(operator, programs, unassigned) {
+  const card = document.createElement("article");
+  card.className = "village-card";
+  const title = operator.operator_name || "담당";
+  cardHeading(card, title, programs.length);
+  if (!programs.length) card.append(mutedLine("맡은 체험이 없습니다."));
+  programs.forEach((program) => card.append(assignedRow(program)));
+  const box = document.createElement("div");
+  box.className = "group-add";
+  const label = document.createElement("label");
+  label.append("체험 추가");
+  const input = document.createElement("input");
+  input.type = "search";
+  input.placeholder = "체험 이름";
+  input.setAttribute("aria-label", `${title} 체험 추가`);
+  label.append(input);
+  const holder = document.createElement("div");
+  input.addEventListener("input", () => {
+    holder.replaceChildren(addMatches(unassigned, input.value, operator.operator_id));
+  });
+  box.append(label, holder);
+  card.append(box);
   return card;
 }
 
@@ -620,9 +694,10 @@ function renderGroups(data) {
     const key = program.operator_id == null ? "" : String(program.operator_id);
     (buckets.get(buckets.has(key) ? key : "") || []).push(program);
   });
-  board.append(groupCard("아직 담당 없음", buckets.get("") || [], operators));
+  const open = buckets.get("") || [];
+  board.append(unassignedCard(open));
   operators.forEach((operator) => {
-    board.append(groupCard(operator.operator_name || "담당", buckets.get(String(operator.operator_id)) || [], operators));
+    board.append(operatorCard(operator, buckets.get(String(operator.operator_id)) || [], open));
   });
   const stale = data.stale || [];
   if (stale.length) {
