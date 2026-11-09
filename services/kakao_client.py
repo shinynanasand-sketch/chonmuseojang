@@ -83,7 +83,6 @@ def _quick_replies(user_id: str) -> list[dict]:
     if not user_id or not allow_external():
         return []
     from services.auth import resolve_kakao_role
-    from services.demo_role import role_quick_reply
     from services.supabase_client import get_operator_by_kakao_id
 
     role = resolve_kakao_role(user_id)
@@ -93,14 +92,10 @@ def _quick_replies(user_id: str) -> list[dict]:
         operator = {"role": "program"}
     else:
         operator = get_operator_by_kakao_id(user_id) or {"role": "village"}
-    replies = [
+    return [
         {"label": label, "action": "message", "messageText": label}
         for label in _reply_labels(operator)
     ]
-    button = role_quick_reply(user_id)
-    if button:
-        replies.append(button)
-    return replies
 
 
 def build_skill_response(title: str, description: str) -> dict:
@@ -261,8 +256,48 @@ def post_skill_callback(url: str, body: dict) -> None:
         logger.warning("카카오 스킬 콜백 실패: %s", exc)
 
 
+def attach_role_card(body: dict) -> dict:
+    """시연 역할은 말풍선 버튼으로 둔다. 바로연결의 웹 주소는 칩 전체를 지운다."""
+    from services.demo_role import role_quick_reply
+
+    button = role_quick_reply(_reply_user_id.get())
+    if not button:
+        return body
+    template = body.get("template")
+    if not isinstance(template, dict):
+        return body
+    outputs = template.get("outputs")
+    if not isinstance(outputs, list) or not outputs:
+        return body
+    if len(outputs) < 3:
+        from config import KAKAO_CARD_IMAGE_URL
+
+        outputs.append(
+            {
+                "basicCard": {
+                    "title": "시연 역할",
+                    "description": "체험객, 사무장, 체험 담당을 바꿉니다.",
+                    "thumbnail": {"imageUrl": KAKAO_CARD_IMAGE_URL},
+                    "buttons": [button],
+                }
+            }
+        )
+        return body
+    for output in reversed(outputs):
+        card = output.get("basicCard")
+        if not isinstance(card, dict):
+            continue
+        buttons = card.setdefault("buttons", [])
+        if len(buttons) >= 3 or any(item.get("label") == button["label"] for item in buttons):
+            continue
+        buttons.append(button)
+        return body
+    return body
+
+
 def skill_http_response(body: dict) -> Response:
     """오픈빌더가 파싱하기 쉬운 UTF-8 JSON 원문 응답."""
+    body = attach_role_card(body)
     return Response(
         content=json.dumps(body, ensure_ascii=False),
         media_type="application/json; charset=utf-8",

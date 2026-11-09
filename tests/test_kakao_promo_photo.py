@@ -45,8 +45,8 @@ def _assert_simple_text(response):
     outputs = body["template"]["outputs"]
     assert response.status_code == 200
     assert "context" not in body
-    assert len(outputs) == 1
     assert "simpleText" in outputs[0]
+    assert [item.get("basicCard", {}).get("title") for item in outputs[1:]] == ["시연 역할"]
     assert "listCard" not in outputs[0]
     assert "listCard" not in response.text
 

@@ -161,7 +161,7 @@ def role_page_url(user_id: str) -> str:
 
 
 def role_quick_reply(user_id: str) -> dict | None:
-    """발표 모드에서만 붙이는 웹 버튼. 새 발화를 만들지 않는다."""
+    """발표 모드의 역할 화면 버튼. 바로연결에 넣으면 카카오가 칩 전체를 버린다."""
     if not user_id or not _presentation_on():
         return None
     return {"label": "시연 역할", "action": "webLink", "webLinkUrl": role_page_url(user_id)}

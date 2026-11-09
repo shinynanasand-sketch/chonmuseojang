@@ -397,7 +397,8 @@ def test_booking_status_uses_simple_text(test_client, monkeypatch):
     assert "2026-11-08" not in text
     assert "최근 5건" not in text
     assert text.index(f"{inside['booking_id']}번") < text.index(f"{earlier['booking_id']}번")
-    assert not any("basicCard" in item for item in body["template"]["outputs"])
+    cards = [item["basicCard"]["title"] for item in body["template"]["outputs"] if "basicCard" in item]
+    assert cards == ["시연 역할"]
     assert "/calendar/" not in str(body)
     labels = [item["label"] for item in body["template"]["quickReplies"]]
     assert labels[:3] == ["이전 주", "이번 주", "다음 주"]
@@ -468,7 +469,8 @@ def test_booking_status_without_rows_names_the_week(test_client, monkeypatch):
     body = test_client.post("/kakao/booking", json=payload).json()
     text = body["template"]["outputs"][0]["simpleText"]["text"]
     assert "2026-11-01부터 2026-11-07까지 예약이 없습니다." in text
-    assert not any("basicCard" in item for item in body["template"]["outputs"])
+    cards = [item["basicCard"]["title"] for item in body["template"]["outputs"] if "basicCard" in item]
+    assert cards == ["시연 역할"]
     assert "/calendar/" not in str(body)
     assert "owner_test" not in str(body)
 
