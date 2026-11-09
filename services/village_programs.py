@@ -41,6 +41,11 @@ def program_labels(village: dict) -> list[str]:
     name = str(village.get("program_name") or "").strip()
     source = name or str(village.get("program_type") or "").strip()
     labels = split_program_text(source)
+    from services.demo_data import demo_extra_labels
+
+    for extra in demo_extra_labels(village):
+        if extra not in labels:
+            labels.append(extra)
     from services.field_changes import extra_labels
 
     for extra in extra_labels(str(village.get("village_id") or "")):

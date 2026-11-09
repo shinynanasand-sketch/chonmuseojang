@@ -6,6 +6,7 @@ from services.field_changes import guide_rows, price_of, won
 from services.guest_book import issue_guest_book_link
 from services import supabase_client
 from services.supabase_client import (
+    delete_operator_by_kakao_id,
     get_operator_by_kakao_id,
     insert_operator,
     save_program_status,
@@ -143,6 +144,7 @@ def test_guest_sees_unit_price_and_operator_sees_booking_total(test_client):
         }
     )
     assert plain == "1번 대기 2026-12-01 10:00 4명"
+    delete_operator_by_kakao_id("doseon-owner")
 
 
 def test_sentence_booking_rejects_stopped_program_and_states_total(test_client):
@@ -185,7 +187,7 @@ def test_guide_table_lists_each_price_and_stop():
     assert any(row["kind"] == "공공데이터" and row["applied"] is False for row in rows)
     assert any(row["kind"] == "마을명" and row["applied"] is False for row in rows)
     screens = [row for row in rows if row["village"] == "카카오 사무장"]
-    assert [row["kind"] for row in screens] == ["예약 현황", "체험 달력", "오픈빌더"]
+    assert [row["kind"] for row in screens] == ["예약 현황", "체험 달력", "오픈빌더", "시연"]
     assert screens[0]["applied"] is True
     assert screens[1]["applied"] is True
     assert "일요일부터 토요일" in screens[0]["result"]

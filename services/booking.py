@@ -198,6 +198,9 @@ def accept_named_booking(user_id: str, utterance: str, params: dict) -> dict:
         program_label=label,
         visit_time=visit_time,
     )
+    from services.demo_role import mark_guest_demo
+
+    mark_guest_demo(user_id, saved.get("booking_id"))
     return {"ok": True, "booking": saved}
 
 
@@ -289,7 +292,9 @@ def list_bookings_for_operator(user_id: str) -> list[dict]:
 
     if resolve_kakao_role(user_id).get("role") == "program":
         raise PermissionError("village operator required")
-    return list_bookings_for_village(scoped_village_id(user_id))
+    from services.demo_role import rows_for_demo_viewer
+
+    return rows_for_demo_viewer(list_bookings_for_village(scoped_village_id(user_id)), user_id)
 
 
 def list_my_bookings(user_id: str) -> list[dict]:
@@ -504,7 +509,9 @@ def bookings_for_operator_view(operator: dict) -> list[dict]:
     """마을 운영자는 마을 예약, 체험 담당은 맡은 체험 예약만."""
     from services.program_groups import assigned_program_keys
 
-    rows = list_bookings_for_village(str(operator.get("village_id") or ""))
+    from services.demo_role import without_marked_bookings
+
+    rows = without_marked_bookings(list_bookings_for_village(str(operator.get("village_id") or "")))
     if str(operator.get("role") or "village") == "program":
         keys = assigned_program_keys(operator)
         return [row for row in rows if row.get("program_key") and row.get("program_key") in keys]

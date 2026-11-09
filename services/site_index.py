@@ -37,6 +37,7 @@ def robots_txt() -> str:
             "Disallow: /calendar/",
             "Disallow: /book/",
             "Disallow: /guide/dev",
+            "Disallow: /demo/",
             f"Sitemap: {SITE_ORIGIN}/sitemap.xml",
             "",
         ]

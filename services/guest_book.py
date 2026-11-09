@@ -170,6 +170,9 @@ def save_guest_booking(
         visit_time=clock,
         group_name=group,
     )
+    from services.demo_role import mark_guest_demo
+
+    mark_guest_demo(str(link["customer_kakao_id"]), saved.get("booking_id"))
     if not saved.get("already_open"):
         from services.kakao_client import notify_booking_received
 

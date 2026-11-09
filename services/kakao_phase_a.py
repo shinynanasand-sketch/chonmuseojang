@@ -183,7 +183,7 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
         return build_error_skill_response(_VILLAGE_ONLY)
     if kind == "status":
         operator = get_operator_by_kakao_id(user_id)
-        if not operator:
+        if not operator and not role.get("limited"):
             return attach_guide_card(build_error_skill_response(_STATUS_HINT))
         return reply_week_status(str(role["village_id"]), utterance, user_id)
     return _decide(kind, str(role["village_id"]), payload)
@@ -433,7 +433,9 @@ def _review_lines(village_id: str, village_name: str, start: int) -> dict:
 
 def reply_week_status(village_id: str, utterance: str, user_id: str = "") -> dict:
     """방문일이 속한 일요일부터 토요일까지. 달력 카드는 붙이지 않는다."""
-    rows = booking.list_bookings_for_village(village_id)
+    from services.demo_role import rows_for_demo_viewer
+
+    rows = rows_for_demo_viewer(booking.list_bookings_for_village(village_id), user_id)
     anchor = booking.status_week_anchor(utterance, user_id=user_id)
     booking.remember_shown_week(user_id, anchor)
     body = build_skill_response("예약 현황", booking.week_status_text(rows, anchor))
@@ -512,6 +514,11 @@ def _decide(kind: str, village_id: str, payload: KakaoSkillRequest) -> dict:
         return build_error_skill_response("예약을 찾을 수 없습니다.")
     if existing.get("village_id") != village_id:
         return build_error_skill_response(_OTHER_VILLAGE)
+    from services.demo_role import is_limited
+
+    user_id = str(payload.userRequest.user.get("id") or "")
+    if is_limited(user_id) and str(existing.get("customer_kakao_id") or "") != user_id:
+        return build_error_skill_response("직접 만든 예약만 바꿀 수 있습니다.")
     decision = "approve" if kind == "approve" else "reject"
     saved = booking.update_booking_status(
         booking_id,
@@ -536,7 +543,9 @@ def _note_body(utterance: str) -> str:
 
 
 def _share(kind: str, user_id: str, payload: KakaoSkillRequest) -> dict:
-    operator = get_operator_by_kakao_id(user_id)
+    from services.demo_role import operator_for_skill
+
+    operator = operator_for_skill(user_id)
     if not operator:
         return build_error_skill_response(_SHARE_ONLY)
     if kind == "note_list":

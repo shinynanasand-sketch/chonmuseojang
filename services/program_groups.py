@@ -72,6 +72,10 @@ def program_group_snapshot(village_id: str) -> dict:
     """현재 체험 목록과 담당 배정. 목록에서 빠진 체험은 stale에 둔다."""
     village = get_village_by_id(village_id) or {}
     current = programs_for(village)
+    if any(item["label"] == "소금체험" for item in current):
+        from services.demo_role import ensure_demo_staff
+
+        ensure_demo_staff()
     labels = {program_key(item["label"]): item for item in current}
     operators = _program_operators(village_id)
     operator_ids = {_operator_id(operator.get("operator_id")) for operator in operators}

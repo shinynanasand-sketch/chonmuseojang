@@ -161,6 +161,52 @@ async def presentation_calendar(request: Request):
     return found
 
 
+@router.get("/demo/role/{token}", response_class=HTMLResponse)
+async def demo_role_page(request: Request, token: str):
+    from config import presentation_enabled
+    from services.demo_role import current_persona_label, session_from_token
+
+    if not presentation_enabled():
+        raise HTTPException(status_code=404, detail="역할을 열 수 없습니다.")
+    session = session_from_token(token)
+    if session is None:
+        raise HTTPException(status_code=404, detail="역할을 열 수 없습니다.")
+    return _html(
+        request,
+        "demo_role.html",
+        {
+            "title": "시연 역할",
+            "current": current_persona_label(session),
+            "message": "",
+        },
+        _PAGE_CDN,
+    )
+
+
+@router.post("/demo/role/{token}", response_class=HTMLResponse)
+async def demo_role_choose(request: Request, token: str):
+    from config import presentation_enabled
+    from services.demo_role import choose_persona, current_persona_label, session_from_token
+
+    if not presentation_enabled():
+        raise HTTPException(status_code=404, detail="역할을 열 수 없습니다.")
+    form = await request.form()
+    result = choose_persona(token, str(form.get("persona") or ""))
+    session = session_from_token(token)
+    if session is None and not result.get("ok"):
+        raise HTTPException(status_code=404, detail="역할을 열 수 없습니다.")
+    return _html(
+        request,
+        "demo_role.html",
+        {
+            "title": "시연 역할",
+            "current": current_persona_label(session),
+            "message": str(result.get("message") or ""),
+        },
+        _PAGE_CDN,
+    )
+
+
 @router.get("/recommend", response_class=HTMLResponse)
 async def recommend_page(request: Request):
     return _html(request, "recommend.html", {"title": "AI 추천"}, _PAGE_CDN)

@@ -17,8 +17,13 @@ def get_operator_by_kakao_id(kakao_user_id: str) -> dict | None:
 
 
 def resolve_kakao_role(user_id: str) -> dict:
-    """user.id로 operators.kakao_user_id를 대조한다."""
+    """user.id로 operators.kakao_user_id를 대조한다. 발표 모드 역할은 그 위에만 얹는다."""
     row = get_operator_by_kakao_id(user_id)
+    from services.demo_role import overlay_role
+
+    overlay = overlay_role(user_id, row)
+    if overlay is not None:
+        return overlay
     if not row:
         return {"mode": "tourist", "village_id": None, "role": None, "program_key": None}
     return {

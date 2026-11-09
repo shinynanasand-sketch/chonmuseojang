@@ -61,10 +61,16 @@ def test_village_operator_gets_lookup_buttons(test_client, quick_reply_village):
         "홍보 사진",
         "등록 안내",
         "사용 안내",
+        "시연 역할",
     ]
     assert "체험 글 저장" not in response.text
-    assert all(item["action"] == "message" for item in replies)
-    assert all(item["messageText"] == item["label"] for item in replies)
+    messages = [item for item in replies if item["action"] == "message"]
+    assert all(item["messageText"] == item["label"] for item in messages)
+    role = replies[-1]
+    assert role["label"] == "시연 역할"
+    assert role["action"] == "webLink"
+    assert "/demo/role/" in role["webLinkUrl"]
+    assert "qr_owner" not in role["webLinkUrl"]
     assert "simpleText" in body["template"]["outputs"][0]
 
 
@@ -75,7 +81,14 @@ def test_program_operator_buttons_skip_booking_status(test_client, quick_reply_v
         "/kakao/ask",
         json=_ask("체험 글 조회", "qr_program", "체험 글 조회"),
     )
-    assert _labels(response) == ["체험 달력 조회", "체험 글 조회", "체험 글 저장", "등록 안내", "사용 안내"]
+    assert _labels(response) == [
+        "체험 달력 조회",
+        "체험 글 조회",
+        "체험 글 저장",
+        "등록 안내",
+        "사용 안내",
+        "시연 역할",
+    ]
     assert "예약 현황 조회" not in response.text
     assert "홍보 사진" not in response.text
 
@@ -93,6 +106,7 @@ def test_registration_success_shows_that_role_buttons(test_client, quick_reply_v
         "홍보 사진",
         "등록 안내",
         "사용 안내",
+        "시연 역할",
     ]
 
     program = test_client.post(
@@ -100,7 +114,14 @@ def test_registration_success_shows_that_role_buttons(test_client, quick_reply_v
         json=_ask("운영자 등록", "qr_program", "버튼마을 QR-001 조개잡이"),
     )
     assert "체험 담당" in program.text
-    assert _labels(program) == ["체험 달력 조회", "체험 글 조회", "체험 글 저장", "등록 안내", "사용 안내"]
+    assert _labels(program) == [
+        "체험 달력 조회",
+        "체험 글 조회",
+        "체험 글 저장",
+        "등록 안내",
+        "사용 안내",
+        "시연 역할",
+    ]
 
 
 def test_same_program_again_is_refused(test_client, quick_reply_village):
@@ -111,7 +132,7 @@ def test_same_program_again_is_refused(test_client, quick_reply_village):
         json=_ask("운영자 등록", "qr_tourist", "버튼마을 QR-001 조개잡이"),
     )
     assert "이미 담당자" in response.text
-    assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기", "시연 역할"]
 
 
 def test_tourist_response_has_no_operator_buttons(test_client, quick_reply_village):
@@ -120,7 +141,7 @@ def test_tourist_response_has_no_operator_buttons(test_client, quick_reply_villa
         json=_ask("체험 달력 조회", "qr_tourist", "체험 달력 조회"),
     )
     assert response.status_code == 200
-    assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기", "시연 역할"]
     assert "예약 현황 조회" not in _labels(response)
     assert "체험 달력 조회" not in _labels(response)
     assert "홍보 사진" not in _labels(response)
@@ -134,7 +155,7 @@ def test_village_button_asks_for_a_condition(test_client, mocker):
     mocked = mocker.patch("services.kakao_phase_a.recommend_for_kakao")
     response = test_client.post("/kakao/ask", json=_ask("마을 추천", "guest", "마을 추천"))
     assert "체험 종류나 시군 이름" in _text(response)
-    assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기", "시연 역할"]
     mocked.assert_not_called()
 
 
@@ -166,7 +187,7 @@ def test_booking_button_guides_without_saving(test_client):
         assert "예시" not in text
         assert "달력에서 체험, 날짜, 시간을 고릅니다." in text
         assert "/book/" in response.text
-        assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+        assert _labels(response) == ["마을 추천", "예약하기", "내 예약", "후기 보기", "시연 역할"]
     assert list_my_bookings("guest") == before
 
 
@@ -243,6 +264,7 @@ def test_review_button_lists_each_operating_village(test_client):
         "예약하기",
         "내 예약",
         "후기 보기",
+        "시연 역할",
     ]
     assert replies[0]["messageText"] == "후기 보기 팔영마을"
     assert replies[1]["messageText"] == "후기 보기 도선국사체험마을영농조합법인"
@@ -274,7 +296,13 @@ def test_review_pages_continue_after_the_text_limit(test_client):
     replies = _messages(first)
     assert replies[0]["label"] == "다음 후기"
     assert replies[0]["messageText"] == "후기 보기 도선국사체험마을영농조합법인 #4"
-    assert [item["label"] for item in replies[1:]] == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert [item["label"] for item in replies[1:]] == [
+        "마을 추천",
+        "예약하기",
+        "내 예약",
+        "후기 보기",
+        "시연 역할",
+    ]
 
     second = test_client.post(
         "/kakao/ask",

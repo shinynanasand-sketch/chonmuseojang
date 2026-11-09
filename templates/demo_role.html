@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}시연 역할{% endblock %}
+{% block content %}
+<section class="guide">
+  <h1>시연 역할</h1>
+  <p>지금 역할은 {{ current }}입니다. 저장된 사무장 등록은 바꾸지 않습니다.</p>
+  {% if message %}<p>{{ message }}</p>{% endif %}
+  <form method="post">
+    <button type="submit" name="persona" value="guest">체험객</button>
+    <button type="submit" name="persona" value="village">사무장</button>
+    <button type="submit" name="persona" value="program">체험 담당</button>
+  </form>
+  <p>체험 담당 달력은 보기만 합니다. 승인, 거절, 일정 변경은 사무장만 합니다.</p>
+</section>
+{% endblock %}

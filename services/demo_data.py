@@ -1,7 +1,24 @@
 """시연용 샘플 데이터 (공공 API 미설정 시 폴백)."""
 
 DEMO_VILLAGE_IDS = frozenset({"V001", "V002", "V004"})
+DEMO_VILLAGE_ID = "V001"
+DEMO_EXTRA_LABELS = ("소금체험", "조개잡이")
+DEMO_STAFF_KAKAO_ID = "kakao_demo_staff_v001"
+DEMO_STAFF_NAME = "시연 담당"
 _PREFERRED_SIDO = ("전남광주통합특별시", "광주특별시")
+
+
+def demo_extra_labels(village: dict) -> list[str]:
+    """예시 갯벌마을의 체험이 갯벌체험 하나일 때만 시연용 체험을 뒤에 붙인다."""
+    if str(village.get("village_id") or "") != DEMO_VILLAGE_ID:
+        return []
+    from services.village_programs import split_program_text
+
+    name = str(village.get("program_name") or "").strip()
+    kind = str(village.get("program_type") or "").strip()
+    if split_program_text(name or kind) != ["갯벌체험"]:
+        return []
+    return list(DEMO_EXTRA_LABELS)
 
 
 def is_demo_village(row: dict) -> bool:

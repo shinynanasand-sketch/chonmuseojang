@@ -106,8 +106,15 @@ def answer_kakao_question(utterance: str, kakao_user_id: str) -> dict:
     if not allow_external():
         return time_budget_response()
     operator = get_operator_by_kakao_id(kakao_user_id) if kakao_user_id else None
-    if operator:
+    from services.demo_role import overlay_role, operator_for_skill
+
+    overlay = overlay_role(kakao_user_id, operator) if kakao_user_id else None
+    if overlay is None and operator:
         return _operator_answer(operator)
+    if overlay and overlay.get("mode") == "operator" and not overlay.get("limited"):
+        acting = operator_for_skill(kakao_user_id) if overlay.get("role") == "program" else operator
+        if acting:
+            return _operator_answer(acting)
     booked = _tourist_booking(utterance, kakao_user_id)
     if booked is not None:
         return booked

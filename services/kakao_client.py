@@ -82,13 +82,25 @@ def _quick_replies(user_id: str) -> list[dict]:
     """등록된 발화를 버튼으로 보낸다. 관광객에게는 운영자 버튼을 넣지 않는다."""
     if not user_id or not allow_external():
         return []
+    from services.auth import resolve_kakao_role
+    from services.demo_role import role_quick_reply
     from services.supabase_client import get_operator_by_kakao_id
 
-    labels = _reply_labels(get_operator_by_kakao_id(user_id))
-    return [
+    role = resolve_kakao_role(user_id)
+    if role["mode"] != "operator":
+        operator = None
+    elif role.get("role") == "program":
+        operator = {"role": "program"}
+    else:
+        operator = get_operator_by_kakao_id(user_id) or {"role": "village"}
+    replies = [
         {"label": label, "action": "message", "messageText": label}
-        for label in labels
+        for label in _reply_labels(operator)
     ]
+    button = role_quick_reply(user_id)
+    if button:
+        replies.append(button)
+    return replies
 
 
 def build_skill_response(title: str, description: str) -> dict:

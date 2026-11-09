@@ -100,7 +100,8 @@ def test_operator_guide_buttons_open_cards(test_client, guide_password):
     body = response.json()
     labels = [item["label"] for item in body["template"]["quickReplies"]]
     assert labels[:4] == ["예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진"]
-    assert labels[-2:] == ["등록 안내", "사용 안내"]
+    assert labels[-3:-1] == ["등록 안내", "사용 안내"]
+    assert labels[-1] == "시연 역할"
     buttons = body["template"]["outputs"][1]["basicCard"]["buttons"]
     assert [item["label"] for item in buttons] == ["등록 안내 열기", "사용 안내 열기"]
     assert "/guide/register" in buttons[0]["webLinkUrl"]
@@ -121,7 +122,7 @@ def test_tourist_reply_has_no_guide_buttons(test_client):
         },
     )
     labels = [item["label"] for item in response.json()["template"]["quickReplies"]]
-    assert labels == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert labels == ["마을 추천", "예약하기", "내 예약", "후기 보기", "시연 역할"]
     assert "등록 안내" not in labels
     assert "등록 안내 열기" not in response.text
 
@@ -136,7 +137,7 @@ def test_failed_registration_includes_register_card(test_client):
         },
     )
     labels = [item["label"] for item in response.json()["template"]["quickReplies"]]
-    assert labels == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert labels == ["마을 추천", "예약하기", "내 예약", "후기 보기", "시연 역할"]
     text = response.text
     assert "등록 안내 열기" in text
     assert "/guide/register" in text
