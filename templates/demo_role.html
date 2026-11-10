@@ -6,7 +6,11 @@
   <p>지금 역할은 {{ current }}입니다. 저장된 사무장 등록은 바꾸지 않습니다.</p>
   {% if message %}
   <p>{{ message }}</p>
+  {% if pushed %}
+  <p>카카오 대화에 그 역할 버튼이 옵니다.</p>
+  {% else %}
   <p>카카오톡으로 돌아가 보이는 버튼을 한 번 누르면 그 역할 버튼으로 바뀝니다.</p>
+  {% endif %}
   {% endif %}
   <form method="post">
     <button type="submit" name="persona" value="guest">체험객</button>

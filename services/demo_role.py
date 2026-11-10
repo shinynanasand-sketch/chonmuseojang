@@ -280,7 +280,11 @@ def choose_persona(token: str, persona: str) -> dict:
     user_id = str(session.get("kakao_user_id") or "")
     if not set_demo_persona(user_id, persona):
         return {"ok": False, "message": "담당 보기는 예시 갯벌마을 계정에서만 바뀝니다."}
-    return {"ok": True, "message": persona_message(user_id, persona), "persona": persona}
+    message = persona_message(user_id, persona)
+    from services.kakao_client import notify_demo_role_chosen
+
+    pushed = notify_demo_role_chosen(user_id, message)
+    return {"ok": True, "message": message, "persona": persona, "pushed": pushed}
 
 
 def persona_message(user_id: str, persona: str) -> str:

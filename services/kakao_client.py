@@ -1,4 +1,4 @@
-"""카카오 스킬 응답 포맷. 이벤트 API는 예약 접수·승인·거절 뒤에만 호출한다."""
+"""카카오 스킬 응답 포맷. 이벤트 API는 예약 알림과 시연 역할 반영에 쓴다."""
 
 import contextvars
 import json
@@ -350,6 +350,11 @@ def send_kakao_event(event_name: str, user_id: str, data: dict) -> bool:
     except Exception as exc:
         logger.warning("카카오 이벤트 API 발송 실패: %s", exc)
         return False
+
+
+def notify_demo_role_chosen(user_id: str, message: str) -> bool:
+    """고른 시연 역할을 그 계정 대화에 보낸다. 데이터에는 문장만 둔다."""
+    return send_kakao_event("demo_role_chosen", user_id, {"message": message})
 
 
 def notify_booking_received(booking: dict) -> None:

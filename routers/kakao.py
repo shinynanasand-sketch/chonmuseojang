@@ -76,6 +76,31 @@ def _close_skill(tokens) -> None:
     kakao_client.reset_reply_user(user_token)
 
 
+@router.post("/role")
+async def kakao_role(payload: KakaoSkillRequest):
+    """고른 시연 역할의 문장과 버튼을 대화에 보낸다. 고르지 않았으면 버튼을 두지 않는다."""
+    from services.demo_role import persona_message, persona_of
+
+    user_id = _user_id(payload)
+    persona = persona_of(user_id)
+    if not persona:
+        return _skill_json(
+            {
+                "version": "2.0",
+                "template": {
+                    "outputs": [{"simpleText": {"text": "시연 역할을 먼저 고릅니다."}}]
+                },
+            }
+        )
+    tokens = _open_skill(user_id)
+    try:
+        return _skill_json(
+            kakao_client.build_skill_response("시연 역할", persona_message(user_id, persona))
+        )
+    finally:
+        _close_skill(tokens)
+
+
 @router.post("/ask")
 async def kakao_ask(payload: KakaoSkillRequest, background: BackgroundTasks):
     """관광객은 비교 추천, 운영자는 자기 마을과 주변정보만 답한다."""

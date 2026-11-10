@@ -178,6 +178,7 @@ async def demo_role_page(request: Request, token: str):
             "title": "시연 역할",
             "current": current_persona_label(session),
             "message": "",
+            "pushed": False,
         },
         _PAGE_CDN,
     )
@@ -202,6 +203,7 @@ async def demo_role_choose(request: Request, token: str):
             "title": "시연 역할",
             "current": current_persona_label(session),
             "message": str(result.get("message") or ""),
+            "pushed": bool(result.get("pushed")),
         },
         _PAGE_CDN,
     )

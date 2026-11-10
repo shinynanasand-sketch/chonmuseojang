@@ -348,3 +348,77 @@ def test_demo_village_booking_needs_a_chosen_role(test_client, monkeypatch):
     )
     assert named.status_code == 200
     assert "예약이 접수되었습니다" in named.text
+
+
+class _RoleEventResponse:
+    status_code = 200
+
+    def json(self):
+        return {"status": "SUCCESS"}
+
+
+class _RoleEventClient:
+    def __init__(self, calls):
+        self._calls = calls
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def post(self, url, headers=None, json=None):
+        self._calls.append({"url": url, "json": json})
+        return _RoleEventResponse()
+
+
+def test_chosen_role_sends_the_sentence_without_the_account(monkeypatch, test_client):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "test-rest-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "bot-test")
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        lambda timeout=None: _RoleEventClient(calls),
+    )
+    path = urlparse(role_page_url("kakao_owner_v001")).path
+    page = test_client.post(path, data={"persona": "guest"})
+    assert page.status_code == 200
+    assert "카카오 대화에 그 역할 버튼이 옵니다." in page.text
+    assert "한 번 누르면" not in page.text
+    assert "kakao_owner_v001" not in page.text
+    sent = calls[0]["json"]
+    assert sent["event"]["name"] == "demo_role_chosen"
+    assert sent["event"]["data"] == {
+        "message": "체험객으로 바꿨습니다. 예약하기와 내 예약을 씁니다."
+    }
+    assert "kakao_owner_v001" not in str(sent["event"]["data"])
+
+
+def _role_skill(test_client, user_id: str):
+    return test_client.post(
+        "/kakao/role",
+        json={"userRequest": {"utterance": "", "user": {"id": user_id}}},
+    )
+
+
+def test_role_skill_returns_the_chosen_guest_buttons(test_client):
+    assert set_demo_persona("kakao_owner_v001", "guest") is True
+    response = _role_skill(test_client, "kakao_owner_v001")
+    assert response.status_code == 200
+    assert "체험객으로 바꿨습니다. 예약하기와 내 예약을 씁니다." in response.text
+    assert _labels(response)[:4] == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert "예약 현황 조회" not in _labels(response)
+    assert _role_card(response)["description"] == "지금 역할은 체험객입니다."
+
+
+def test_role_skill_without_a_persona_leaves_the_buttons(test_client, monkeypatch):
+    quiet = _role_skill(test_client, "kakao_owner_v001")
+    assert "시연 역할을 먼저 고릅니다." in quiet.text
+    assert "quickReplies" not in quiet.json()["template"]
+
+    assert set_demo_persona("kakao_owner_v001", "guest") is True
+    monkeypatch.setenv("PRESENTATION_MODE", "0")
+    paused = _role_skill(test_client, "kakao_owner_v001")
+    assert "시연 역할을 먼저 고릅니다." in paused.text
+    assert "quickReplies" not in paused.json()["template"]
+    assert "예약하기" not in _labels(paused)
