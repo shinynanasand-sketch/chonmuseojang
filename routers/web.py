@@ -267,6 +267,8 @@ def _calendar_result(result: dict):
         raise HTTPException(status_code=403, detail="단체 이름은 체험객이 예약 달력에 입력합니다.")
     if reason == "program_not_found":
         raise HTTPException(status_code=400, detail="이 마을에서 운영 중인 체험이 아닙니다.")
+    if reason == "demo_closed":
+        raise HTTPException(status_code=400, detail="이 체험은 지금은 예약할 수 없습니다.")
     if reason == "bad_slot":
         raise HTTPException(status_code=400, detail="날짜와 시간을 확인해 주세요.")
     if reason == "not_pending":

@@ -266,9 +266,9 @@ def _booking_guide(user_id: str, utterance: str = "") -> dict:
         return time_budget_response()
     if not user_id:
         return build_error_skill_response("다시 시도해 주세요.")
-    from services.kakao_home import list_kakao_booking_villages
+    from services.kakao_home import list_role_booking_villages
 
-    rows = list_kakao_booking_villages()
+    rows = list_role_booking_villages(user_id)
     if not rows:
         return build_skill_response(
             "예약하기",

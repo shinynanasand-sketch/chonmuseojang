@@ -219,3 +219,132 @@ def test_other_village_cannot_switch_to_demo_staff():
     from services.supabase_client import delete_operator_by_kakao_id
 
     delete_operator_by_kakao_id("other_owner")
+
+
+def _booking_villages() -> None:
+    from services.supabase_client import insert_operator
+
+    upsert_villages(
+        [
+            {
+                "village_id": "V001",
+                "village_name": "예시 갯벌마을",
+                "sigungu": "신안군",
+                "program_type": "갯벌체험",
+            },
+            {
+                "village_id": "V002",
+                "village_name": "예시 무등마을",
+                "sigungu": "북구",
+                "program_type": "등산",
+            },
+            {
+                "village_id": "REAL1",
+                "village_name": "돌담마을",
+                "sigungu": "해남군",
+                "program_name": "농사체험",
+            },
+        ]
+    )
+    insert_operator(
+        {
+            "village_id": "REAL1",
+            "kakao_user_id": "real-owner",
+            "role": "village",
+            "operator_name": "돌담",
+            "is_active": True,
+        }
+    )
+
+
+def _book_body(visit_date: str) -> dict:
+    return {
+        "label": "갯벌체험",
+        "visit_date": visit_date,
+        "visit_time": "10:00",
+        "num_people": 4,
+        "group_name": "없음",
+    }
+
+
+def test_chosen_role_adds_only_the_demo_village_to_booking(test_client):
+    from services.kakao_home import list_kakao_booking_villages, list_role_booking_villages
+
+    _booking_villages()
+    assert {row["village_id"] for row in list_kakao_booking_villages()} == {"REAL1"}
+    assert {row["village_id"] for row in list_role_booking_villages("kakao_owner_v001")} == {"REAL1"}
+    home = test_client.get("/home")
+    assert "돌담마을" in home.text
+    assert "예시 갯벌마을" not in home.text
+
+    assert set_demo_persona("kakao_owner_v001", "guest") is True
+    assert {row["village_id"] for row in list_role_booking_villages("kakao_owner_v001")} == {
+        "REAL1",
+        "V001",
+    }
+    assert "예시 갯벌마을" not in test_client.get("/home").text
+    listed = test_client.post(
+        "/kakao/ask",
+        json=_ask("kakao_owner_v001", "예약하기", "예약하기"),
+    )
+    assert "예시 갯벌마을" in listed.text
+    assert "돌담마을" in listed.text
+    assert "예시 무등마을" not in listed.text
+    assert "/book/" not in listed.text
+    chosen = test_client.post(
+        "/kakao/ask",
+        json=_ask("kakao_owner_v001", "예약하기", "예약하기 예시 갯벌마을"),
+    )
+    assert "/book/" in chosen.text
+    assert "예시 갯벌마을" in chosen.text
+    assert "돌담마을" not in chosen.text
+    assert set_demo_persona("kakao_owner_v001", "program") is True
+    assert "V001" in {row["village_id"] for row in list_role_booking_villages("kakao_owner_v001")}
+
+
+def test_demo_village_booking_needs_a_chosen_role(test_client, monkeypatch):
+    from services.booking import list_my_bookings
+    from services.guest_book import issue_guest_book_link
+
+    _booking_villages()
+    url = issue_guest_book_link("plain-guest", "V001")
+    token = url.rsplit("/", 1)[-1]
+    closed = test_client.post(f"/api/book/{token}", json=_book_body("2026-11-12"))
+    assert closed.status_code == 400
+    assert closed.json()["detail"] == "이 체험은 지금은 예약할 수 없습니다."
+    spoken = test_client.post(
+        "/kakao/booking",
+        json={
+            "userRequest": {
+                "utterance": "갯벌체험 2026-11-12 4명",
+                "user": {"id": "plain-guest"},
+            },
+            "action": {"params": {"visit_date": "2026-11-12", "num_people": "4"}},
+        },
+    )
+    assert "이 체험은 지금은 예약할 수 없습니다." in spoken.text
+    assert list_my_bookings("plain-guest") == []
+
+    assert set_demo_persona("plain-guest", "guest") is True
+    monkeypatch.setenv("PRESENTATION_MODE", "0")
+    paused = test_client.post(f"/api/book/{token}", json=_book_body("2026-11-12"))
+    assert paused.status_code == 400
+    assert list_my_bookings("plain-guest") == []
+
+    monkeypatch.setenv("PRESENTATION_MODE", "1")
+    opened = test_client.post(f"/api/book/{token}", json=_book_body("2026-11-12"))
+    assert opened.status_code == 200
+    assert opened.json()["label"] == "갯벌체험"
+    assert opened.json()["status"] == "pending"
+    named = test_client.post(
+        "/kakao/booking",
+        json={
+            "userRequest": {
+                "utterance": "갯벌체험 2026-11-13 4명",
+                "user": {"id": "plain-guest"},
+            },
+            "action": {"params": {"visit_date": "2026-11-13", "num_people": "4"}},
+        },
+    )
+    assert named.status_code == 200
+    assert "예약이 접수되었습니다" in named.text

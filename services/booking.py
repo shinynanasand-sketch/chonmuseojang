@@ -187,6 +187,11 @@ def accept_named_booking(user_id: str, utterance: str, params: dict) -> dict:
 
     if has_price_table(str(village.get("village_id") or "")) and label not in bookable_names(village):
         return {"ok": False, "text": "이 체험은 지금은 예약할 수 없습니다."}
+    from services.demo_data import DEMO_VILLAGE_ID
+    from services.demo_role import persona_of
+
+    if str(village.get("village_id") or "") == DEMO_VILLAGE_ID and not persona_of(user_id):
+        return {"ok": False, "text": "이 체험은 지금은 예약할 수 없습니다."}
     from services.kakao_params import parse_spoken_time, parse_sys_time
 
     visit_time = parse_sys_time(params.get("visit_time")) or parse_spoken_time(text)

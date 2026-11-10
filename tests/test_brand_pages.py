@@ -88,8 +88,8 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "현장의 요청을 반영해 바꿨다." in changes
     assert "마을에서 요청한 변경 가운데 적용한 것과 적용하지 않은 것을 건수로 보여 준다." in changes
     assert "주요 변경을 건수와 함께 본다." not in changes
-    assert "전체 41건" in changes
-    assert "적용 36건" in changes
+    assert "전체 42건" in changes
+    assert "적용 37건" in changes
     assert "적용하지 않음 5건" in changes
     assert 'href="/story/changes"' in changes
     assert 'href="/guide/name-requests"' in changes
@@ -121,16 +121,16 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
 
     rows = guide_rows()
     summary = change_summary()
-    assert summary["total"] == len(rows) == 41
-    assert summary["applied"] == sum(1 for row in rows if row["applied"]) == 36
+    assert summary["total"] == len(rows) == 42
+    assert summary["applied"] == sum(1 for row in rows if row["applied"]) == 37
     assert summary["not_applied"] == 5
-    assert sum(group["count"] for group in summary["groups"]) == 41
+    assert sum(group["count"] for group in summary["groups"]) == 42
 
     page = test_client.get("/story/changes")
     assert page.status_code == 200
     text = page.text
     assert "<title>주요 변경 - 체험마을 AI사무장</title>" in text
-    assert "전체 41건 가운데 적용 36건, 적용하지 않음 5건이다." in text
+    assert "전체 42건 가운데 적용 37건, 적용하지 않음 5건이다." in text
     for label in (
         "마을명 · 6건",
         "체험 추가 · 3건",
@@ -140,7 +140,7 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
         "체험 달력 · 1건",
         "단체 이름 · 1건",
         "체험 묶음 · 3건",
-        "시연 · 1건",
+        "시연 · 2건",
         "적용하지 않은 나머지 · 2건",
     ):
         assert label in text

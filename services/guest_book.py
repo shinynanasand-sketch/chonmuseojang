@@ -143,6 +143,13 @@ def save_guest_booking(
     village = get_village_by_id(str(link["village_id"]))
     if not village:
         return {"ok": False, "reason": "not_found"}
+    from services.demo_data import DEMO_VILLAGE_ID
+    from services.demo_role import persona_of
+
+    if str(village.get("village_id") or "") == DEMO_VILLAGE_ID and not persona_of(
+        str(link.get("customer_kakao_id") or "")
+    ):
+        return {"ok": False, "reason": "demo_closed"}
     try:
         parsed = date.fromisoformat(visit_date)
         count = int(num_people)

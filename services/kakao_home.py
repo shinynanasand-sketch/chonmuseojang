@@ -50,6 +50,40 @@ def _load_kakao_booking_villages() -> list[dict]:
     return rows
 
 
+def list_role_booking_villages(user_id: str) -> list[dict]:
+    """공개 예약 마을. 시연 역할을 고른 계정에는 예시 갯벌마을만 더한다."""
+    rows = [dict(row) for row in list_kakao_booking_villages()]
+    from services.demo_data import DEMO_VILLAGE_ID
+    from services.demo_role import persona_of
+
+    if not persona_of(user_id):
+        return rows
+    if any(str(row.get("village_id") or "") == DEMO_VILLAGE_ID for row in rows):
+        return rows
+    extra = _demo_booking_village(DEMO_VILLAGE_ID)
+    if extra is None:
+        return rows
+    rows.append(extra)
+    rows.sort(key=lambda row: (row["sigungu"], row["village_name"]))
+    return rows
+
+
+def _demo_booking_village(village_id: str) -> dict | None:
+    if village_id not in list_village_operator_ids():
+        return None
+    found = list_villages_by_ids([village_id])
+    village = found[0] if found else None
+    if not village:
+        return None
+    return {
+        "village_id": village_id,
+        "village_name": village.get("village_name") or village_id,
+        "sigungu": village.get("sigungu") or "",
+        "program_name": village.get("program_name") or "",
+        "program_type": village.get("program_type") or "",
+    }
+
+
 def channel_qr_svg() -> str:
     qr = segno.make(KAKAO_CHANNEL_URL, error="m")
     return qr.svg_inline(title=KAKAO_CHANNEL_URL)
