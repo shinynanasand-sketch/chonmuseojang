@@ -102,6 +102,8 @@ select, input[type="search"], input[type="text"], input[type="password"] { paddi
 .card-actions button { margin: 0; }
 #guest-date { margin: 0; font-weight: 700; }
 #guest-total { margin: 0; font-weight: 700; }
+.guest-result { margin: 0; font-weight: 700; }
+.guest-result:empty { display: none; }
 .guide-table-wrap { overflow-x: auto; margin: 1rem 0 1.5rem; }
 .guide-table { width: 100%; border-collapse: collapse; }
 .guide-table th, .guide-table td { border-bottom: 1px solid #ddd; padding: 0.55rem 0.45rem; text-align: left; vertical-align: top; }

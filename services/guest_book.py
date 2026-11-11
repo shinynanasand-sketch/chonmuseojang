@@ -177,6 +177,8 @@ def save_guest_booking(
         visit_time=clock,
         group_name=group,
     )
+    if not saved.get("booking_id"):
+        return {"ok": False, "reason": "not_saved"}
     from services.demo_role import mark_guest_demo
 
     mark_guest_demo(str(link["customer_kakao_id"]), saved.get("booking_id"))

@@ -6,10 +6,6 @@
   <p id="calendar-status" class="muted">일정을 불러오는 중입니다.</p>
   <p id="calendar-legend" class="muted" hidden>분홍은 대기, 연두는 승인입니다.</p>
   <ul id="program-list" class="program-list"></ul>
-  <div id="pending-list" class="booking-board" hidden></div>
-  <div id="approved-list" class="booking-board" hidden></div>
-  <div id="rejected-list" class="booking-board" hidden></div>
-  <p id="other-month-pending" class="muted" hidden>다른 달 대기 예약이 있습니다. 이전달이나 다음달로 이동해 승인하거나 거절합니다.</p>
   <div class="month-bar">
     <button type="button" id="prev-month">이전달</button>
     <strong id="month-label"></strong>
@@ -21,24 +17,31 @@
   <div id="month-grid" class="month-grid"></div>
   <h2 id="day-title">날짜를 눌러 주세요</h2>
   <div id="day-entries"></div>
-  <form id="guest-form" hidden>
-    <p id="guest-date"></p>
-    <label>체험
-      <select id="guest-program"></select>
-    </label>
-    <label>단체 이름
-      <input type="text" id="group-name" required placeholder="없으면 없음">
-    </label>
-    <p class="muted">단체 이름이 없으면 없음을 입력합니다.</p>
-    <label>시간
-      <input type="time" id="visit-time" required>
-    </label>
-    <label>인원
-      <input type="number" id="guest-people" min="1" required inputmode="numeric">
-    </label>
-    <p id="guest-total" class="muted"></p>
-    <button type="submit">이 날짜에 예약</button>
-  </form>
+  <div id="guest-action">
+    <p id="other-month-pending" class="muted" hidden>다른 달 대기 예약이 있습니다. 이전달이나 다음달로 이동해 승인하거나 거절합니다.</p>
+    <div id="pending-list" class="booking-board" hidden></div>
+    <div id="approved-list" class="booking-board" hidden></div>
+    <div id="rejected-list" class="booking-board" hidden></div>
+    <form id="guest-form" hidden>
+      <p id="guest-date"></p>
+      <label>체험
+        <select id="guest-program"></select>
+      </label>
+      <label>단체 이름
+        <input type="text" id="group-name" placeholder="없으면 없음">
+      </label>
+      <p class="muted">단체 이름이 없으면 없음을 입력합니다.</p>
+      <label>시간
+        <input type="time" id="visit-time">
+      </label>
+      <label>인원
+        <input type="number" id="guest-people" inputmode="numeric">
+      </label>
+      <p id="guest-total" class="muted"></p>
+      <p id="guest-result" class="guest-result" aria-live="polite"></p>
+      <button type="submit">이 날짜에 예약</button>
+    </form>
+  </div>
   <form id="propose-form" hidden>
     <p id="propose-target"></p>
     <label>시간
@@ -49,5 +52,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261108e"></script>
+<script src="/static/js/calendar.js?v=20261111a"></script>
 {% endblock %}

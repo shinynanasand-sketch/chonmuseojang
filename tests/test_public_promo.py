@@ -677,7 +677,11 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert 'class="role-nav"' in plain_page.text
     assert 'data-mode="guest"' in book_page.text
     assert 'id="guest-date"' in book_page.text
-    assert 'id="guest-people" min="1" required' in book_page.text
+    assert 'id="guest-people"' in book_page.text
+    assert 'required' not in book_page.text[book_page.text.index('id="guest-form"'):book_page.text.index("이 날짜에 예약")]
+    form = book_page.text
+    assert form.index('id="day-entries"') < form.index('id="pending-list"') < form.index('id="guest-form"')
+    assert form.index('id="guest-result"') < form.index("이 날짜에 예약")
     assert 'data-mode="operator"' in approve_page.text
     assert 'id="pending-list"' in approve_page.text
     assert 'id="approved-list"' in approve_page.text
@@ -694,6 +698,9 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert "원래 " in script
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
     assert "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다." in script
+    assert "예약을 대기로 접수했습니다." in script
+    assert "시간을 입력해 주세요." in script
+    assert "scrollIntoView" in script
     assert "?view=program" in script
     program_token = urlsplit(body["program_url"]).path.rsplit("/", 1)[-1]
     narrowed = test_client.get(f"/api/calendar/{program_token}?view=program").json()

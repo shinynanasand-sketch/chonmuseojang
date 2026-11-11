@@ -179,6 +179,54 @@ def test_guest_calendar_saves_pending_booking_on_operator_calendar(test_client):
     assert "other-guest" not in test_client.get(f"/api/book/{token}").text
 
 
+def test_guest_booking_rereads_a_hidden_number(test_client, monkeypatch):
+    from services.supabase_client import insert_booking
+
+    _village("VHIDE", "숨은번호마을", "조개잡이")
+    _owner("VHIDE", "hide-owner")
+    token = issue_guest_book_link("hide-guest", "VHIDE").rsplit("/", 1)[-1]
+
+    def hide_number(row):
+        saved = dict(insert_booking(row))
+        saved.pop("booking_id", None)
+        return saved
+
+    monkeypatch.setattr("services.booking.insert_booking", hide_number)
+    saved = test_client.post(
+        f"/api/book/{token}",
+        json={
+            "label": "조개잡이",
+            "visit_date": "2026-11-12",
+            "visit_time": "10:00",
+            "num_people": 4,
+            "group_name": "없음",
+        },
+    )
+    assert saved.status_code == 200
+    assert isinstance(saved.json()["booking_id"], int)
+    assert list_my_bookings("hide-guest")[0]["booking_id"] == saved.json()["booking_id"]
+
+
+def test_guest_booking_does_not_confirm_without_a_number(test_client, monkeypatch):
+    _village("VNONEID", "번호없음마을", "조개잡이")
+    _owner("VNONEID", "noneid-owner")
+    token = issue_guest_book_link("noneid-guest", "VNONEID").rsplit("/", 1)[-1]
+    monkeypatch.setattr("services.booking.insert_booking", lambda row: dict(row))
+    saved = test_client.post(
+        f"/api/book/{token}",
+        json={
+            "label": "조개잡이",
+            "visit_date": "2026-11-12",
+            "visit_time": "10:00",
+            "num_people": 4,
+            "group_name": "없음",
+        },
+    )
+    assert saved.status_code == 400
+    assert saved.json()["detail"] == "예약을 접수하지 못했습니다. 다시 눌러 주세요."
+    assert list_my_bookings("noneid-guest") == []
+
+
 def test_guest_can_book_with_no_group_name(test_client):
     _village("VNONE", "없음마을", "조개잡이")
     _owner("VNONE", "none-owner")

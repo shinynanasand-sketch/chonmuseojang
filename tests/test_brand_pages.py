@@ -88,8 +88,8 @@ def test_story_page_keeps_section_order_and_demo_link(test_client, monkeypatch):
     assert "현장의 요청을 반영해 바꿨다." in changes
     assert "마을에서 요청한 변경 가운데 적용한 것과 적용하지 않은 것을 건수로 보여 준다." in changes
     assert "주요 변경을 건수와 함께 본다." not in changes
-    assert "전체 43건" in changes
-    assert "적용 38건" in changes
+    assert "전체 44건" in changes
+    assert "적용 39건" in changes
     assert "적용하지 않음 5건" in changes
     assert 'href="/story/changes"' in changes
     assert 'href="/guide/name-requests"' in changes
@@ -121,16 +121,16 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
 
     rows = guide_rows()
     summary = change_summary()
-    assert summary["total"] == len(rows) == 43
-    assert summary["applied"] == sum(1 for row in rows if row["applied"]) == 38
+    assert summary["total"] == len(rows) == 44
+    assert summary["applied"] == sum(1 for row in rows if row["applied"]) == 39
     assert summary["not_applied"] == 5
-    assert sum(group["count"] for group in summary["groups"]) == 43
+    assert sum(group["count"] for group in summary["groups"]) == 44
 
     page = test_client.get("/story/changes")
     assert page.status_code == 200
     text = page.text
     assert "<title>주요 변경 - 체험마을 AI사무장</title>" in text
-    assert "전체 43건 가운데 적용 38건, 적용하지 않음 5건이다." in text
+    assert "전체 44건 가운데 적용 39건, 적용하지 않음 5건이다." in text
     for label in (
         "마을명 · 6건",
         "체험 추가 · 3건",
@@ -140,7 +140,7 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
         "체험 달력 · 1건",
         "단체 이름 · 1건",
         "체험 묶음 · 3건",
-        "시연 · 3건",
+        "시연 · 4건",
         "적용하지 않은 나머지 · 2건",
     ):
         assert label in text
@@ -150,6 +150,7 @@ def test_story_changes_summarizes_counts_and_major_changes(test_client):
     assert "담당 카드에서 이름을 찾아 더한다." in text
     assert "1인 금액을 체험객 화면에 보이고" in text
     assert "오픈빌더에 주 이동 버튼을 넣지 않았다." in text
+    assert "예약번호와 대기가 그 아래에 남는다." in text
     assert text.count('href="/guide/name-requests"') == len(summary["groups"])
     for sentence in (
         "카카오 채널 하나에서 체험객과 사무장을 나눈다.",

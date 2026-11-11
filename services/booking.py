@@ -103,6 +103,10 @@ def create_booking(
                 return updated
         return found
     saved = dict(insert_booking(row))
+    if not saved.get("booking_id"):
+        again = _open_booking(row)
+        if again and again.get("booking_id"):
+            saved = dict(again)
     saved["already_open"] = False
     saved["headcount_updated"] = False
     saved["group_updated"] = False
@@ -203,6 +207,8 @@ def accept_named_booking(user_id: str, utterance: str, params: dict) -> dict:
         program_label=label,
         visit_time=visit_time,
     )
+    if not saved.get("booking_id"):
+        return {"ok": False, "text": "예약을 접수하지 못했습니다. 다시 눌러 주세요."}
     from services.demo_role import mark_guest_demo
 
     mark_guest_demo(user_id, saved.get("booking_id"))

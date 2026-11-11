@@ -334,6 +334,7 @@ def test_demo_village_booking_needs_a_chosen_role(test_client, monkeypatch):
     monkeypatch.setenv("PRESENTATION_MODE", "1")
     opened = test_client.post(f"/api/book/{token}", json=_book_body("2026-11-12"))
     assert opened.status_code == 200
+    assert isinstance(opened.json()["booking_id"], int)
     assert opened.json()["label"] == "갯벌체험"
     assert opened.json()["status"] == "pending"
     named = test_client.post(

@@ -274,6 +274,18 @@ function syncGuestForm() {
   showGuestTotal();
 }
 
+function guestNote(text) {
+  const note = document.getElementById("guest-result");
+  if (note) note.textContent = text;
+  if (text) statusNode.textContent = text;
+}
+
+function revealGuestBooking() {
+  if (mode !== "guest" || guestForm.hidden) return;
+  const block = document.getElementById("guest-action");
+  if (block) block.scrollIntoView({block: "start"});
+}
+
 function snapshotPath() {
   if (mode === "guest") return `/api/book/${token}`;
   if (mode === "change") return `/api/change/${token}`;
@@ -374,7 +386,9 @@ function draw() {
 }
 
 function showDay(key) {
+  const changed = selected !== key;
   selected = key;
+  if (changed) guestNote("");
   dayTitle.textContent = key;
   dayEntries.innerHTML = "";
   const rows = entriesOn(key);
@@ -417,6 +431,7 @@ function showDay(key) {
   });
   syncGuestForm();
   draw();
+  revealGuestBooking();
 }
 
 function startPropose(row) {
@@ -467,20 +482,26 @@ async function removeEntry(row) {
 
 guestProgram.addEventListener("change", showGuestTotal);
 document.getElementById("guest-people").addEventListener("input", showGuestTotal);
-document.getElementById("group-name").addEventListener("invalid", (event) => {
-  event.preventDefault();
-  statusNode.textContent = "단체 이름이 없으면 없음을 입력해 주세요.";
-});
 
 guestForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!selected) {
-    statusNode.textContent = "날짜를 먼저 눌러 주세요.";
+    guestNote("날짜를 먼저 눌러 주세요.");
     return;
   }
   const groupName = document.getElementById("group-name").value.trim();
   if (!groupName) {
-    statusNode.textContent = "단체 이름이 없으면 없음을 입력해 주세요.";
+    guestNote("단체 이름이 없으면 없음을 입력해 주세요.");
+    return;
+  }
+  const visitTime = document.getElementById("visit-time").value;
+  if (!visitTime) {
+    guestNote("시간을 입력해 주세요.");
+    return;
+  }
+  const people = Number(document.getElementById("guest-people").value);
+  if (!people || people < 1) {
+    guestNote("인원을 1명 이상으로 입력해 주세요.");
     return;
   }
   const response = await fetch(`/api/book/${token}`, {
@@ -489,27 +510,33 @@ guestForm.addEventListener("submit", async (event) => {
     body: JSON.stringify({
       label: guestProgram.value,
       visit_date: selected,
-      visit_time: document.getElementById("visit-time").value,
-      num_people: Number(document.getElementById("guest-people").value),
+      visit_time: visitTime,
+      num_people: people,
       group_name: groupName,
     }),
   });
   if (!response.ok) {
     const failed = await response.json().catch(() => ({}));
-    statusNode.textContent = failed.detail || "예약하지 못했습니다.";
+    guestNote(failed.detail || "예약하지 못했습니다.");
     return;
   }
   const saved = await response.json();
+  if (!saved.booking_id) {
+    guestNote("예약을 접수하지 못했습니다. 다시 눌러 주세요.");
+    return;
+  }
   const total = saved.total == null || saved.total === "" ? "" : ` ${saved.num_people}명 ${won(saved.total)}.`;
   const party = saved.group_name ? `${saved.group_name} ` : "";
   if (saved.headcount_updated || saved.group_updated) {
-    statusNode.textContent = `예약번호 ${saved.booking_id}번 ${party}${saved.num_people}명으로 고쳤습니다.${total}`;
+    guestNote(`예약번호 ${saved.booking_id}번 ${party}${saved.num_people}명으로 고쳤습니다.${total}`);
   } else if (saved.already_open) {
-    statusNode.textContent = `예약번호 ${saved.booking_id}번은 이미 ${saved.status_label} 상태입니다.${total}`;
+    guestNote(`예약번호 ${saved.booking_id}번은 이미 ${saved.status_label} 상태입니다.${total}`);
   } else {
-    statusNode.textContent = `${party}${saved.label} ${saved.visit_date} ${saved.visit_time} ${saved.booking_id}번 예약을 접수했습니다.${total} 승인 결과는 위 목록에서 볼 수 있습니다.`;
+    guestNote(`예약번호 ${saved.booking_id}번 ${party}${saved.label} ${saved.visit_date} ${saved.visit_time} 예약을 대기로 접수했습니다.${total} 위 목록에서 볼 수 있습니다.`);
   }
   await load(true);
+  const note = document.getElementById("guest-result");
+  if (note) note.scrollIntoView({block: "center"});
 });
 
 document.getElementById("propose-form").addEventListener("submit", async (event) => {
