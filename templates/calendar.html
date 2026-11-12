@@ -31,9 +31,23 @@
         <input type="text" id="group-name" placeholder="없으면 없음">
       </label>
       <p class="muted">단체 이름이 없으면 없음을 입력합니다.</p>
-      <label>시간
-        <input type="time" id="visit-time">
-      </label>
+      <fieldset class="time-pick">
+        <legend>시간</legend>
+        <p id="time-chosen" class="muted" aria-live="polite">오전 또는 오후를 눌러 주세요.</p>
+        <div class="time-period" role="group" aria-label="오전 또는 오후">
+          <button type="button" data-period="오전" aria-pressed="false">오전</button>
+          <button type="button" data-period="오후" aria-pressed="false">오후</button>
+        </div>
+        <div id="time-hours" class="time-slots" role="group" aria-label="시" hidden></div>
+        <div id="time-minutes" class="time-minute" role="group" aria-label="분" hidden>
+          <button type="button" data-minute="0" aria-pressed="false">정각</button>
+          <button type="button" data-minute="30" aria-pressed="false">30분</button>
+        </div>
+        <button type="button" id="time-other" aria-expanded="false">다른 시간 직접 입력</button>
+        <label id="time-custom" hidden>직접 입력
+          <input type="time" id="visit-time">
+        </label>
+      </fieldset>
       <label>인원
         <input type="number" id="guest-people" inputmode="numeric">
       </label>
@@ -52,5 +66,5 @@
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/calendar.js?v=20261111a"></script>
+<script src="/static/js/calendar.js?v=20261113b"></script>
 {% endblock %}

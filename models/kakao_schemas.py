@@ -40,13 +40,14 @@ class KakaoAction(BaseModel):
     name: str = ""
     params: dict[str, Any] = Field(default_factory=dict)
     detailParams: dict[str, Any] = Field(default_factory=dict)
+    clientExtra: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("name", mode="before")
     @classmethod
     def _name_none_to_empty(cls, value: Any) -> str:
         return "" if value is None else str(value)
 
-    @field_validator("params", "detailParams", mode="before")
+    @field_validator("params", "detailParams", "clientExtra", mode="before")
     @classmethod
     def _params_none_to_dict(cls, value: Any) -> dict[str, Any]:
         return value if isinstance(value, dict) else {}

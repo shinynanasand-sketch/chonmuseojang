@@ -699,7 +699,13 @@ def test_presentation_calendar_url_needs_the_demo_password(test_client, monkeypa
     assert "대기인 날짜를 눌러 승인하거나 거절합니다." in script
     assert "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다." in script
     assert "예약을 대기로 접수했습니다." in script
-    assert "시간을 입력해 주세요." in script
+    assert "시간을 눌러 주세요." in script
+    assert "오전 또는 오후를 눌러 주세요." in book_page.text
+    assert 'id="time-hours"' in book_page.text
+    assert "다른 시간 직접 입력" in book_page.text
+    assert "정각" in book_page.text
+    assert "PERIOD_HOURS" in script
+    assert "시 정각" in script
     assert "scrollIntoView" in script
     assert "?view=program" in script
     program_token = urlsplit(body["program_url"]).path.rsplit("/", 1)[-1]

@@ -297,8 +297,31 @@ def attach_role_card(body: dict) -> dict:
     return body
 
 
-def skill_http_response(body: dict) -> Response:
+def attach_role_chips(body: dict) -> dict:
+    """역할 말풍선은 주 이동을 붙여도 잘리지 않게 맨 뒤에 둔다."""
+    from services.demo_role import role_chip_replies
+
+    chips = role_chip_replies()
+    if not chips:
+        return body
+    template = body.get("template")
+    if not isinstance(template, dict):
+        return body
+    labels = {item["label"] for item in chips}
+    current = [
+        item
+        for item in template.get("quickReplies") or []
+        if isinstance(item, dict) and item.get("label") not in labels
+    ]
+    room = 10 - len(chips)
+    template["quickReplies"] = current[:room] + chips
+    return body
+
+
+def skill_http_response(body: dict, *, role_chips: bool = True) -> Response:
     """오픈빌더가 파싱하기 쉬운 UTF-8 JSON 원문 응답."""
+    if role_chips:
+        body = attach_role_chips(body)
     body = attach_role_card(body)
     return Response(
         content=json.dumps(body, ensure_ascii=False),
@@ -314,12 +337,56 @@ def event_talk_url(bot_id: str) -> str:
     return f"https://bot-api.kakao.com/v2/bots/{bot_id}/talk"
 
 
+def _event_talk_url() -> str:
+    """봇 번호가 있으면 그 대화 주소. 없으면 저장된 주소가 같은 형식일 때만 쓴다."""
+    bot_id = os.getenv("KAKAO_BOT_ID", "").strip()
+    if bot_id:
+        return event_talk_url(bot_id)
+    parsed = urlparse(os.getenv("KAKAO_EVENT_API_URL", "").strip())
+    host = (parsed.hostname or "").lower().rstrip(".")
+    parts = [part for part in parsed.path.split("/") if part]
+    if parsed.scheme != "https" or host != "bot-api.kakao.com" or len(parts) != 4:
+        return ""
+    version, bots, stored_id, talk = parts
+    if version != "v2" or bots != "bots" or talk != "talk" or not stored_id:
+        return ""
+    return event_talk_url(stored_id)
+
+
+def _plain_app_key(value: str) -> str:
+    """앞에 KakaoAK가 붙어 저장된 키는 한 번만 붙이도록 뗀다."""
+    text = " ".join((value or "").split())
+    if text.lower().startswith("kakaoak "):
+        text = text.split(" ", 1)[1].strip()
+    return text
+
+
+def _event_app_keys() -> list[str]:
+    """REST 키를 먼저 쓰고, 카카오가 그 키를 모르면 관리자 키를 한 번 더 쓴다."""
+    found = []
+    for name in ("KAKAO_REST_API_KEY", "KAKAO_ADMIN_KEY"):
+        key = _plain_app_key(os.getenv(name, ""))
+        if key and key not in found:
+            found.append(key)
+    return found
+
+
+def _event_rejection(response, payload: dict) -> str:
+    status = str(payload.get("status") or "")
+    if response.status_code < 400 and status == "SUCCESS":
+        return ""
+    if response.status_code >= 400 or status in {"FAIL", "ERROR"} or status != "SUCCESS":
+        return str(payload.get("message") or status or response.status_code)
+    return ""
+
+
 def send_kakao_event(event_name: str, user_id: str, data: dict) -> bool:
     """챗봇 이벤트 API. 키가 없거나 카카오가 거절하면 False. 예외는 올리지 않는다."""
-    rest_key = os.getenv("KAKAO_REST_API_KEY", "").strip()
-    bot_id = os.getenv("KAKAO_BOT_ID", "").strip()
-    if not rest_key or not bot_id or not user_id:
-        logger.info("카카오 이벤트 API 생략: %s", event_name)
+    keys = _event_app_keys()
+    talk_url = _event_talk_url()
+    if not keys or not talk_url or not user_id:
+        missing = "key" if not keys else "url" if not talk_url else "user"
+        logger.info("카카오 이벤트 API 생략: %s %s", event_name, missing)
         return False
     body = {
         "event": {
@@ -330,23 +397,26 @@ def send_kakao_event(event_name: str, user_id: str, data: dict) -> bool:
     }
     try:
         with httpx.Client(timeout=_EVENT_TIMEOUT) as client:
-            response = client.post(
-                event_talk_url(bot_id),
-                headers={
-                    "Authorization": f"KakaoAK {rest_key}",
-                    "Content-Type": "application/json",
-                },
-                json=body,
-            )
-        try:
-            payload = response.json()
-        except Exception:
-            payload = {}
-        status = str(payload.get("status") or "")
-        if response.status_code >= 400 or status in {"FAIL", "ERROR"}:
-            logger.info("카카오 이벤트 API 거절: %s %s", event_name, payload.get("message") or status or response.status_code)
-            return False
-        return status == "SUCCESS"
+            for key in keys:
+                response = client.post(
+                    talk_url,
+                    headers={
+                        "Authorization": f"KakaoAK {key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                )
+                try:
+                    payload = response.json()
+                except Exception:
+                    payload = {}
+                reason = _event_rejection(response, payload)
+                if not reason:
+                    return True
+                logger.info("카카오 이벤트 API 거절: %s %s", event_name, reason)
+                if "Invalid appKey" not in reason:
+                    return False
+        return False
     except Exception as exc:
         logger.warning("카카오 이벤트 API 발송 실패: %s", exc)
         return False

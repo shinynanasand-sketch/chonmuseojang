@@ -179,6 +179,7 @@ async def demo_role_page(request: Request, token: str):
             "current": current_persona_label(session),
             "message": "",
             "pushed": False,
+            "press_label": "",
         },
         _PAGE_CDN,
     )
@@ -204,6 +205,7 @@ async def demo_role_choose(request: Request, token: str):
             "current": current_persona_label(session),
             "message": str(result.get("message") or ""),
             "pushed": bool(result.get("pushed")),
+            "press_label": str(result.get("press_label") or ""),
         },
         _PAGE_CDN,
     )

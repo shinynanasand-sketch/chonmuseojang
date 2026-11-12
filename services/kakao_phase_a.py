@@ -138,9 +138,14 @@ def handle_phase_a(payload: KakaoSkillRequest) -> dict | None:
     user_id = str(payload.userRequest.user.get("id") or "")
     utterance = (payload.userRequest.utterance or "").strip()
     name = (payload.intent.name or "").strip()
+    from services.demo_role import chosen_role_reply, press_role_chip
+
+    chosen = str(payload.action.clientExtra.get("persona") or "")
+    notice = press_role_chip(user_id, chosen or utterance)
+    if notice:
+        return build_skill_response("시연 역할", notice)
     if utterance in {"등록 안내", "사용 안내"} or name in {"등록 안내", "사용 안내"}:
         return guide_skill_response(utterance if utterance in {"등록 안내", "사용 안내"} else name)
-    from services.demo_role import chosen_role_reply
 
     notice = chosen_role_reply(user_id, utterance or name)
     if notice:

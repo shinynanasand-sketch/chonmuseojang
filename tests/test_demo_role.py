@@ -369,7 +369,7 @@ class _RoleEventClient:
         return False
 
     def post(self, url, headers=None, json=None):
-        self._calls.append({"url": url, "json": json})
+        self._calls.append({"url": url, "headers": headers, "json": json})
         return _RoleEventResponse()
 
 
@@ -385,7 +385,7 @@ def test_chosen_role_sends_the_sentence_without_the_account(monkeypatch, test_cl
     page = test_client.post(path, data={"persona": "guest"})
     assert page.status_code == 200
     assert "카카오 대화에 그 역할 버튼이 옵니다." in page.text
-    assert "한 번 누르면" not in page.text
+    assert "말풍선을 누르세요" not in page.text
     assert "kakao_owner_v001" not in page.text
     sent = calls[0]["json"]
     assert sent["event"]["name"] == "demo_role_chosen"
@@ -393,6 +393,124 @@ def test_chosen_role_sends_the_sentence_without_the_account(monkeypatch, test_cl
         "message": "체험객으로 바꿨습니다. 예약하기와 내 예약을 씁니다."
     }
     assert "kakao_owner_v001" not in str(sent["event"]["data"])
+    assert calls[0]["url"] == "https://bot-api.kakao.com/v2/bots/bot-test/talk"
+
+
+def _choose_guest(test_client):
+    path = urlparse(role_page_url("kakao_owner_v001")).path
+    return test_client.post(path, data={"persona": "guest"})
+
+
+def test_role_event_uses_the_stored_talk_url_without_a_bot_id(monkeypatch, test_client):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "test-rest-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "")
+    monkeypatch.setenv(
+        "KAKAO_EVENT_API_URL",
+        "https://bot-api.kakao.com/v2/bots/bot-from-url/talk",
+    )
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        lambda timeout=None: _RoleEventClient(calls),
+    )
+    page = _choose_guest(test_client)
+    assert page.status_code == 200
+    assert "카카오 대화에 그 역할 버튼이 옵니다." in page.text
+    assert calls[0]["url"] == "https://bot-api.kakao.com/v2/bots/bot-from-url/talk"
+    assert calls[0]["json"]["event"]["name"] == "demo_role_chosen"
+
+
+def test_role_event_skips_a_stored_url_that_is_not_the_bot_talk(monkeypatch, test_client):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "test-rest-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "")
+    monkeypatch.setenv(
+        "KAKAO_EVENT_API_URL",
+        "https://kapi.kakao.com/v2/api/talk/friends/message/send",
+    )
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        lambda timeout=None: _RoleEventClient(calls),
+    )
+    page = _choose_guest(test_client)
+    assert page.status_code == 200
+    assert "체험객 말풍선을 누르세요" in page.text
+    assert calls == []
+
+
+class _AppKeyResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+class _AppKeyClient:
+    def __init__(self, calls, responses):
+        self._calls = calls
+        self._responses = responses
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def post(self, url, headers=None, json=None):
+        self._calls.append(headers["Authorization"])
+        return self._responses[len(self._calls) - 1]
+
+
+def test_role_event_sends_the_app_key_once(monkeypatch, test_client):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "KakaoAK test-rest-key")
+    monkeypatch.setenv("KAKAO_ADMIN_KEY", "admin-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "bot-test")
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        lambda timeout=None: _RoleEventClient(calls),
+    )
+    page = _choose_guest(test_client)
+    assert "카카오 대화에 그 역할 버튼이 옵니다." in page.text
+    assert calls[0]["headers"]["Authorization"] == "KakaoAK test-rest-key"
+    assert len(calls) == 1
+
+
+def test_role_event_uses_the_admin_key_when_the_rest_key_is_rejected(monkeypatch, test_client):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "stale-rest-key")
+    monkeypatch.setenv("KAKAO_ADMIN_KEY", "admin-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "bot-test")
+    responses = [
+        _AppKeyResponse(401, {"message": "Invalid appKey. Check your appKey."}),
+        _AppKeyResponse(200, {"status": "SUCCESS"}),
+    ]
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        lambda timeout=None: _AppKeyClient(calls, responses),
+    )
+    page = _choose_guest(test_client)
+    assert "카카오 대화에 그 역할 버튼이 옵니다." in page.text
+    assert calls == ["KakaoAK stale-rest-key", "KakaoAK admin-key"]
+
+
+def test_role_event_stops_when_kakao_rejects_for_another_reason(monkeypatch, test_client):
+    calls = []
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "test-rest-key")
+    monkeypatch.setenv("KAKAO_ADMIN_KEY", "admin-key")
+    monkeypatch.setenv("KAKAO_BOT_ID", "bot-test")
+    responses = [
+        _AppKeyResponse(200, {"status": "FAIL", "message": "Non-sufficient funds. Check your wallet balance."}),
+    ]
+    monkeypatch.setattr(
+        "services.kakao_client.httpx.Client",
+        lambda timeout=None: _AppKeyClient(calls, responses),
+    )
+    page = _choose_guest(test_client)
+    assert "체험객 말풍선을 누르세요" in page.text
+    assert calls == ["KakaoAK test-rest-key"]
 
 
 def _role_skill(test_client, user_id: str):
@@ -415,7 +533,7 @@ def test_role_skill_returns_the_chosen_guest_buttons(test_client):
 def test_role_skill_without_a_persona_leaves_the_buttons(test_client, monkeypatch):
     quiet = _role_skill(test_client, "kakao_owner_v001")
     assert "시연 역할을 먼저 고릅니다." in quiet.text
-    assert "quickReplies" not in quiet.json()["template"]
+    assert _labels(quiet) == ["체험객", "사무장", "체험 담당"]
 
     assert set_demo_persona("kakao_owner_v001", "guest") is True
     monkeypatch.setenv("PRESENTATION_MODE", "0")
@@ -423,3 +541,64 @@ def test_role_skill_without_a_persona_leaves_the_buttons(test_client, monkeypatc
     assert "시연 역할을 먼저 고릅니다." in paused.text
     assert "quickReplies" not in paused.json()["template"]
     assert "예약하기" not in _labels(paused)
+
+
+def _press(test_client, user_id: str, label: str, persona: str, utterance: str = "마을 추천"):
+    return test_client.post(
+        "/kakao/ask",
+        json={
+            "intent": {"name": "마을 추천", "id": "6ac5bb613049e89d1ab434b2"},
+            "userRequest": {"utterance": utterance, "user": {"id": user_id}},
+            "action": {"name": "마을 추천", "clientExtra": {"persona": persona}, "params": {}},
+        },
+    )
+
+
+def test_role_chip_switches_from_manager_to_guest(test_client):
+    assert set_demo_persona("kakao_owner_v001", "village") is True
+    response = _press(test_client, "kakao_owner_v001", "체험객", "guest")
+    assert "체험객으로 바꿨습니다. 예약하기와 내 예약을 씁니다." in response.text
+    assert _labels(response)[:4] == ["마을 추천", "예약하기", "내 예약", "후기 보기"]
+    assert _labels(response)[-3:] == ["체험객", "사무장", "체험 담당"]
+    assert "추천" not in response.json()["template"]["outputs"][0]["simpleText"]["text"]
+
+
+def test_role_chip_switches_from_guest_to_manager(test_client):
+    assert set_demo_persona("kakao_owner_v001", "guest") is True
+    response = _press(test_client, "kakao_owner_v001", "사무장", "village", "내 예약")
+    assert "사무장으로 바꿨습니다. 예약 현황, 달력, 홍보 사진을 씁니다." in response.text
+    assert _labels(response)[:4] == ["예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진"]
+
+
+def test_role_chip_switches_to_program_from_either_role(test_client):
+    for persona in ("guest", "village"):
+        assert set_demo_persona("kakao_owner_v001", persona) is True
+        response = _press(test_client, "kakao_owner_v001", "체험 담당", "program")
+        assert "체험 담당으로 바꿨습니다. 달력은 보기만 합니다." in response.text
+        assert "예약 현황 조회" not in _labels(response)
+        assert "체험 글 저장" in _labels(response)
+
+
+def test_typed_role_name_switches_without_the_extra(test_client):
+    response = test_client.post(
+        "/kakao/ask",
+        json=_ask("kakao_owner_v001", "체험객", "체험객"),
+    )
+    assert "체험객으로 바꿨습니다. 예약하기와 내 예약을 씁니다." in response.text
+    assert _labels(response)[-1] == "체험 담당"
+
+
+def test_program_chip_stays_off_another_village(test_client):
+    from services.supabase_client import insert_operator
+
+    insert_operator(
+        {
+            "village_id": "VOTHER",
+            "kakao_user_id": "other_owner",
+            "role": "village",
+            "is_active": True,
+        }
+    )
+    response = _press(test_client, "other_owner", "체험 담당", "program")
+    assert "담당 보기는 예시 갯벌마을 계정에서만 바뀝니다." in response.text
+    assert "체험 글 저장" not in _labels(response)

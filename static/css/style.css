@@ -112,6 +112,17 @@ select, input[type="search"], input[type="text"], input[type="password"] { paddi
 #entry-form:not([hidden]), #guest-form:not([hidden]), #propose-form:not([hidden]) { display: grid; gap: 0.75rem; margin-top: 1rem; }
 #entry-form label, #guest-form label, #propose-form label { display: grid; gap: 0.35rem; font-size: 1rem; }
 #entry-form input, #entry-form select, #guest-form input, #guest-form select, #guest-form button, #propose-form input, #propose-form button { font-size: 1.1rem; min-height: 2.75rem; }
+.time-pick { border: 0; margin: 0; padding: 0; min-inline-size: 0; display: grid; gap: 0.5rem; }
+.time-pick legend { padding: 0; font-size: 1rem; }
+#guest-form .time-pick button { min-height: 3.25rem; font-size: 1.15rem; background: #fff; color: #1b1b1b; border: 1px solid #2d6a4f; }
+#guest-form .time-pick button[aria-pressed="true"] { background: #2d6a4f; color: #fff; font-weight: 700; }
+.time-period, .time-minute { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+.time-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; }
+.time-slots button:focus-visible, .time-period button:focus-visible, .time-minute button:focus-visible, #time-other:focus-visible { outline: 3px solid #1b4332; outline-offset: 2px; }
+#time-hours[hidden], #time-minutes[hidden], #time-custom[hidden] { display: none; }
+#time-custom input { width: 100%; box-sizing: border-box; }
+#time-chosen { margin: 0; }
+#time-chosen.is-set { color: #1b4332; font-weight: 700; font-size: 1.15rem; }
 #day-entries p, #day-entries .day-line { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; border-bottom: 1px solid #eee; padding: 0.5rem 0; }
 #day-entries .day-line.booking-pending { background: #f4c2c2; }
 #day-entries .day-line.booking-confirmed { background: #d8f3dc; }

@@ -480,6 +480,183 @@ async function removeEntry(row) {
   if (response.ok) await load(true);
 }
 
+const PERIOD_HOURS = {
+  오전: [9, 10, 11],
+  오후: [12, 1, 2, 3, 4, 5],
+};
+
+let timeChoice = {period: "", hour: null, minute: 0, custom: false};
+
+function clockValue(value) {
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(value || "").trim());
+  if (!match) return "";
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return "";
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+function clockPhrase(clock) {
+  if (!clock) return "";
+  const hour = Number(clock.slice(0, 2));
+  const minute = Number(clock.slice(3, 5));
+  const period = hour < 12 ? "오전" : "오후";
+  const shown = hour % 12 || 12;
+  if (minute === 0) return `${period} ${shown}시`;
+  return `${period} ${shown}시 ${minute}분`;
+}
+
+function matchGrid(clock) {
+  if (!clock) return null;
+  const hour = Number(clock.slice(0, 2));
+  const minute = Number(clock.slice(3, 5));
+  if (minute !== 0 && minute !== 30) return null;
+  const period = hour < 12 ? "오전" : "오후";
+  const shown = hour % 12 || 12;
+  if (!PERIOD_HOURS[period].includes(shown)) return null;
+  return {period, shown, minute};
+}
+
+function gridClock() {
+  if (!timeChoice.period || timeChoice.hour == null) return "";
+  let hour = timeChoice.hour;
+  if (timeChoice.period === "오후" && hour < 12) hour += 12;
+  const minute = timeChoice.minute === 30 ? 30 : 0;
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+function closeCustomTime() {
+  const custom = document.getElementById("time-custom");
+  const other = document.getElementById("time-other");
+  custom.hidden = true;
+  other.setAttribute("aria-expanded", "false");
+  other.textContent = "다른 시간 직접 입력";
+}
+
+function paintTimePicker() {
+  const chosen = document.getElementById("time-chosen");
+  const phrase = clockPhrase(clockValue(document.getElementById("visit-time").value));
+  chosen.textContent = phrase || (timeChoice.period ? "시를 눌러 주세요." : "오전 또는 오후를 눌러 주세요.");
+  chosen.classList.toggle("is-set", Boolean(phrase));
+  if (phrase) {
+    const note = document.getElementById("guest-result");
+    if (note && note.textContent === "시간을 눌러 주세요.") note.textContent = "";
+    if (statusNode.textContent === "시간을 눌러 주세요.") {
+      statusNode.textContent = "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다.";
+    }
+  }
+  document.querySelectorAll(".time-period button").forEach((button) => {
+    button.setAttribute("aria-pressed", button.dataset.period === timeChoice.period ? "true" : "false");
+  });
+  const hours = document.getElementById("time-hours");
+  if (!timeChoice.period) {
+    hours.hidden = true;
+    hours.innerHTML = "";
+  } else {
+    hours.hidden = false;
+    const labels = PERIOD_HOURS[timeChoice.period];
+    const existing = [...hours.querySelectorAll("button")].map((button) => Number(button.dataset.hour));
+    const same = existing.length === labels.length && existing.every((hour, index) => hour === labels[index]);
+    if (!same) {
+      hours.innerHTML = "";
+      labels.forEach((hour) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.hour = String(hour);
+        button.textContent = `${hour}시`;
+        button.addEventListener("click", () => chooseHour(hour));
+        hours.appendChild(button);
+      });
+    }
+    hours.querySelectorAll("button").forEach((button) => {
+      button.setAttribute("aria-pressed", Number(button.dataset.hour) === timeChoice.hour ? "true" : "false");
+    });
+  }
+  const minutes = document.getElementById("time-minutes");
+  minutes.hidden = timeChoice.hour == null;
+  const exact = minutes.querySelector('[data-minute="0"]');
+  const half = minutes.querySelector('[data-minute="30"]');
+  if (timeChoice.hour == null) {
+    exact.textContent = "정각";
+    half.textContent = "30분";
+  } else {
+    exact.textContent = `${timeChoice.hour}시 정각`;
+    half.textContent = `${timeChoice.hour}시 30분`;
+  }
+  const minute = timeChoice.minute === 30 ? 30 : 0;
+  exact.setAttribute("aria-pressed", timeChoice.hour != null && minute === 0 ? "true" : "false");
+  half.setAttribute("aria-pressed", timeChoice.hour != null && minute === 30 ? "true" : "false");
+}
+
+function choosePeriod(period) {
+  if (timeChoice.period === period) return;
+  timeChoice = {period, hour: null, minute: 0, custom: false};
+  document.getElementById("visit-time").value = "";
+  closeCustomTime();
+  paintTimePicker();
+}
+
+function chooseHour(hour) {
+  timeChoice.hour = hour;
+  timeChoice.custom = false;
+  if (timeChoice.minute !== 30) timeChoice.minute = 0;
+  document.getElementById("visit-time").value = gridClock();
+  closeCustomTime();
+  paintTimePicker();
+}
+
+function chooseMinute(minute) {
+  timeChoice.minute = minute === 30 ? 30 : 0;
+  if (timeChoice.hour == null) {
+    paintTimePicker();
+    return;
+  }
+  timeChoice.custom = false;
+  document.getElementById("visit-time").value = gridClock();
+  closeCustomTime();
+  paintTimePicker();
+}
+
+function applyCustomClock() {
+  const clock = clockValue(document.getElementById("visit-time").value);
+  const matched = matchGrid(clock);
+  if (matched) {
+    timeChoice = {period: matched.period, hour: matched.shown, minute: matched.minute, custom: false};
+  } else if (clock) {
+    timeChoice = {period: "", hour: null, minute: 0, custom: true};
+  } else {
+    timeChoice = {period: "", hour: null, minute: 0, custom: false};
+  }
+  paintTimePicker();
+}
+
+function toggleCustomTime() {
+  const custom = document.getElementById("time-custom");
+  const other = document.getElementById("time-other");
+  if (custom.hidden) {
+    custom.hidden = false;
+    other.setAttribute("aria-expanded", "true");
+    other.textContent = "직접 입력 닫기";
+    document.getElementById("visit-time").focus();
+    return;
+  }
+  closeCustomTime();
+}
+
+function wireTimePicker() {
+  document.querySelectorAll(".time-period button").forEach((button) => {
+    button.addEventListener("click", () => choosePeriod(button.dataset.period));
+  });
+  document.querySelectorAll("#time-minutes button").forEach((button) => {
+    button.addEventListener("click", () => chooseMinute(Number(button.dataset.minute)));
+  });
+  document.getElementById("time-other").addEventListener("click", toggleCustomTime);
+  const visitTime = document.getElementById("visit-time");
+  visitTime.addEventListener("input", applyCustomClock);
+  visitTime.addEventListener("change", applyCustomClock);
+  paintTimePicker();
+}
+
 guestProgram.addEventListener("change", showGuestTotal);
 document.getElementById("guest-people").addEventListener("input", showGuestTotal);
 
@@ -496,7 +673,8 @@ guestForm.addEventListener("submit", async (event) => {
   }
   const visitTime = document.getElementById("visit-time").value;
   if (!visitTime) {
-    guestNote("시간을 입력해 주세요.");
+    guestNote("시간을 눌러 주세요.");
+    document.getElementById("time-chosen").scrollIntoView({block: "center"});
     return;
   }
   const people = Number(document.getElementById("guest-people").value);
@@ -577,4 +755,5 @@ function moveMonth(offset) {
 document.getElementById("prev-month").addEventListener("click", () => moveMonth(-1));
 document.getElementById("next-month").addEventListener("click", () => moveMonth(1));
 
+wireTimePicker();
 load();

@@ -168,6 +168,9 @@ def role_quick_reply(user_id: str) -> dict | None:
 
 
 _ROLE_LABELS = {"guest": "체험객", "village": "사무장", "program": "체험 담당"}
+# 배포된 마을 추천 블록. 역할 말풍선은 이 블록을 부르고, 고른 역할은 extra로 전한다.
+ROLE_CHIP_BLOCK_ID = "6ac5bb613049e89d1ab434b2"
+ROLE_CHIPS = (("체험객", "guest"), ("사무장", "village"), ("체험 담당", "program"))
 _OPERATOR_BUTTONS = {"예약 현황 조회", "체험 달력 조회", "체험 글 조회", "홍보 사진", "체험 글 저장"}
 
 
@@ -177,6 +180,38 @@ def role_card_description(user_id: str) -> str:
     if not label:
         return "체험객, 사무장, 체험 담당을 바꿉니다."
     return f"지금 역할은 {label}입니다."
+
+
+def role_chip_replies() -> list[dict]:
+    """어느 역할에서든 체험객, 사무장, 체험 담당 말풍선을 둔다."""
+    if not _presentation_on():
+        return []
+    return [
+        {
+            "label": label,
+            "action": "block",
+            "blockId": ROLE_CHIP_BLOCK_ID,
+            "extra": {"persona": persona},
+        }
+        for label, persona in ROLE_CHIPS
+    ]
+
+
+def press_role_label(persona: str) -> str:
+    return _ROLE_LABELS.get(persona, "")
+
+
+def press_role_chip(user_id: str, utterance: str) -> str | None:
+    """역할 말풍선을 누르면 그 역할로 바꾸고 그 문장을 돌려준다."""
+    if not user_id or not _presentation_on():
+        return None
+    text = " ".join((utterance or "").split())
+    persona = dict(ROLE_CHIPS).get(text) or (text if text in _PERSONAS else "")
+    if not persona:
+        return None
+    if not set_demo_persona(user_id, persona):
+        return "담당 보기는 예시 갯벌마을 계정에서만 바뀝니다."
+    return persona_message(user_id, persona)
 
 
 def chosen_role_reply(user_id: str, utterance: str) -> str | None:
@@ -284,7 +319,13 @@ def choose_persona(token: str, persona: str) -> dict:
     from services.kakao_client import notify_demo_role_chosen
 
     pushed = notify_demo_role_chosen(user_id, message)
-    return {"ok": True, "message": message, "persona": persona, "pushed": pushed}
+    return {
+        "ok": True,
+        "message": message,
+        "persona": persona,
+        "pushed": pushed,
+        "press_label": press_role_label(persona),
+    }
 
 
 def persona_message(user_id: str, persona: str) -> str:

@@ -16,8 +16,8 @@ from services.kakao_phase_a import (
 router = APIRouter(prefix="/kakao", tags=["kakao"])
 
 
-def _skill_json(body: dict):
-    return skill_http_response(body)
+def _skill_json(body: dict, role_chips: bool = True):
+    return skill_http_response(body, role_chips=role_chips)
 
 
 def _phase_a(payload: KakaoSkillRequest):
@@ -53,7 +53,8 @@ async def kakao_ping():
             "template": {
                 "outputs": [{"simpleText": {"text": "스킬 연결 OK"}}]
             },
-        }
+        },
+        role_chips=False,
     )
 
 
@@ -79,9 +80,17 @@ def _close_skill(tokens) -> None:
 @router.post("/role")
 async def kakao_role(payload: KakaoSkillRequest):
     """고른 시연 역할의 문장과 버튼을 대화에 보낸다. 고르지 않았으면 버튼을 두지 않는다."""
-    from services.demo_role import persona_message, persona_of
+    from services.demo_role import persona_message, persona_of, press_role_chip
 
     user_id = _user_id(payload)
+    chosen = str(payload.action.clientExtra.get("persona") or "")
+    pressed = press_role_chip(user_id, chosen or (payload.userRequest.utterance or ""))
+    if pressed:
+        tokens = _open_skill(user_id)
+        try:
+            return _skill_json(kakao_client.build_skill_response("시연 역할", pressed))
+        finally:
+            _close_skill(tokens)
     persona = persona_of(user_id)
     if not persona:
         return _skill_json(

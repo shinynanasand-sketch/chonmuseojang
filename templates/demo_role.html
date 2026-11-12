@@ -8,8 +8,8 @@
   <p>{{ message }}</p>
   {% if pushed %}
   <p>카카오 대화에 그 역할 버튼이 옵니다.</p>
-  {% else %}
-  <p>카카오톡으로 돌아가 보이는 버튼을 한 번 누르면 그 역할 버튼으로 바뀝니다.</p>
+  {% elif press_label %}
+  <p>카카오톡으로 돌아가 {{ press_label }} 말풍선을 누르세요. 그 말풍선이 아직 없으면 보이는 버튼을 한 번 누른 뒤에 누르세요.</p>
   {% endif %}
   {% endif %}
   <form method="post">

@@ -15,7 +15,9 @@ def block_live_llm(monkeypatch):
         "CLAUDE_API_KEY",
         "ANTHROPIC_API_KEY",
         "KAKAO_REST_API_KEY",
+        "KAKAO_ADMIN_KEY",
         "KAKAO_BOT_ID",
+        "KAKAO_EVENT_API_URL",
     ):
         monkeypatch.setenv(name, "")
 
