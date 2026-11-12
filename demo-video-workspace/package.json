@@ -1,0 +1,22 @@
+{
+  "name": "demo-video-workspace",
+  "private": true,
+  "scripts": {
+    "render:test": "remotion render src/index.ts ClipATest out/a-test.mp4",
+    "render:b-test": "remotion render src/index.ts ClipBTest out/b-test.mp4",
+    "render:c-test": "remotion render src/index.ts ClipCTest out/c-test.mp4",
+    "render:d-test": "remotion render src/index.ts ClipDTest out/d-test.mp4",
+    "render:e-test": "remotion render src/index.ts ClipETest out/e-test.mp4",
+    "render:f-test": "remotion render src/index.ts ClipFTest out/f-test.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.543",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.543"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "role": "staff",
+  "title": "체험 담당",
+  "automated": false,
+  "village": "예시 갯벌마을",
+  "capture": "kakao-left-chrome-right",
+  "continues_booking": true,
+  "read_only": true,
+  "steps": [
+    {
+      "id": "s1",
+      "where": "카카오",
+      "press": "시연 역할",
+      "then": "오른쪽에서 체험 담당",
+      "expect": "지금 역할은 체험 담당입니다. 달력은 보기만 합니다.",
+      "risk": false
+    },
+    {
+      "id": "s2",
+      "where": "카카오",
+      "press": "체험 달력 조회",
+      "then": "달력 열기",
+      "before": "오른쪽은 시연 역할 화면이다. 달력이 미리 열려 있으면 다른 화면으로 바꾼 뒤에 누른다.",
+      "expect": "오른쪽 제목이 체험 일정으로 바뀌면 버튼 이름과 제목을 잠시 유지한다. 승인, 거절, 일정 변경은 누르지 않는다.",
+      "caption": "카카오의 달력 열기를 누르면 오른쪽 달력이 열립니다.",
+      "risk": false
+    }
+  ],
+  "captions": [
+    "카카오의 달력 열기를 누르면 오른쪽 달력이 열립니다.",
+    "체험 담당은 맡은 체험의 예약을 보고, 승인과 일정 변경은 하지 않습니다."
+  ],
+  "stop_when": "같은 예약이 읽기 전용으로 보이면 멈춘다."
+}

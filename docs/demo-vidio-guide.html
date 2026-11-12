@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>체험마을 AI사무장 — 시연 영상 제작 가이드</title>
+
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #596579;
+      --line: #dce3ec;
+      --paper: #ffffff;
+      --canvas: #eef2f7;
+      --blue: #2357b8;
+      --blue-light: #eef4ff;
+      --orange: #9a4600;
+      --orange-light: #fff5e8;
+      --green: #176344;
+      --green-light: #edf8f2;
+      --red: #9b2835;
+      --red-light: #fff1f2;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family:
+        "Malgun Gothic", "Apple SD Gothic Neo",
+        "Noto Sans KR", sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 24px;
+      color: white;
+      background: #172033;
+    }
+
+    .toolbar span { font-size: 13px; }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .print-button {
+      color: #172033;
+      background: white;
+      white-space: nowrap;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 28px auto;
+      padding: 48px 56px;
+      background: var(--paper);
+      border-radius: 14px;
+      box-shadow: 0 8px 30px rgba(23, 32, 51, .07);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .06em;
+    }
+
+    h1 {
+      margin: 8px 0 16px;
+      font-size: 34px;
+      line-height: 1.3;
+      letter-spacing: -.04em;
+    }
+
+    h2 {
+      margin: 42px 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--line);
+      font-size: 23px;
+      line-height: 1.4;
+      letter-spacing: -.03em;
+    }
+
+    h3 {
+      margin: 25px 0 10px;
+      font-size: 18px;
+      line-height: 1.45;
+    }
+
+    h4 {
+      margin: 18px 0 8px;
+      font-size: 16px;
+    }
+
+    p { margin: 10px 0; }
+
+    ul, ol {
+      margin: 10px 0;
+      padding-left: 25px;
+    }
+
+    li { margin: 5px 0; }
+
+    strong { font-weight: 800; }
+
+    .lead { color: var(--muted); }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 20px 0;
+    }
+
+    .tag {
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 99px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .box {
+      margin: 16px 0;
+      padding: 16px 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .info {
+      background: var(--blue-light);
+      border-color: #cfddfb;
+    }
+
+    .warning {
+      background: var(--orange-light);
+      border-color: #efd5b1;
+    }
+
+    .success {
+      background: var(--green-light);
+      border-color: #c7e4d5;
+    }
+
+    .danger {
+      background: var(--red-light);
+      border-color: #efcbd0;
+    }
+
+    .box p:first-child { margin-top: 0; }
+    .box p:last-child { margin-bottom: 0; }
+
+    .toc {
+      columns: 2;
+      column-gap: 28px;
+    }
+
+    .toc a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .toc li { break-inside: avoid; }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin: 14px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f4f9;
+      font-weight: 800;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li::before {
+      content: "☐ ";
+      color: var(--muted);
+    }
+
+    .clip {
+      margin: 22px 0;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .clip > h3 { margin-top: 0; }
+
+    .step {
+      padding-top: 8px;
+      margin-top: 16px;
+      border-top: 1px dashed var(--line);
+    }
+
+    .risk {
+      display: inline-block;
+      padding: 1px 7px;
+      margin-left: 5px;
+      border-radius: 5px;
+      color: var(--red);
+      background: var(--red-light);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .subtitle {
+      padding: 12px 16px;
+      border-left: 4px solid var(--blue);
+      background: #f5f8ff;
+    }
+
+    .prompt {
+      margin: 14px 0;
+      padding: 18px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #f8fafc;
+      font-family:
+        "Malgun Gothic", "Apple SD Gothic Neo",
+        "Noto Sans KR", sans-serif;
+      font-size: 13px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    code {
+      padding: 2px 5px;
+      background: #eef2f7;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+      font-size: .92em;
+    }
+
+    .page-break { margin-top: 42px; }
+
+    footer {
+      margin-top: 42px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        margin: 0;
+        padding: 28px 20px;
+        border-radius: 0;
+      }
+
+      h1 { font-size: 28px; }
+      .toc { columns: 1; }
+      .toolbar { padding: 10px 16px; }
+      .toolbar span { display: none; }
+      th, td { padding: 8px; }
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 16mm 14mm;
+    }
+
+    @media print {
+      body {
+        background: white;
+        font-size: 10pt;
+        line-height: 1.6;
+      }
+
+      .toolbar, .screen-only { display: none !important; }
+
+      main {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      h1 { font-size: 24pt; }
+      h2 { font-size: 15pt; margin-top: 22px; }
+      h3 { font-size: 12pt; }
+      h4 { font-size: 10.5pt; }
+
+      h1, h2, h3, h4 {
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+
+      table { font-size: 8.5pt; }
+      thead { display: table-header-group; }
+
+      tr, .box, .subtitle {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      .table-wrap { overflow: visible; }
+
+      .clip {
+        padding: 12px;
+        border-radius: 0;
+      }
+
+      .prompt {
+        font-size: 9pt;
+        line-height: 1.6;
+        padding: 12px;
+        white-space: pre-wrap;
+      }
+
+      .page-break {
+        break-before: page;
+        page-break-before: always;
+        margin-top: 0;
+      }
+
+      a { color: inherit; text-decoration: none; }
+
+      * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="toolbar">
+    <span>체험마을 AI사무장 · 촬영 및 편집 작업 문서</span>
+    <button class="print-button" type="button" onclick="window.print()">
+      인쇄 / PDF 저장
+    </button>
+  </div>
+
+  <main>
+    <header>
+      <div class="eyebrow">DEMO VIDEO PRODUCTION GUIDE</div>
+      <h1>체험마을 AI사무장<br>시연 영상 제작 가이드</h1>
+      <p class="lead">
+        보조 모니터 없는 노트북에서 PC 카카오톡과 Chrome을 함께 촬영하고,
+        같은 예약을 세 역할의 관점으로 보여주기 위한 실행 문서다.
+      </p>
+
+      <div class="meta">
+        <span class="tag">단일 모니터</span>
+        <span class="tag">OBS 창 캡처</span>
+        <span class="tag">수동 시연</span>
+        <span class="tag">Remotion 편집</span>
+        <span class="tag">Cursor 프롬프트 포함</span>
+        <span class="tag">실행 전 검증 필요</span>
+      </div>
+
+      <div class="box info">
+        <p><strong>핵심 작업 방식</strong></p>
+        <p>
+          짧은 클립별 대본 확인 →
+          대본·Cursor 최소화 →
+          OBS 녹화 시작 →
+          사람이 시연 →
+          녹화 종료 →
+          결과 확인 →
+          Remotion 편집
+        </p>
+      </div>
+
+      <div class="box warning">
+        <p><strong>검증 상태</strong></p>
+        <p>
+          이 문서는 촬영·편집 계획이다.
+          실제 배포, DB 적용, 권한, 화면 문구, 녹화 및 렌더링 결과는
+          사용자 환경에서 확인해야 한다.
+          문서에 적혀 있다는 이유만으로 실행 성공을 가정하지 않는다.
+        </p>
+      </div>
+    </header>
+
+    <nav class="box screen-only">
+      <strong>목차</strong>
+      <ol class="toc">
+        <li><a href="#purpose">목적과 불변 원칙</a></li>
+        <li><a href="#tools">도구와 작업 범위</a></li>
+        <li><a href="#single-monitor">단일 모니터 촬영</a></li>
+        <li><a href="#preflight">촬영 전 확인</a></li>
+        <li><a href="#tracking">예약 추적 기록</a></li>
+        <li><a href="#script">역할별 촬영 대본</a></li>
+        <li><a href="#cue">짧은 촬영 큐시트</a></li>
+        <li><a href="#editing">장면·자막 편집안</a></li>
+        <li><a href="#remotion">Remotion 작업 기준</a></li>
+        <li><a href="#prompts">Cursor 프롬프트</a></li>
+        <li><a href="#recovery">재촬영·복구</a></li>
+        <li><a href="#final-check">최종 검증·PDF 출력</a></li>
+      </ol>
+    </nav>
+
+    <section id="purpose">
+      <h2>1. 목적과 불변 원칙</h2>
+
+      <h3>1.1 영상의 목적</h3>
+      <ul>
+        <li>카카오 메뉴에서 웹앱으로 연결되는 흐름을 보여준다.</li>
+        <li>체험객의 예약과 사무장의 관리 과정을 보여준다.</li>
+        <li>홍보 초안, 프로그램 중지, 복수 체험 배정을 보여준다.</li>
+        <li>일정 제안 → 체험객 동의 → 사무장 확정을 구분한다.</li>
+        <li>체험 담당자의 조회 전용 화면을 보여준다.</li>
+      </ul>
+
+      <h3>1.2 시연 방식</h3>
+      <p>
+        <strong>같은 예약 한 건</strong>을 체험객, 사무장, 체험 담당
+        관점에서 순차적으로 보여준다.
+        운영에서는 계정당 한 역할이며, 시연에서만 전용 계정의 역할을 전환한다.
+      </p>
+
+      <h3>1.3 시작 카드</h3>
+      <div class="subtitle">
+        실제 운영에서는 계정당 한 역할을 사용합니다.<br>
+        이 영상은 시연 계정의 역할을 순차 전환해 보여드립니다.
+      </div>
+      <div class="subtitle">
+        세 사람이 동시에 대화하는 장면이 아닙니다.
+      </div>
+      <p class="small">
+        한 화면이 길어지면 두 카드로 나눈다.
+        읽을 수 있는 표시 시간은 시험 렌더링에서 확인한다.
+      </p>
+
+      <h3>1.4 절대 하지 않는 작업</h3>
+      <ul>
+        <li>카카오톡 클릭·키 입력·메시지 발송 자동화</li>
+        <li>기존 서비스와 운영 권한 정책의 임의 변경</li>
+        <li>도선국사마을 예약 열람</li>
+        <li>비밀번호를 문서·코드·프롬프트에 기록</li>
+        <li>사용자 승인 없는 DB 실행·실제 데이터 변경</li>
+        <li>관광객에게 공개 버튼 클릭</li>
+        <li>갯벌체험 중지</li>
+        <li>확인하지 않은 기능·효과·알림 전달을 자막으로 주장</li>
+      </ul>
+    </section>
+
+    <section id="tools">
+      <h2>2. 도구와 작업 범위</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>도구</th><th>담당</th><th>주의사항</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>PC 카카오톡</td>
+              <td>사람이 메뉴 클릭·사진 선택·전송</td>
+              <td>자동 조작하지 않음</td>
+            </tr>
+            <tr>
+              <td>Chrome</td>
+              <td>사람이 실제 연결된 웹앱 조작</td>
+              <td>마을·역할·예약번호 확인</td>
+            </tr>
+            <tr>
+              <td>OBS</td>
+              <td>두 창 캡처·녹화</td>
+              <td>단축키 동작과 캡처 대상 시험</td>
+            </tr>
+            <tr>
+              <td>Cursor</td>
+              <td>검토·큐시트·편집 데이터·영상 코드</td>
+              <td>확인한 사실과 미검증을 구분</td>
+            </tr>
+            <tr>
+              <td>Remotion</td>
+              <td>자막·역할 표시·확대·렌더링</td>
+              <td>라이선스·버전·입력 영상 재생 확인</td>
+            </tr>
+            <tr>
+              <td>Playwright</td>
+              <td>선택: 웹 동선 검증·상세 장면 보충</td>
+              <td>카카오 PC 앱 조작 도구가 아님</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box">
+        <p>
+          <strong>첫 촬영에서는 큐시트 자동 실행기와 이벤트 시간 기록을 생략한다.</strong>
+          한 줄마다 터미널 Enter를 누르지 않는다.
+          녹화가 안정된 다음 필요할 때 OBS WebSocket 자동화를 추가한다.
+        </p>
+      </div>
+    </section>
+
+    <section id="single-monitor">
+      <h2>3. 단일 모니터 촬영 운영</h2>
+
+      <h3>3.1 창 배치</h3>
+      <ul>
+        <li>왼쪽: PC 카카오톡의 실제 시연 채팅창</li>
+        <li>오른쪽: 카카오 메뉴에서 연결되는 Chrome</li>
+        <li>OBS: 두 창을 각각 창 캡처 소스로 구성</li>
+        <li>Cursor·대본·터미널: 캡처 대상 제외, 촬영 중 최소화</li>
+      </ul>
+      <p>
+        카카오 영역 약 30~35%, Chrome 약 65~70%를 시작점으로 검토한다.
+        실제 글씨와 반응형 화면을 확인하고 비율을 조정한다.
+      </p>
+
+      <div class="box warning">
+        <p>
+          <strong>출력 해상도만 높여도 원본 글씨가 선명해지는 것은 아니다.</strong>
+          노트북 화면에서 확보한 실제 가독성이 기준이다.
+          Chrome 폭을 줄였을 때 모바일형 레이아웃으로 바뀌는지도 확인한다.
+        </p>
+      </div>
+
+      <h3>3.2 대본 확인</h3>
+      <ol>
+        <li>촬영할 클립의 큐시트를 읽는다.</li>
+        <li>현재 역할·마을·시작 화면·risk를 확인한다.</li>
+        <li>대본과 Cursor를 최소화한다.</li>
+        <li>시연할 창을 활성화한다.</li>
+        <li>OBS 녹화를 시작하고 시연한다.</li>
+      </ol>
+      <p>
+        휴대폰이나 종이 큐시트를 사용할 수 있으면 편리하다.
+        없어도 짧은 클립별로 대본을 읽고 촬영하면 된다.
+        중간에 대본을 확인한 구간은 편집에서 제외한다.
+      </p>
+
+      <h3>3.3 OBS 녹화 시작·종료</h3>
+      <ul>
+        <li>OBS 설정의 단축키에서 녹화 시작·종료를 지정한다.</li>
+        <li>카카오톡·Chrome·노트북 기능키와 충돌하는지 시험한다.</li>
+        <li>Enter는 녹화 단축키로 사용하지 않는다.</li>
+        <li>단축키가 안 되면 OBS에서 직접 시작하고 최소화한다.</li>
+        <li>촬영 종료 시 OBS를 열어 종료하고 앞뒤 구간을 편집한다.</li>
+      </ul>
+      <p class="small">
+        OBS를 최소화하고 다른 앱이 활성화된 상태에서도
+        단축키가 동작하는지 실제로 확인해야 한다.
+      </p>
+
+      <h3>3.4 첫 시험 녹화</h3>
+      <ul class="checklist">
+        <li>10~20초 동안 두 창을 녹화했다.</li>
+        <li>카카오와 Chrome을 오가도 두 소스가 정상 기록된다.</li>
+        <li>마우스 포인터가 의도대로 보인다.</li>
+        <li>카카오 링크가 여는 Chrome이 캡처 대상과 같다.</li>
+        <li>대본·OBS·Cursor를 열었다 닫아도 캡처 상태가 정상이다.</li>
+        <li>파일 선택창의 포함 여부를 확인했다.</li>
+        <li>녹화 파일을 재생해 글씨·프레임·노출 정보를 확인했다.</li>
+      </ul>
+
+      <p>
+        창 캡처의 가림·최소화·팝업 동작은 환경에 따라 다를 수 있다.
+        정상 동작을 가정하지 말고 시험한다.
+        시연 대상인 카카오톡과 Chrome은 촬영 중 최소화하지 않는다.
+      </p>
+    </section>
+
+    <section id="preflight">
+      <h2>4. 촬영 전 확인</h2>
+
+      <h3>4.1 배포·역할·날짜</h3>
+      <ul class="checklist">
+        <li>촬영할 코드가 배포되어 있다.</li>
+        <li><code>supabase/demo_sessions.sql</code>의 적용 여부를 확인했다.</li>
+        <li>SQL 변경이 필요하면 사용자 승인 후 수행한다.</li>
+        <li>선택한 시연 역할이 유지되는지 확인했다.</li>
+        <li>카카오 메뉴 갱신용 버튼의 정확한 이름을 확인했다.</li>
+        <li>원래 날짜가 예약 현황 조회 기간 안에 있다.</li>
+        <li>원래·변경 날짜가 갯벌체험 예약 가능한 조건이다.</li>
+        <li>변경 승인 페이지의 실제 권한 조건을 확인했다.</li>
+      </ul>
+
+      <h3>4.2 시연 데이터</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>항목</th><th>값·규칙</th></tr></thead>
+          <tbody>
+            <tr><td>마을</td><td>예시 갯벌마을</td></tr>
+            <tr><td>예약 체험</td><td>갯벌체험</td></tr>
+            <tr><td>단체 이름</td><td>없음</td></tr>
+            <tr><td>원래 시간</td><td>10:00</td></tr>
+            <tr><td>인원</td><td>4명</td></tr>
+            <tr><td>변경 시간</td><td>11:00</td></tr>
+            <tr><td>홍보 사진</td><td><code>docs_1/sample.jpg</code> — 놀이터와 가을 나무</td></tr>
+            <tr><td>중지 대상</td><td>조개잡이만</td></tr>
+            <tr><td>담당 체험</td><td>시연 담당에게 갯벌체험·소금체험</td></tr>
+            <tr><td>공개</td><td>관광객에게 공개를 누르지 않음</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>4.3 로그인·비밀번호</h3>
+      <ul>
+        <li>내 마을 로그인 아이디: <code>owner_v001</code></li>
+        <li>비밀번호는 사람이 녹화 전에 캡처되지 않는 곳에서 확인한다.</li>
+        <li>Cursor는 운영자 비밀번호 파일을 열거나 읽지 않는다.</li>
+        <li>가능하면 로그인 완료 화면부터 촬영한다.</li>
+        <li>로그인 장면이 필요하면 비밀번호 입력 구간은 편집에서 제외한다.</li>
+        <li>아이디를 공개 영상에 표시해도 되는지 확인한다.</li>
+      </ul>
+
+      <h3>4.4 risk 작업</h3>
+      <p>
+        대본 3·6·7·8·11·12·13번은 저장 또는 상태 변경이 발생한다.
+        해당 클립 시작 전에 대상과 현재 상태를 다시 확인한다.
+      </p>
+      <div class="box danger">
+        <p>
+          <strong>저장 후 녹화가 마음에 들지 않아도 같은 작업을 바로 반복하지 않는다.</strong>
+          중복 예약, 재전송, 운영 상태 반전, 반복 일정 변경을 먼저 방지한다.
+        </p>
+      </div>
+    </section>
+
+    <section id="tracking">
+      <h2>5. 예약 추적 기록표</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>항목</th><th>기록</th></tr></thead>
+          <tbody>
+            <tr><td>예약번호</td><td>________________________________</td></tr>
+            <tr><td>원래 날짜 / 시간</td><td>________________________________ / 10:00</td></tr>
+            <tr><td>변경 제안 날짜 / 시간</td><td>________________________________ / 11:00</td></tr>
+            <tr><td>최종 적용 일시</td><td>________________________________</td></tr>
+            <tr><td>마을 / 체험 / 인원</td><td>예시 갯벌마을 / 갯벌체험 / 4명</td></tr>
+            <tr><td>접수 직후 상태</td><td>대기</td></tr>
+            <tr><td>변경 동의 후 상태</td><td>대기</td></tr>
+            <tr><td>최종 승인 후 상태</td><td>승인</td></tr>
+            <tr><td>담당 화면 확인</td><td>같은 예약번호·최종 일시 / 관리 버튼 없음</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        예약번호를 중심으로 마을·체험·일시·상태를 교차 확인한다.
+        성공 문구만 보고 다음 단계로 넘어가지 않는다.
+      </p>
+    </section>
+
+    <section id="script" class="page-break">
+      <h2>6. 역할별 촬영 대본</h2>
+
+      <div class="box info">
+        <p><strong>달력 연결 장면 공통 규칙</strong></p>
+        <p>
+          카카오 달력 버튼을 누르기 전에 Chrome은 달력이 아닌 화면으로 둔다.
+          버튼 클릭 후 실제 화면이 바뀌는 모습을 남긴다.
+          카카오 버튼 이름과 웹 제목이 함께 보이도록 잠시 유지한다.
+        </p>
+      </div>
+
+      <article class="clip">
+        <h3>클립 A — 체험객 예약</h3>
+
+        <div class="step">
+          <h4>1. 체험객 역할 전환</h4>
+          <p>
+            카카오의 <strong>시연 역할</strong> →
+            Chrome의 <strong>체험객</strong>을 선택한다.
+          </p>
+          <p><strong>확인:</strong></p>
+          <ul>
+            <li>지금 역할은 체험객입니다.</li>
+            <li>체험객으로 바꿨습니다. 예약하기와 내 예약을 씁니다.</li>
+          </ul>
+          <p>
+            사전 확인한 메뉴 갱신용 카카오 버튼을 한 번 누른다.
+            체험객 역할 문장과 새 버튼을 확인한다.
+          </p>
+          <p class="small">
+            메뉴 갱신용 버튼 이름: ________________________________
+          </p>
+        </div>
+
+        <div class="step">
+          <h4>2. 예약 달력 연결</h4>
+          <p><strong>시작:</strong> 오른쪽은 시연 역할 화면.</p>
+          <p>
+            카카오 <strong>예약하기</strong> →
+            예시 갯벌마을 카드 →
+            <strong>달력으로 예약</strong>.
+          </p>
+          <p>
+            <strong>확인:</strong> Chrome이 해당 마을 예약 달력으로 바뀜.
+            버튼과 달력 제목을 함께 보여준다.
+          </p>
+          <p><strong>금지:</strong> 이 연결 장면에서는 예약 제출하지 않음.</p>
+        </div>
+
+        <div class="step">
+          <h4>3. 예약 접수 <span class="risk">risk</span></h4>
+          <p>
+            미리 정한 빈 날짜 →
+            갯벌체험 →
+            단체 이름 없음 →
+            10:00 →
+            4명 →
+            <strong>이 날짜에 예약</strong>.
+          </p>
+          <p>
+            <strong>확인:</strong> 예약번호·접수 결과·목록의 대기 상태.
+            번호와 일시를 기록하고 결과 화면을 유지한다.
+          </p>
+          <p>
+            <strong>실패:</strong> 다시 제출하지 않고 예약 생성 여부부터 확인.
+          </p>
+        </div>
+      </article>
+
+      <article class="clip">
+        <h3>클립 B — 사무장 홍보</h3>
+
+        <div class="step">
+          <h4>4. 사무장 역할 전환</h4>
+          <p>시연 역할 → 사무장 → 메뉴 갱신.</p>
+          <ul>
+            <li>지금 역할은 사무장입니다.</li>
+            <li>사무장으로 바꿨습니다. 예약 현황, 달력, 홍보 사진을 씁니다.</li>
+            <li>카카오의 역할 문장과 새 버튼 확인.</li>
+          </ul>
+        </div>
+
+        <div class="step">
+          <h4>5. 내 마을</h4>
+          <p>
+            Chrome에서 내 마을을 열고 사람이 로그인한다.
+            예시 갯벌마을 운영 현황을 확인한다.
+          </p>
+          <p class="small">
+            로그인 자체가 핵심이 아니면 완료 화면부터 사용한다.
+            비밀번호 입력 구간은 공개 영상에서 제외한다.
+          </p>
+        </div>
+
+        <div class="step">
+          <h4>6. 홍보 초안 <span class="risk">risk</span></h4>
+          <p>
+            카카오 <strong>홍보 사진</strong> →
+            <code>docs_1/sample.jpg</code> 선택 →
+            사람이 전송.
+          </p>
+          <p>
+            <strong>확인:</strong> 카카오에 소개글·SNS 홍보문구,
+            내 마을에 같은 초안 표시.
+          </p>
+          <p>
+            <strong>금지:</strong> 관광객에게 공개를 누르지 않음.
+            초안이 안 나오면 재전송하지 않고 중단.
+          </p>
+        </div>
+      </article>
+
+      <article class="clip">
+        <h3>클립 C — 체험 운영과 담당 배정</h3>
+
+        <div class="step">
+          <h4>7. 조개잡이 중지 <span class="risk">risk</span></h4>
+          <p>프로그램에서 조개잡이의 <strong>중지</strong>를 누른다.</p>
+          <p>
+            <strong>확인:</strong> 조개잡이 버튼은 운영으로 바뀜.
+            갯벌체험 버튼은 중지인 상태로 유지.
+          </p>
+          <p><strong>금지:</strong> 갯벌체험 중지 클릭.</p>
+        </div>
+
+        <div class="step">
+          <h4>8. 담당 체험 배정 <span class="risk">risk</span></h4>
+          <p>
+            체험 담당의 시연 담당 카드 →
+            갯벌체험 검색·선택 →
+            소금체험이 없으면 추가 →
+            <strong>저장</strong>.
+          </p>
+          <p>
+            <strong>확인:</strong> 체험 담당을 저장했습니다.
+            카드에 두 체험 표시.
+          </p>
+        </div>
+      </article>
+
+      <article class="clip">
+        <h3>클립 D — 예약 확인과 변경 제안</h3>
+
+        <div class="step">
+          <h4>9. 예약 현황</h4>
+          <p>카카오 <strong>예약 현황 조회</strong>를 누른다.</p>
+          <p>
+            <strong>확인:</strong> 조회 기간의 답에 같은 예약번호와 대기 상태.
+          </p>
+          <p>
+            <strong>실패:</strong> 새 예약을 만들지 않고 날짜·조회 기간 확인.
+          </p>
+        </div>
+
+        <div class="step">
+          <h4>10. 사무장 달력 연결</h4>
+          <p><strong>시작:</strong> 시연 역할 화면 또는 내 마을.</p>
+          <p>
+            카카오 <strong>체험 달력 조회</strong> →
+            <strong>달력 열기</strong>.
+          </p>
+          <p>
+            <strong>확인:</strong> 예시 갯벌마을 예약 승인 화면.
+            같은 예약에 승인·거절·일정 변경 버튼.
+          </p>
+          <p>
+            버튼과 웹 제목을 함께 보여준다.
+            이 연결 장면에서는 관리 버튼을 누르지 않는다.
+          </p>
+        </div>
+
+        <div class="step">
+          <h4>11. 다른 일시 제안 <span class="risk">risk</span></h4>
+          <p>
+            같은 예약의 <strong>일정 변경</strong> →
+            미리 정한 다른 날짜 →
+            11:00 →
+            <strong>이 날짜로 제안</strong>.
+          </p>
+          <p><strong>확인:</strong> 일정 변경을 제안했습니다.</p>
+          <p><strong>금지:</strong> 변경 승인 주소 추정·직접 생성.</p>
+        </div>
+      </article>
+
+      <article class="clip">
+        <h3>클립 E — 체험객 동의와 사무장 확정</h3>
+
+        <div class="box warning">
+          <p>
+            <strong>권한 사전 확인:</strong>
+            변경 승인 페이지에 체험객 역할이 필요한지 확인한다.
+            필요하면 체험객으로 전환하고 이후 사무장으로 복귀한다.
+            예약별 승인 링크라면 실제 권한 조건에 맞춰 진행한다.
+          </p>
+          <p>
+            영상의 업무 주체 표시와 실제 로그인 역할을 혼동하지 않는다.
+          </p>
+        </div>
+
+        <div class="step">
+          <h4>12. 체험객 변경 동의 <span class="risk">risk</span></h4>
+          <p>
+            같은 대화에 실제 도착한 링크를 Chrome에서 연다.
+            예약번호와 제안 일시 확인 →
+            <strong>변경 승인</strong>.
+          </p>
+          <p>
+            <strong>확인:</strong>
+            변경을 승인했습니다. 예약은 대기입니다.
+            변경 일시도 실제 반영됐는지 확인한다.
+          </p>
+          <p><strong>실패:</strong> 링크가 안 오면 주소를 만들지 않고 중단.</p>
+        </div>
+
+        <div class="step">
+          <h4>13. 사무장 최종 승인 <span class="risk">risk</span></h4>
+          <p>
+            필요하면 사무장 복귀 →
+            사무장 달력 →
+            같은 예약번호·변경 일시 확인 →
+            <strong>승인</strong>.
+          </p>
+          <p><strong>확인:</strong> 예약 상태가 승인으로 바뀜.</p>
+        </div>
+
+        <div class="box success">
+          <p>
+            <strong>체험객 변경 승인 = 일정 동의</strong><br>
+            <strong>사무장 최종 승인 = 예약 확정</strong>
+          </p>
+        </div>
+      </article>
+
+      <article class="clip">
+        <h3>클립 F — 체험 담당 조회</h3>
+
+        <div class="step">
+          <h4>14. 체험 담당 역할 전환</h4>
+          <p>시연 역할 → 체험 담당 → 메뉴 갱신.</p>
+          <ul>
+            <li>지금 역할은 체험 담당입니다.</li>
+            <li>체험 담당으로 바꿨습니다. 달력은 보기만 합니다.</li>
+            <li>카카오 역할 문장과 새 버튼 확인.</li>
+          </ul>
+        </div>
+
+        <div class="step">
+          <h4>15. 담당 달력 연결</h4>
+          <p><strong>시작:</strong> 오른쪽은 시연 역할 화면.</p>
+          <p>
+            카카오 <strong>체험 달력 조회</strong> →
+            <strong>달력 열기</strong>.
+          </p>
+          <p>
+            <strong>확인:</strong> 제목 체험 일정.
+            같은 예약번호·최종 일시 표시.
+            승인·거절·일정 변경 버튼 없음.
+          </p>
+          <p>연결 장면과 조회 전용 화면을 각각 충분히 남긴다.</p>
+        </div>
+      </article>
+    </section>
+
+    <section id="cue" class="page-break">
+      <h2>7. 촬영 중 확인할 짧은 큐시트</h2>
+      <p>휴대폰·종이로 보거나, 클립 시작 전에 읽고 대본 창을 최소화한다.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>클립</th><th>짧은 순서</th><th>핵심 확인·중단 조건</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>A 체험객</td>
+              <td>역할 → 메뉴 갱신 → 예약 달력 → 입력 → 접수</td>
+              <td>예약번호·일시·대기. 생성 실패 시 재제출 금지.</td>
+            </tr>
+            <tr>
+              <td>B 홍보</td>
+              <td>사무장 → 내 마을 → 사진 전송 → 두 화면 초안</td>
+              <td>공개 금지. 결과 없으면 재전송 금지.</td>
+            </tr>
+            <tr>
+              <td>C 운영</td>
+              <td>조개잡이 중지 → 담당 두 체험 → 저장</td>
+              <td>갯벌체험 운영 유지. 두 체험 저장 확인.</td>
+            </tr>
+            <tr>
+              <td>D 제안</td>
+              <td>같은 예약 조회 → 달력 연결 → 다른 일시 제안</td>
+              <td>예약번호 일치. 주소 추정 금지.</td>
+            </tr>
+            <tr>
+              <td>E 승인</td>
+              <td>실제 링크 → 변경 동의 → 대기 → 사무장 승인</td>
+              <td>권한·변경 일시 확인. 링크 없으면 중단.</td>
+            </tr>
+            <tr>
+              <td>F 담당</td>
+              <td>담당 역할 → 메뉴 갱신 → 달력 연결</td>
+              <td>같은 예약·최종 일시. 관리 버튼 없음.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>각 클립 공통 순서</h3>
+      <ol>
+        <li>현재 역할·데이터·시작 화면·risk 확인</li>
+        <li>대본 최소화, 시연 창 활성화</li>
+        <li>녹화 시작 후 2~3초 여유</li>
+        <li>시연 수행</li>
+        <li>결과 화면 3~5초 여유</li>
+        <li>녹화 종료와 재생 확인</li>
+        <li>예약 기록·촬영 메모 업데이트</li>
+      </ol>
+    </section>
+
+    <section id="editing">
+      <h2>8. 장면·자막 편집안</h2>
+      <p>
+        촬영 클립과 최종 편집 장면은 다르다.
+        기존 클립 안에서 여러 장면을 나눠 사용한다.
+        대본만으로 타임코드를 확정하지 않는다.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>장면</th><th>원본</th><th>자막 초안</th><th>화면</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>예약 연결</td><td>A-2</td>
+              <td>카카오에서 ‘달력으로 예약’을 누르면 웹 예약 달력이 열립니다.</td>
+              <td>두 창 → 웹 확대</td>
+            </tr>
+            <tr>
+              <td>예약 접수</td><td>A-3</td>
+              <td>갯벌체험을 예약합니다. 접수된 예약은 대기 상태입니다.</td>
+              <td>입력 → 결과</td>
+            </tr>
+            <tr>
+              <td>홍보 초안</td><td>B-3</td>
+              <td>사진을 보내 소개글과 SNS 홍보문구 초안을 만듭니다.</td>
+              <td>카카오 → 웹 초안</td>
+            </tr>
+            <tr>
+              <td>체험 중지</td><td>C-1</td>
+              <td>조개잡이만 중지하고, 갯벌체험은 운영 상태로 유지합니다.</td>
+              <td>프로그램 확대</td>
+            </tr>
+            <tr>
+              <td>담당 배정</td><td>C-2</td>
+              <td>시연 담당에게 갯벌체험과 소금체험을 배정합니다.</td>
+              <td>담당 카드 확대</td>
+            </tr>
+            <tr>
+              <td>예약 확인</td><td>D-1~2</td>
+              <td>사무장이 접수된 예약을 확인하고 관리 달력을 엽니다.</td>
+              <td>두 창 → 같은 예약</td>
+            </tr>
+            <tr>
+              <td>일정 제안</td><td>D-3</td>
+              <td>사무장이 다른 날짜와 시간을 제안합니다.</td>
+              <td>변경 입력·결과</td>
+            </tr>
+            <tr>
+              <td>변경 동의</td><td>E-1</td>
+              <td>체험객이 변경 일정에 동의합니다. 예약은 아직 대기입니다.</td>
+              <td>변경 승인 결과</td>
+            </tr>
+            <tr>
+              <td>최종 승인</td><td>E-2</td>
+              <td>사무장이 최종 승인하면 예약이 확정됩니다.</td>
+              <td>일시·승인 상태</td>
+            </tr>
+            <tr>
+              <td>담당 조회</td><td>F-2</td>
+              <td>체험 담당은 맡은 체험의 예약을 조회합니다.</td>
+              <td>조회 전용 화면</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>8.1 확인 후 추가하는 설명</h3>
+      <ul>
+        <li>
+          <strong>비공개:</strong>
+          “공개하기 전에는 홍보 초안이 마을 소개에 표시되지 않습니다.”
+          실제 동작 확인 후 사용.
+        </li>
+        <li>
+          <strong>개선 배경:</strong>
+          “여러 체험을 맡는 현장 의견을 반영해 복수 배정으로 개선했습니다.”
+          인터뷰·개발 이력으로 확인 후 사용.
+        </li>
+        <li>
+          <strong>담당 권한:</strong>
+          “승인과 일정 변경은 하지 않습니다.”
+          화면과 권한 검증 후 사용.
+        </li>
+      </ul>
+
+      <h3>8.2 역할·자막 디자인</h3>
+      <ul>
+        <li>상단: 역할명 + 시연 계정</li>
+        <li>하단: 최대 두 줄, 주요 버튼과 입력칸을 가리지 않음</li>
+        <li>색상만으로 역할을 구분하지 않음</li>
+        <li>변경 동의는 실제 구현에 맞춰 체험객 응답 시연으로 표시</li>
+        <li>조작 설명·결과 설명·개선 배경을 구분</li>
+        <li>긴 문장은 여러 화면으로 나눔</li>
+        <li>과도한 흔들림·바운스 효과 제외</li>
+      </ul>
+    </section>
+
+    <section id="remotion">
+      <h2>9. Remotion 작업 기준</h2>
+
+      <h3>9.1 구현 순서</h3>
+      <ol>
+        <li>사용 조건·라이선스·설치 환경 확인</li>
+        <li>원본 영상 길이·해상도·코덱 확인</li>
+        <li>원본 재생만 검증</li>
+        <li>20~30초 구간에 자막·역할 표시</li>
+        <li>실제 영상 기준 확대 적용</li>
+        <li>시험 렌더링·사용자 검토</li>
+        <li>승인 후 전체 확장</li>
+      </ol>
+
+      <h3>9.2 레이어</h3>
+      <ul>
+        <li>원본 영상: 확대 대상</li>
+        <li>역할 표시: 확대 영향 없음</li>
+        <li>설명 자막: 확대 영향 없음</li>
+        <li>강조 효과: 실제 위치·시점 확인 후</li>
+        <li>전환 카드: 역할 변경 사실 표시</li>
+      </ul>
+
+      <h3>9.3 데이터 관리</h3>
+      <p>
+        클립 이름, 대본 번호, 역할, 자막, 시간, 확대 영역,
+        절단 구간, 검증 상태를 코드와 분리한다.
+      </p>
+      <ul>
+        <li>영상 확인 전 시간·좌표: 미정</li>
+        <li>확인 후: 실제 영상에 맞춰 확정</li>
+        <li>확대 좌표: OBS 최종 영상 기준</li>
+        <li>원본을 자르면 시간 매핑도 수정</li>
+        <li>실제 클릭과 일치하지 않는 포인터 효과를 만들지 않음</li>
+      </ul>
+
+      <h3>9.4 Playwright 보충 조건</h3>
+      <p>
+        웹 글씨가 너무 작거나 반복 검증이 필요한 경우에만 승인 후 사용한다.
+        카카오 링크 연결 장면은 실제 OBS 녹화를 유지한다.
+      </p>
+      <ul>
+        <li>같은 역할·마을·예약번호·데이터 상태로 보충</li>
+        <li>별도 촬영을 무편집 연속 실행처럼 표현하지 않음</li>
+        <li>웹 상세 보기 장면으로 구분 가능</li>
+        <li>카카오 PC 앱 자동 조작에 사용하지 않음</li>
+      </ul>
+    </section>
+
+    <section id="prompts" class="page-break">
+      <h2>10. Cursor 프롬프트</h2>
+      <p>
+        HTML 문서를 프로젝트에 직접 저장하고 파일을 참조시킨다.
+        Cursor가 파일 내용을 읽었는지 확인한 뒤 아래 프롬프트를 단계별로 전달한다.
+        한 번에 전체 작업을 실행시키지 않는다.
+      </p>
+
+      <h3>프롬프트 1 — 실행 전 검토</h3>
+      <pre class="prompt">이 HTML 문서를 체험마을 AI사무장 시연 영상의 작업 명세로 읽어줘.
+
+촬영 환경은 보조 모니터 없는 노트북이다.
+PC 카카오톡과 Chrome 두 창만 OBS 창 캡처한다.
+카카오톡과 Chrome은 사람이 직접 조작한다.
+
+지금은 실행 전 검토만 진행한다.
+코드 수정, DB 실행, 예약 생성, 사진 전송, 촬영, 렌더링은 하지 않는다.
+
+확인:
+1. 운영체제·OBS·Node.js·Remotion 환경
+2. 역할 유지에 필요한 배포·DB 조건
+3. 카카오 메뉴 갱신용 정확한 버튼
+4. 예약 현황 조회 기간과 촬영 날짜
+5. 변경 승인 페이지의 실제 권한 방식
+6. 담당 배정과 담당 달력 표시 조건
+7. 홍보 초안의 비공개 동작
+8. risk 단계 중복 실행 위험
+9. 두 창 캡처와 파일 선택창·새 창 처리
+10. Remotion 라이선스 적용 조건
+
+규칙:
+- 기존 서비스 코드를 변경하지 않는다.
+- 비밀번호 파일을 열거나 읽지 않는다.
+- 다른 마을 예약·실제 고객 데이터를 열지 않는다.
+- SQL은 검토만 하고 승인 없이 실행하지 않는다.
+- 확인하지 않은 UI·권한·동작을 추정하지 않는다.
+- 문서상 가능과 실제 실행 성공을 구분한다.
+
+결과:
+- 코드로 확인
+- 실제 실행으로 확인
+- 사용자 확인 필요
+- 미검증
+- 수정 제안
+
+보고 후 승인을 기다린다.</pre>
+
+      <h3>프롬프트 2 — 단일 모니터 촬영 준비</h3>
+      <pre class="prompt">문서의 단일 모니터 운영 기준으로 촬영 준비안을 정리해줘.
+
+범위:
+- 카카오톡과 실제 연결된 Chrome의 OBS 창 캡처
+- OBS 녹화 시작·종료 단축키 검토
+- 10~20초 시험 녹화 체크리스트
+- 클립 A~F별 짧은 큐시트
+- 각 클립의 시작 화면·risk·성공 확인·중단 조건
+
+제외:
+- 한 줄마다 터미널 Enter로 진행하는 방식
+- 자동 큐시트 실행기 구현
+- 카카오톡 자동 조작
+- Chrome 자동 조작
+- 기존 서비스 변경
+
+창 캡처의 가림·팝업·최소화 동작은 실제 테스트 항목으로 둔다.
+단축키가 안 될 때 OBS에서 직접 시작·종료하는 대안도 작성한다.
+설정 완료라고 추정하지 말고 사용자 확인 항목으로 보고한다.</pre>
+
+      <h3>프롬프트 3 — 클립·자막 편집안</h3>
+      <pre class="prompt">현재 촬영 대본은 유지하고 최종 영상의 클립·자막 편집안을 제안해줘.
+
+장면별 항목:
+- 장면 ID와 제목
+- 원본 클립 A~F
+- 대응 대본 번호
+- 보여줄 행동과 결과
+- 반드시 남길 화면
+- 줄여도 되는 대기·반복 구간
+- 자막 초안
+- 전체 화면 / 카카오 확대 / 웹 확대
+- 역할 표시
+- 확인 필요 사항
+
+규칙:
+- 녹화 클립과 최종 편집 장면을 구분한다.
+- 추가 촬영보다 기존 녹화 활용을 먼저 검토한다.
+- 영상 확인 전 타임코드와 확대 좌표는 미정이다.
+- 자막은 하단 최대 두 줄이다.
+- 조작 설명과 개선 배경을 구분한다.
+- 세 사람이 동시에 사용한 것처럼 편집하지 않는다.
+- 일정 절차는 사무장 제안 → 체험객 동의 → 사무장 확정이다.
+- 현재 로그인 역할과 업무상 행동 주체를 혼동하지 않는다.
+- 구현되지 않은 기능·확인되지 않은 효과를 추가하지 않는다.
+
+지금은 코드 작성과 렌더링을 하지 않는다.
+편집안을 보고하고 승인을 기다린다.</pre>
+
+      <h3>프롬프트 4 — 원본 영상 확인</h3>
+      <pre class="prompt">녹화 원본과 승인된 편집안을 비교해줘.
+
+원본별 확인:
+- 길이·해상도·재생 가능 여부
+- 대본 단계 대응
+- 예약번호·일시·상태 연결
+- 역할 표시와 실제 화면 일치
+- 개인정보·비밀번호·다른 채팅 노출
+- 사용할 구간과 제외할 구간
+- 자막 표시 시점
+- 실제 확대 영역
+
+영상을 직접 확인할 수 없다면 확인했다고 보고하지 않는다.
+메타데이터만 확인한 경우와 화면까지 확인한 경우를 구분한다.
+필요하면 사용자에게 특정 장면 캡처나 시간을 요청한다.
+
+절대 시간과 원본 기준 시간을 혼용하지 않는다.
+추가 촬영이 필요하면 이유와 최소 범위를 제안한다.</pre>
+
+      <h3>프롬프트 5 — Remotion 한 구간 제작</h3>
+      <pre class="prompt">승인된 편집안과 실제 원본을 기준으로
+Remotion에서 20~30초 구간만 먼저 제작해줘.
+
+순서:
+1. 라이선스와 환경 확인
+2. 설치된 패키지 버전 확인
+3. 공식 문서·Agent Skills 확인
+4. 원본 재생 검증
+5. 실제 시간·확대 영역 확정
+6. 자막과 역할 표시
+7. 확대 효과
+8. 시험 렌더링
+
+규칙:
+- 원본 비율을 유지한다.
+- 자막과 역할 표시는 확대되지 않게 한다.
+- 자막·시간·역할·확대 정보는 데이터로 분리한다.
+- 한글 폰트가 최종 렌더에서 정상인지 확인한다.
+- 임의의 클릭 위치나 결과를 만들지 않는다.
+- 영상 확인이 불가능하면 필요한 값을 요청한다.
+- 기존 웹서비스를 수정하지 않는다.
+- 작업 완료와 미검증을 구분한다.
+
+전체 확장은 시험 결과에 대한 사용자 승인 후 진행한다.</pre>
+
+      <h3>프롬프트 6 — 전체 확장·최종 검증</h3>
+      <pre class="prompt">승인된 시험 구간의 스타일을 전체 영상으로 확장해줘.
+
+포함:
+- 시작 안내 카드
+- 역할 전환 표시
+- 같은 예약의 연결
+- 사무장 제안·체험객 동의·사무장 확정 구분
+- 담당 조회 전용 화면
+- 자막·확대·전환의 일관성
+
+검증:
+- 예약번호·최종 일시·상태
+- 역할 표시
+- 자막 오탈자
+- 개인정보
+- 한글 폰트
+- 작은 화면 가독성
+- 편집으로 처리 속도를 과장하지 않는지
+- 별도 촬영을 무편집 연속 실행처럼 보이게 하지 않는지
+
+실제 실행으로 확인한 것과 미검증을 분리해 보고한다.
+사용자 최종 검토 전 제출용 완성이라고 단정하지 않는다.</pre>
+    </section>
+
+    <section id="recovery">
+      <h2>11. 재촬영·복구·기록</h2>
+
+      <h3>11.1 재촬영 전</h3>
+      <ul class="checklist">
+        <li>예약이 이미 생성됐는지 확인</li>
+        <li>현재 예약 일시·상태 확인</li>
+        <li>현재 역할 확인</li>
+        <li>조개잡이 운영 상태 확인</li>
+        <li>담당 배정·홍보 초안 저장 여부 확인</li>
+        <li>기능 재실행 없이 다시 찍을 수 있는지 검토</li>
+      </ul>
+
+      <h3>11.2 촬영 종료 후</h3>
+      <p>다음 항목의 유지·복구 여부를 사람이 결정한다.</p>
+      <ul>
+        <li>시연 계정의 최종 역할</li>
+        <li>조개잡이 운영 상태</li>
+        <li>시연 담당 배정</li>
+        <li>테스트 예약</li>
+        <li>홍보 초안·공개 상태</li>
+      </ul>
+      <p><strong>운영 데이터를 임의 초기화·삭제하지 않는다.</strong></p>
+
+      <h3>11.3 작업 보고</h3>
+      <pre class="prompt">## 작업 보고
+
+### 수행
+- 실제 수행한 작업:
+
+### 검증
+- 실제 실행으로 확인:
+- 코드로 확인:
+- 사용자 확인:
+- 미검증:
+
+### 문제
+- 발견한 문제:
+- 영향:
+- 해결 또는 제안:
+
+### 다음 단계
+- 사용자 결정 사항:
+- 다음 작업:</pre>
+    </section>
+
+    <section id="final-check">
+      <h2>12. 최종 검증·PDF 출력</h2>
+
+      <h3>12.1 내용 검증</h3>
+      <ul class="checklist">
+        <li>같은 예약번호가 끝까지 이어진다.</li>
+        <li>일시·상태가 실제 화면과 일치한다.</li>
+        <li>체험객 변경 동의와 사무장 확정이 구분된다.</li>
+        <li>역할 표시가 실제 시연과 일치한다.</li>
+        <li>동시 사용으로 오해할 표현이 없다.</li>
+        <li>확인되지 않은 전달·효과를 주장하지 않는다.</li>
+      </ul>
+
+      <h3>12.2 영상·보안 검증</h3>
+      <ul class="checklist">
+        <li>카카오 버튼과 웹 제목이 보인다.</li>
+        <li>자막이 주요 조작 영역을 가리지 않는다.</li>
+        <li>작은 화면에서도 글씨를 읽을 수 있다.</li>
+        <li>최종 렌더링의 한글 폰트가 정상이다.</li>
+        <li>비밀번호·개인 채팅·다른 마을 데이터가 없다.</li>
+        <li>관광객에게 공개와 갯벌체험 중지를 누르지 않았다.</li>
+      </ul>
+
+      <h3>12.3 PDF 저장</h3>
+      <ol>
+        <li>이 HTML을 브라우저에서 연다.</li>
+        <li>상단 인쇄 / PDF 저장 또는 Ctrl + P를 누른다.</li>
+        <li>대상을 PDF로 저장으로 선택한다.</li>
+        <li>A4·세로·기본 배율을 먼저 확인한다.</li>
+        <li>필요하면 배경 그래픽을 켜고 머리글·바닥글을 끈다.</li>
+        <li>표와 프롬프트의 잘림을 인쇄 미리보기에서 확인한다.</li>
+        <li>촬영용은 6~7장에 해당하는 페이지를 골라 출력할 수 있다.</li>
+      </ol>
+      <p class="small">
+        실제 페이지 번호는 브라우저·폰트·인쇄 설정에 따라 달라진다.
+        인쇄 버튼은 인쇄 창을 열 뿐, PDF를 자동으로 생성하거나 저장하지 않는다.
+      </p>
+
+      <div class="box success">
+        <p><strong>권장 첫 실행</strong></p>
+        <p>
+          Cursor 프롬프트 1로 사전 검토 →
+          단일 모니터 시험 녹화 →
+          클립 A 촬영 →
+          한 구간 편집 검증 →
+          나머지 클립 확장.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <p>
+        이 문서는 작업 계획과 검증 기준이다.
+        실제 구현·서비스 권한·촬영 결과는 환경에서 확인해야 한다.
+        비밀번호와 토큰을 이 문서에 추가하지 않는다.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>

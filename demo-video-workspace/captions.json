@@ -1,0 +1,212 @@
+{
+  "original": {
+    "file": "A.mp4",
+    "durationSec": 33.07,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "codec": "h264"
+  },
+  "test": {
+    "id": "ClipATest",
+    "startSec": 8,
+    "endSec": 33.07,
+    "roleLabel": "체험객 · 시연 계정"
+  },
+  "booking": {
+    "number": "26",
+    "date": "2026-11-14",
+    "time": "10:00",
+    "program": "갯벌체험",
+    "groupName": "없음",
+    "people": 4,
+    "sentenceStatus": "대기",
+    "listRowVisible": false
+  },
+  "scenes": [
+    {
+      "id": "A-2",
+      "title": "예약 연결",
+      "caption": "카카오에서 ‘달력으로 예약’을 누르면 웹 예약 달력이 열립니다.",
+      "startSec": 12,
+      "endSec": 14.3
+    },
+    {
+      "id": "A-3",
+      "title": "예약 접수",
+      "caption": "갯벌체험을 예약합니다. 접수된 예약은 대기 상태입니다.",
+      "startSec": 28.6,
+      "endSec": 33.07
+    },
+    {
+      "id": "B-3",
+      "title": "홍보 초안",
+      "caption": "사진을 보내 소개글과 SNS 홍보문구 초안을 만듭니다.",
+      "captionLines": ["사진을 보내 소개글과 SNS 홍보문구", "초안을 만듭니다."],
+      "startSec": 28.2,
+      "endSec": 31,
+      "spans": [
+        {"startSec": 28.2, "endSec": 31},
+        {"startSec": 50, "endSec": 53.6}
+      ]
+    },
+    {
+      "id": "C-1",
+      "title": "체험 중지",
+      "caption": "조개잡이만 중지하고, 갯벌체험은 운영 상태로 유지합니다.",
+      "captionLines": ["조개잡이만 중지하고, 갯벌체험은", "운영 상태로 유지합니다."],
+      "startSec": 4.2,
+      "endSec": 6.2
+    },
+    {
+      "id": "C-2",
+      "title": "담당 배정",
+      "caption": "시연 담당에게 갯벌체험과 소금체험을 배정합니다.",
+      "captionLines": ["시연 담당에게 갯벌체험과", "소금체험을 배정합니다."],
+      "startSec": 12,
+      "endSec": 16.8
+    },
+    {
+      "id": "D-1-2",
+      "title": "예약 확인",
+      "caption": "사무장이 접수된 예약을 확인하고 관리 달력을 엽니다.",
+      "captionLines": ["사무장이 접수된 예약을 확인하고", "관리 달력을 엽니다."],
+      "startSec": 4,
+      "endSec": 19
+    },
+    {
+      "id": "D-3",
+      "title": "일정 제안",
+      "caption": "사무장이 다른 날짜와 시간을 제안합니다.",
+      "captionLines": ["사무장이 다른 날짜와 시간을", "제안합니다."],
+      "startSec": 28.5,
+      "endSec": 34
+    },
+    {
+      "id": "E-1",
+      "title": "변경 동의",
+      "caption": "체험객이 변경 일정에 동의합니다. 예약은 아직 대기입니다.",
+      "captionLines": ["체험객이 변경 일정에 동의합니다.", "예약은 아직 대기입니다."],
+      "startSec": 19,
+      "endSec": 21.8
+    },
+    {
+      "id": "E-2",
+      "title": "최종 승인",
+      "caption": "사무장이 최종 승인하면 예약이 확정됩니다.",
+      "captionLines": ["사무장이 최종 승인하면", "예약이 확정됩니다."],
+      "startSec": 34,
+      "endSec": 38.57
+    },
+    {
+      "id": "F-2",
+      "title": "담당 조회",
+      "caption": "체험 담당은 맡은 체험의 예약을 조회합니다.",
+      "captionLines": ["체험 담당은 맡은 체험의", "예약을 조회합니다."],
+      "startSec": 14.2,
+      "endSec": 17.2
+    },
+    {
+      "id": "F-auth",
+      "title": "담당 권한",
+      "caption": "승인과 일정 변경은 하지 않습니다.",
+      "captionLines": ["승인과 일정 변경은", "하지 않습니다."],
+      "startSec": 17.2,
+      "endSec": 19.23
+    }
+  ],
+  "b": {
+    "original": {
+      "file": "B.mp4",
+      "durationSec": 56.27,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264"
+    },
+    "test": {
+      "id": "ClipBTest",
+      "roleLabel": "사무장 · 시연 계정",
+      "segments": [
+        {"startSec": 23, "endSec": 31},
+        {"startSec": 44, "endSec": 56.2}
+      ]
+    }
+  },
+  "c": {
+    "original": {
+      "file": "C.mp4",
+      "durationSec": 16.8,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264"
+    },
+    "test": {
+      "id": "ClipCTest",
+      "roleLabel": "사무장 · 시연 계정",
+      "segments": [
+        {"startSec": 3, "endSec": 16.8}
+      ]
+    }
+  },
+  "d": {
+    "original": {
+      "file": "D.mp4",
+      "durationSec": 35.3,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264"
+    },
+    "test": {
+      "id": "ClipDTest",
+      "roleLabel": "사무장 · 시연 계정",
+      "segments": [
+        {"startSec": 4, "endSec": 34}
+      ]
+    }
+  },
+  "e": {
+    "original": {
+      "file": "E.mp4",
+      "durationSec": 38.57,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264"
+    },
+    "test": {
+      "id": "ClipETest",
+      "roleLabel": "체험객 · 시연 계정",
+      "segments": [
+        {"startSec": 16, "endSec": 38.57}
+      ],
+      "roleSpans": [
+        {"startSec": 16, "endSec": 23.6, "roleLabel": "체험객 · 시연 계정"},
+        {"startSec": 23.6, "endSec": 38.57, "roleLabel": "사무장 · 시연 계정"}
+      ]
+    }
+  },
+  "f": {
+    "original": {
+      "file": "F.mp4",
+      "durationSec": 19.23,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "codec": "h264"
+    },
+    "test": {
+      "id": "ClipFTest",
+      "roleLabel": "사무장 · 시연 계정",
+      "segments": [
+        {"startSec": 4, "endSec": 19.23}
+      ],
+      "roleSpans": [
+        {"startSec": 4, "endSec": 5, "roleLabel": "사무장 · 시연 계정"},
+        {"startSec": 5, "endSec": 19.23, "roleLabel": "체험 담당 · 시연 계정"}
+      ]
+    }
+  }
+}
