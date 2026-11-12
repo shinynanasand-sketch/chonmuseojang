@@ -154,14 +154,17 @@ function addStatusButtons(item, row) {
   item.appendChild(actions);
 }
 
-function addAnswerButtons(item) {
+function addAnswerButtons(item, row) {
   const actions = document.createElement("div");
   actions.className = "card-actions";
   ["accept", "decline"].forEach((decision) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = decision === "accept" ? "변경 승인" : "변경 거부";
-    button.addEventListener("click", () => answerChange(decision));
+    button.addEventListener("click", () => {
+      if (mode === "guest") answerGuestChange(row, decision);
+      else answerChange(decision);
+    });
     actions.appendChild(button);
   });
   item.appendChild(actions);
@@ -213,6 +216,9 @@ function fillBoard(slot, title, rows, emptyText, withActions) {
     appendSlot(card, row);
     card.appendChild(meta);
     if (withActions) addStatusButtons(card, row);
+    if (mode === "guest" && row.status === "pending" && row.proposed_visit_date) {
+      addAnswerButtons(card, row);
+    }
     slot.appendChild(card);
   });
 }
@@ -286,6 +292,16 @@ function revealGuestBooking() {
   if (block) block.scrollIntoView({block: "start"});
 }
 
+function guestStatusText() {
+  const offered = (snapshot.bookings || []).some(
+    (row) => row.status === "pending" && row.proposed_visit_date,
+  );
+  if (offered) return "변경 제안이 있으면 변경 승인 또는 변경 거부를 누릅니다. 승인해도 예약은 대기입니다.";
+  return (snapshot.experience_names || []).length
+    ? "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다."
+    : "운영 중인 체험이 없습니다.";
+}
+
 function snapshotPath() {
   if (mode === "guest") return `/api/book/${token}`;
   if (mode === "change") return `/api/change/${token}`;
@@ -329,9 +345,7 @@ async function load(keepStatus) {
   if (legend) legend.hidden = mode === "change";
   if (!keepStatus) {
     if (mode === "guest") {
-      statusNode.textContent = (snapshot.experience_names || []).length
-        ? "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다."
-        : "운영 중인 체험이 없습니다.";
+      statusNode.textContent = guestStatusText();
     } else if (mode === "change") {
       statusNode.textContent = snapshot.open
         ? "제안한 날짜를 보고 변경을 승인하거나 거부합니다."
@@ -405,14 +419,22 @@ function showDay(key) {
     if (row.status === "pending") item.classList.add("booking-pending");
     if (row.status === "confirmed") item.classList.add("booking-confirmed");
     const clock = row.visit_time ? ` ${row.visit_time}` : "";
+    const text = document.createElement("span");
+    text.className = "day-text";
     if (mode === "change") {
       const originalClock = row.original_visit_time ? ` ${row.original_visit_time}` : "";
       const original = row.original_visit_date ? ` 원래 ${row.original_visit_date}${originalClock}` : "";
-      item.textContent = `${row.booking_id}번 ${row.label}${clock} ${partyText(row)}${bookingTotal(row)}${original}`;
-      if (snapshot.open) addAnswerButtons(item);
+      text.textContent = `${row.booking_id}번 ${row.label}${clock} ${partyText(row)}${bookingTotal(row)}${original}`;
     } else {
       const place = row.village_name ? `${row.village_name} ` : "";
-      item.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${partyText(row)}${bookingTotal(row)}${offerText(row)}`;
+      text.textContent = `${row.booking_id}번 ${row.status_label} ${place}${row.label}${clock} ${partyText(row)}${bookingTotal(row)}${offerText(row)}`;
+    }
+    item.appendChild(text);
+    if (mode === "change") {
+      if (snapshot.open) addAnswerButtons(item);
+    } else if (mode === "guest" && row.status === "pending" && row.proposed_visit_date) {
+      addAnswerButtons(item, row);
+    } else {
       addStatusButtons(item, row);
     }
     dayEntries.appendChild(item);
@@ -442,6 +464,22 @@ function startPropose(row) {
   const timeInput = document.getElementById("propose-time");
   if (row.visit_time) timeInput.value = String(row.visit_time).slice(0, 5);
   statusNode.textContent = "바꿀 날짜를 누른 뒤 시간을 입력하고 제안을 보냅니다.";
+}
+
+async function answerGuestChange(row, decision) {
+  const response = await fetch(`/api/book/${token}/bookings/${row.booking_id}/proposal`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      decision,
+      visit_date: row.proposed_visit_date,
+      visit_time: row.proposed_visit_time,
+    }),
+  });
+  statusNode.textContent = response.ok
+    ? (decision === "accept" ? "변경을 승인했습니다. 예약은 대기입니다." : "변경을 거부했습니다.")
+    : "이 일정 변경은 이미 끝났습니다.";
+  if (response.ok) await load(true);
 }
 
 async function answerChange(decision) {
@@ -542,7 +580,7 @@ function paintTimePicker() {
     const note = document.getElementById("guest-result");
     if (note && note.textContent === "시간을 눌러 주세요.") note.textContent = "";
     if (statusNode.textContent === "시간을 눌러 주세요.") {
-      statusNode.textContent = "대기, 승인, 거절은 위 목록에 있습니다. 새 예약은 날짜를 누릅니다.";
+      statusNode.textContent = guestStatusText();
     }
   }
   document.querySelectorAll(".time-period button").forEach((button) => {

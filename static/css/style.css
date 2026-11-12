@@ -124,6 +124,9 @@ select, input[type="search"], input[type="text"], input[type="password"] { paddi
 #time-chosen { margin: 0; }
 #time-chosen.is-set { color: #1b4332; font-weight: 700; font-size: 1.15rem; }
 #day-entries p, #day-entries .day-line { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; border-bottom: 1px solid #eee; padding: 0.5rem 0; }
+#day-entries .day-line { flex-wrap: wrap; }
+#day-entries .day-text { flex: 1 1 12rem; }
+#day-entries .day-line .card-actions { flex: 1 0 100%; }
 #day-entries .day-line.booking-pending { background: #f4c2c2; }
 #day-entries .day-line.booking-confirmed { background: #d8f3dc; }
 .guide form { display: grid; gap: 0.75rem; max-width: 24rem; margin: 1rem 0; }

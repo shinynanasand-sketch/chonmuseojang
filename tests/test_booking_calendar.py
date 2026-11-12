@@ -5,6 +5,7 @@ import pytest
 from services.auth import register_operator
 from services.booking import create_booking, get_booking_by_id
 from services.calendar_link import issue_calendar_token, issue_change_token
+from services.guest_book import issue_guest_book_link
 from services.supabase_client import (
     delete_bookings_for_village,
     delete_operator_by_kakao_id,
@@ -276,6 +277,86 @@ def test_customer_accepts_proposal_and_booking_stays_pending(test_client, bookin
     assert closed.json()["open"] is False
     again = test_client.post(f"/api/change/{change_token}", json={"decision": "accept"})
     assert again.status_code == 400
+
+
+def test_guest_status_page_accepts_own_proposal(test_client, booking_villages, monkeypatch):
+    saved, token = _pending_booking()
+    calls = _enable_event(monkeypatch)
+    proposed = test_client.post(
+        f"/api/calendar/{token}/bookings/{saved['booking_id']}/proposal",
+        json={"visit_date": "2026-11-08", "visit_time": "14:00"},
+    )
+    change_token = _change_token(proposed.json()["link"])
+    guest_token = issue_guest_book_link("book_guest", "VBOOKA").rsplit("/", 1)[-1]
+    page = test_client.get(f"/book/{guest_token}")
+    assert page.status_code == 200
+    assert 'data-mode="guest"' in page.text
+    own = test_client.get(f"/api/book/{guest_token}").json()["bookings"][0]
+    assert own["status"] == "pending"
+    assert own["visit_time"] == "10:00"
+    assert own["proposed_visit_date"] == "2026-11-08"
+    assert own["proposed_visit_time"] == "14:00"
+    other_token = issue_guest_book_link("other-guest", "VBOOKA").rsplit("/", 1)[-1]
+    denied = test_client.post(
+        f"/api/book/{other_token}/bookings/{saved['booking_id']}/proposal",
+        json={"decision": "accept", "visit_date": "2026-11-08", "visit_time": "14:00"},
+    )
+    assert denied.status_code == 403
+    stale = test_client.post(
+        f"/api/book/{guest_token}/bookings/{saved['booking_id']}/proposal",
+        json={"decision": "accept", "visit_date": "2026-11-08", "visit_time": "15:00"},
+    )
+    assert stale.status_code == 400
+    assert str(get_booking_by_id(saved["booking_id"])["visit_time"]).startswith("10:00")
+    accepted = test_client.post(
+        f"/api/book/{guest_token}/bookings/{saved['booking_id']}/proposal",
+        json={"decision": "accept", "visit_date": "2026-11-08", "visit_time": "14:00"},
+    )
+    assert accepted.status_code == 200
+    body = accepted.json()
+    assert body["status"] == "pending"
+    assert body["visit_date"] == "2026-11-08"
+    assert body["visit_time"] == "14:00"
+    assert body["proposed_visit_date"] == ""
+    row = get_booking_by_id(saved["booking_id"])
+    assert row["status"] == "pending"
+    assert str(row["visit_date"]).startswith("2026-11-08")
+    assert str(row["visit_time"]).startswith("14:00")
+    assert not row.get("proposed_visit_date")
+    answered = next(item for item in calls if item["json"]["event"]["name"] == "booking_change_answered")
+    assert answered["json"]["user"][0]["id"] == "book_owner_a"
+    assert "동의했습니다" in answered["json"]["event"]["data"]["message"]
+    assert test_client.get(f"/api/change/{change_token}").json()["open"] is False
+    again = test_client.get(f"/api/book/{guest_token}").json()["bookings"][0]
+    assert again["visit_time"] == "14:00"
+    assert again["proposed_visit_date"] == ""
+    assert again["status"] == "pending"
+
+
+def test_guest_status_page_declines_own_proposal(test_client, booking_villages, monkeypatch):
+    saved, token = _pending_booking()
+    calls = _enable_event(monkeypatch)
+    test_client.post(
+        f"/api/calendar/{token}/bookings/{saved['booking_id']}/proposal",
+        json={"visit_date": "2026-11-08", "visit_time": "14:00"},
+    )
+    guest_token = issue_guest_book_link("book_guest", "VBOOKA").rsplit("/", 1)[-1]
+    declined = test_client.post(
+        f"/api/book/{guest_token}/bookings/{saved['booking_id']}/proposal",
+        json={"decision": "decline", "visit_date": "2026-11-08", "visit_time": "14:00"},
+    )
+    assert declined.status_code == 200
+    assert declined.json()["status"] == "pending"
+    assert declined.json()["visit_date"] == "2026-11-03"
+    assert declined.json()["visit_time"] == "10:00"
+    assert declined.json()["proposed_visit_date"] == ""
+    row = get_booking_by_id(saved["booking_id"])
+    assert row["status"] == "pending"
+    assert str(row["visit_date"]).startswith("2026-11-03")
+    assert str(row["visit_time"]).startswith("10:00")
+    answered = next(item for item in calls if item["json"]["event"]["name"] == "booking_change_answered")
+    assert "거부했습니다" in answered["json"]["event"]["data"]["message"]
+    assert answered["json"]["user"][0]["id"] == "book_owner_a"
 
 
 def test_customer_declines_proposal_and_keeps_original_slot(test_client, booking_villages, monkeypatch):

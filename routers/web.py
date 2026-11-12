@@ -30,7 +30,7 @@ from services.calendar_board import (
     propose_booking_from_token,
     set_booking_status_from_token,
 )
-from services.guest_book import guest_snapshot, save_guest_booking
+from services.guest_book import answer_guest_proposal, guest_snapshot, save_guest_booking
 from services.kakao_home import home_kakao_guide
 from services.site_index import robots_txt, sitemap_xml
 from services.village_promo import list_published_villages, public_village_promo
@@ -279,6 +279,8 @@ def _calendar_result(result: dict):
         raise HTTPException(status_code=400, detail="대기 예약만 일정을 바꿀 수 있습니다.")
     if reason == "closed":
         raise HTTPException(status_code=400, detail="이 일정 변경은 이미 끝났습니다.")
+    if reason == "not_owner":
+        raise HTTPException(status_code=403, detail="이 예약의 변경은 그 손님만 답할 수 있습니다.")
     if reason == "bad_decision":
         raise HTTPException(status_code=400, detail="변경 승인 또는 변경 거부를 선택해 주세요.")
     if reason == "group_missing":
@@ -517,6 +519,19 @@ async def guest_book_save(token: str, request: Request):
         str(body.get("visit_time") or ""),
         body.get("num_people"),
         str(body.get("group_name") or ""),
+    )
+    return _calendar_result(result)
+
+
+@router.post("/api/book/{token}/bookings/{booking_id}/proposal")
+async def guest_booking_proposal(token: str, booking_id: int, request: Request):
+    body = await request.json()
+    result = answer_guest_proposal(
+        token,
+        booking_id,
+        str(body.get("decision") or ""),
+        str(body.get("visit_date") or ""),
+        str(body.get("visit_time") or ""),
     )
     return _calendar_result(result)
 

@@ -92,6 +92,24 @@ def _own_bookings(customer_kakao_id: str) -> list[dict]:
     return views
 
 
+def answer_guest_proposal(
+    token: str, booking_id, decision: str, visit_date: str, visit_time: str
+) -> dict:
+    """그 링크 손님이 자기 예약의 변경 제안에 답한다."""
+    link = guest_from_token(token)
+    if not link:
+        return {"ok": False, "reason": "not_found"}
+    from services.calendar_board import answer_customer_proposal
+
+    return answer_customer_proposal(
+        str(link["customer_kakao_id"]),
+        booking_id,
+        decision,
+        visit_date,
+        visit_time,
+    )
+
+
 def guest_snapshot(token: str) -> dict | None:
     """체험 목록과 그 링크 사용자의 예약. 다른 사람의 예약과 카카오 사용자 ID는 넣지 않는다."""
     link = guest_from_token(token)

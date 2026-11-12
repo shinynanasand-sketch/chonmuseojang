@@ -227,14 +227,8 @@ def change_snapshot(token: str) -> dict | None:
     }
 
 
-def answer_booking_change(token: str, decision: str) -> dict:
-    """고객의 변경 승인·거부. 승인해도 예약 상태는 대기다."""
-    claims = booking_from_change_token(token)
-    if claims is None:
-        return {"ok": False, "reason": "not_found"}
-    row = get_booking_by_id(claims["booking_id"])
-    if not _proposal_matches(row, claims):
-        return {"ok": False, "reason": "closed"}
+def _finish_change_decision(row: dict, decision: str) -> dict:
+    """제안 일시를 반영하거나 지운다. 예약 상태는 바꾸지 않는다."""
     if decision == "accept":
         saved = apply_booking_proposal(row["booking_id"])
         if not saved:
@@ -250,6 +244,33 @@ def answer_booking_change(token: str, decision: str) -> dict:
     view = _booking_view(saved)
     view["ok"] = True
     return view
+
+
+def answer_booking_change(token: str, decision: str) -> dict:
+    """고객의 변경 승인·거부. 승인해도 예약 상태는 대기다."""
+    claims = booking_from_change_token(token)
+    if claims is None:
+        return {"ok": False, "reason": "not_found"}
+    row = get_booking_by_id(claims["booking_id"])
+    if not _proposal_matches(row, claims):
+        return {"ok": False, "reason": "closed"}
+    return _finish_change_decision(row, decision)
+
+
+def answer_customer_proposal(
+    customer_kakao_id: str, booking_id, decision: str, visit_date: str, visit_time: str
+) -> dict:
+    """예약 상태 화면의 변경 승인·거부. 그 손님의 대기 예약만 받는다."""
+    row = get_booking_by_id(booking_id)
+    if not row or str(row.get("customer_kakao_id") or "") != str(customer_kakao_id):
+        return {"ok": False, "reason": "not_owner"}
+    claims = {
+        "proposed_visit_date": str(visit_date or "").strip()[:10],
+        "proposed_visit_time": str(visit_time or "").strip()[:5],
+    }
+    if not _proposal_matches(row, claims):
+        return {"ok": False, "reason": "closed"}
+    return _finish_change_decision(row, decision)
 
 
 def delete_calendar_from_token(token: str, label: str, visit_date: str, group_name: str) -> dict:
